@@ -196,6 +196,4 @@ Key implementation files:
 
 ## Commit
 
-The implementation commit hash is recorded here after the source commit is created.
-
-`Implementation commit: pending`
+`Implementation commit: 980df41` (`feat: ship SurgeIndex Batch 2 production core`)
