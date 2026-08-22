@@ -1,0 +1,16 @@
+{
+  "name": "surgeindex-queue-consumer",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "queues": {
+    "consumers": [
+      {
+        "queue": "surgeindex-events",
+        "max_batch_size": 100,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "dead_letter_queue": "surgeindex-events-dlq"
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "surgeindex-collector",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "queues": {
+    "producers": [
+      {
+        "queue": "surgeindex-events",
+        "binding": "EVENTS_QUEUE"
+      }
+    ]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "SITE_KEYS",
+      "id": "REPLACE_WITH_KV_ID"
+    }
+  ],
+  "vars": {
+    "HASH_SALT": "set-via-secret"
+  }
+}

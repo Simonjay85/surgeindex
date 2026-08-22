@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: surgeindex-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: surge
+      POSTGRES_PASSWORD: surge
+      POSTGRES_DB: surgeindex
+    ports:
+      - "5432:5432"
+    volumes:
+      - surgeindex-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U surge -d surgeindex"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  surgeindex-pgdata:

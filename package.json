@@ -1,0 +1,37 @@
+{
+  "name": "surgeindex",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "pnpm -F web dev",
+    "build": "pnpm tracker:build && pnpm -F web build",
+    "start": "pnpm -F web start",
+    "preview": "pnpm -F web preview",
+    "deploy": "pnpm -F web deploy",
+    "typecheck": "pnpm -r --parallel typecheck",
+    "lint": "pnpm -F web lint",
+    "test": "pnpm -r --parallel test",
+    "test:e2e": "pnpm -F web test:e2e",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:generate": "pnpm -F @surge/db generate",
+    "db:migrate": "pnpm -F @surge/db migrate",
+    "db:studio": "pnpm -F @surge/db studio",
+    "db:seed": "tsx --env-file=apps/web/.env scripts/seed.ts",
+    "db:reset-demo": "tsx --env-file=apps/web/.env scripts/seed.ts --reset-demo",
+    "demo:events": "tsx --env-file=apps/web/.env scripts/generate-demo-events.ts",
+    "ranks:recompute": "tsx --env-file=apps/web/.env scripts/recompute-ranks.ts",
+    "tracker:build": "pnpm -F @surge/tracker build",
+    "tracker:test": "pnpm -F @surge/tracker test"
+  },
+  "devDependencies": {
+    "@surge/config": "workspace:*",
+    "@surge/db": "workspace:*",
+    "@surge/shared": "workspace:*",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

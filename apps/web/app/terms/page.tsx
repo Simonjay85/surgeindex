@@ -1,0 +1,7 @@
+import { AppShell } from "../../components/app-shell";
+
+export const metadata = { title: "Terms" };
+
+export default function TermsPage() {
+  return <AppShell><div className="container page-hero"><div className="page-hero-grid"><div><div className="eyebrow">TERMS</div><h1>Clear rules for a noisy web.</h1><p>These MVP terms explain the intended boundaries of listings, verification, ranking, and paid distribution.</p></div></div><div className="section-tight"><div className="methodology-copy"><section className="methodology-block"><h2>Listings and verification</h2><p>Submitting a site does not guarantee inclusion. Ownership claims require proof, and traffic verification requires a connected source. SurgeIndex may suspend domains, accounts, or campaigns that violate the rules or create misleading signals.</p></section><section className="methodology-block"><h2>Ranking and boosts</h2><p>Organic rankings are generated from the published methodology. Boosts purchase distribution and must be labeled as sponsored; they do not change organic rank or Heat Score. Sample pricing in demo mode is not an offer.</p></section><section className="methodology-block"><h2>Professional review</h2><p>This page is product documentation for the MVP and is not legal advice. Before commercial launch, the service terms, acceptable use policy, payment terms, refund policy, and jurisdiction-specific notices require professional review.</p></section></div></div></div></AppShell>;
+}

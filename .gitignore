@@ -1,0 +1,37 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# next.js
+.next/
+.open-next/
+.playwright-cli/
+out/
+next-env.d.ts
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+
+# env — never commit
+.env
+.env.*
+!.env.example
+
+# testing
+coverage/
+playwright-report/
+test-results/
+
+# wrangler
+.wrangler/
+.dev.vars*
+
+# demo artifacts
+apps/web/.demo/
+
+# misc
+.DS_Store
+*.log
+.turbo/

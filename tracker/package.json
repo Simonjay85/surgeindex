@@ -1,0 +1,17 @@
+{
+  "name": "@surge/tracker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "build/tracker.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run --environment jsdom",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,76 @@
+import Link from "next/link";
+import { ArrowUpRight, Menu, Search, Signal, Sparkles } from "lucide-react";
+
+export function SourceBadge({ source, compact = false }: { source: "tracker" | "ga4" | "surgeindex" | "sponsored" | "demo" | "unverified"; compact?: boolean }) {
+  const labels = { tracker: "Tracker Verified", ga4: "GA4 Verified", surgeindex: "SurgeIndex Referral", sponsored: "Sponsored", demo: "Demo Data", unverified: "Unverified" } as const;
+  return <span className={`source-badge source-${source} ${compact ? "source-compact" : ""}`} title={source === "tracker" ? "Traffic is measured by the SurgeIndex first-party tracking script." : source === "ga4" ? "Traffic metrics are imported from a connected Google Analytics 4 property." : source === "sponsored" ? "This placement was purchased. It does not affect organic rank." : source === "demo" ? "This number is simulated for product demonstration." : undefined}><span className="source-dot" />{labels[source]}</span>;
+}
+
+export function Header() {
+  return (
+    <header className="site-header">
+      <div className="header-inner">
+        <Link className="brand" href="/" aria-label="SurgeIndex home">
+          <span className="brand-mark"><Signal size={17} strokeWidth={2.6} /></span>
+          <span>SurgeIndex</span>
+          <span className="live-tag"><span className="live-dot" /> live</span>
+        </Link>
+        <nav className="desktop-nav" aria-label="Primary navigation">
+          <Link href="/">Live</Link>
+          <Link href="/rankings">Rankings</Link>
+          <Link href="/breakouts">Breakouts</Link>
+          <Link href="/categories">Categories</Link>
+          <Link href="/boost">Boost</Link>
+          <Link href="/methodology">Methodology</Link>
+          <span className="nav-divider" />
+          <Link className="nav-future" href="/creators">Creators <span>soon</span></Link>
+        </nav>
+        <div className="header-actions">
+          <Link className="icon-button" href="/search" aria-label="Search sites"><Search size={18} /></Link>
+          <Link className="button button-coral button-small header-submit" href="/submit">Submit site <ArrowUpRight size={15} /></Link>
+          <Link className="sign-in-link" href="/auth/sign-in">Sign in</Link>
+          <Link className="mobile-menu icon-button" href="/dashboard" aria-label="Open account menu"><Menu size={19} /></Link>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+export function Footer() {
+  return (
+    <footer className="site-footer">
+      <div className="footer-top">
+        <div>
+          <Link className="brand footer-brand" href="/"><span className="brand-mark"><Signal size={16} /></span><span>SurgeIndex</span></Link>
+          <p className="footer-note">The live leaderboard of internet attention.<br />Earn the rank. Buy the reach.</p>
+        </div>
+        <div className="footer-links">
+          <div><span className="footer-label">Explore</span><Link href="/rankings">Rankings</Link><Link href="/breakouts">Breakouts</Link><Link href="/categories">Categories</Link></div>
+          <div><span className="footer-label">For site owners</span><Link href="/submit">Submit a site</Link><Link href="/dashboard">Dashboard</Link><Link href="/boost">Boost exposure</Link></div>
+          <div><span className="footer-label">Learn</span><Link href="/methodology">Methodology</Link><Link href="/pricing">Pricing</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div>
+        </div>
+      </div>
+      <div className="footer-bottom"><span>© 2026 SurgeIndex</span><span className="footer-demo-note"><Sparkles size={13} /> Demo environment · simulated metrics are labeled</span><span>Built for attention, not vanity</span></div>
+    </footer>
+  );
+}
+
+export function AppShell({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <><Header /><main className={className}>{children}</main><Footer /></>;
+}
+
+export function SectionHeading({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: React.ReactNode }) {
+  return <div className="section-heading"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2>{description ? <p>{description}</p> : null}</div>{action ? <div className="section-heading-action">{action}</div> : null}</div>;
+}
+
+export function Breadcrumbs({ items }: { items: Array<{ label: string; href?: string }> }) {
+  return <nav className="breadcrumbs" aria-label="Breadcrumb">{items.map((item, index) => <span key={item.label}>{index > 0 ? <span className="breadcrumb-slash">/</span> : null}{item.href ? <Link href={item.href}>{item.label}</Link> : <span aria-current="page">{item.label}</span>}</span>)}</nav>;
+}
+
+export function StatBlock({ label, value, detail, tone = "default", source = "demo" }: { label: string; value: string; detail?: string; tone?: "default" | "coral" | "green"; source?: "tracker" | "ga4" | "surgeindex" | "sponsored" | "demo" | "unverified" }) {
+  return <div className={`stat-block stat-${tone}`}><span className="stat-label">{label}</span><strong>{value}</strong>{detail ? <span className="stat-detail">{detail}</span> : null}<SourceBadge source={source} compact /></div>;
+}
+
+export function EmptyState({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
+  return <div className="empty-state"><span className="empty-icon"><Signal size={18} /></span><h3>{title}</h3><p>{description}</p>{action}</div>;
+}

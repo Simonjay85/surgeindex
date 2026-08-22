@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "surgeindex-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".open-next/assets"
+  },
+  "vars": {
+    "DEMO_MODE": "true"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "LEADERBOARD_CACHE",
+      "id": "REPLACE_WITH_CLOUDFLARE_KV_NAMESPACE_ID"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "queue": "surgeindex-events",
+        "binding": "EVENTS_QUEUE"
+      }
+    ]
+  }
+}
