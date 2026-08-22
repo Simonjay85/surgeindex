@@ -16,7 +16,7 @@ export default async function DashboardPage() {
   const user = await requirePageUser();
   const provider = getPublicDataProvider();
   const [sites, activity] = await Promise.all([provider.getOwnedSites(user.id), provider.getOwnedActivity(user.id)]);
-  const bestSite = sites.filter((site) => site.rank > 0).sort((a, b) => a.rank - b.rank)[0];
+  const bestSite = sites.filter((site) => site.rank > 0 && (site.isDemo || site.heatScore > 0)).sort((a, b) => a.rank - b.rank)[0];
   const activeNow = sites.reduce((sum, site) => sum + (site.activeNow ?? 0), 0);
   const referrals = sites.reduce((sum, site) => sum + site.surgeReferrals, 0);
   const unclaimed = sites.filter((site) => site.ownership !== "claimed");

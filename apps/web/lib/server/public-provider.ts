@@ -18,6 +18,7 @@ import {
 } from "@surge/db";
 import { getPostgresDb } from "@surge/db";
 import { getServerEnv } from "@surge/config";
+import { TinybirdAnalyticsProvider } from "@surge/analytics";
 import {
   DEMO_SITES,
   getActivity as getDemoActivity,
@@ -31,14 +32,14 @@ import {
 } from "../demo-data";
 
 export interface PublicDataProvider {
-  readonly source: "demo" | "postgres";
+  readonly source: "demo" | "postgres" | "tinybird";
   getLeaderboard(input: { window: string; category?: string; query?: string; limit?: number }): Promise<DemoSite[]>;
   getSite(slug: string): Promise<DemoSite | undefined>;
   getSiteById(siteId: string): Promise<DemoSite | undefined>;
   getOwnedSites(userId: string): Promise<DemoSite[]>;
   getOwnedSite(userId: string, siteId: string): Promise<DemoSite | undefined>;
   getRelatedSites(slug: string): Promise<DemoSite[]>;
-  getTimeseries(slug: string, metric?: "visitors" | "active" | "referrals"): Promise<TimeseriesPoint[]>;
+  getTimeseries(slug: string, metric?: "visitors" | "active" | "pageviews" | "referrals"): Promise<TimeseriesPoint[]>;
   getRankHistory(slug: string): Promise<Array<{ period: string; rank: number; heat: number }>>;
   getCategories(): Promise<CategoryInfo[]>;
   getActivity(): Promise<ActivityItem[]>;
@@ -83,6 +84,19 @@ function mapRepositorySite(row: RepositorySite): DemoSite {
     typicalActiveNow: current?.typicalActiveNow ?? null,
     engagementRate: current?.engagementRate ?? null,
     avgEngagementSeconds: current?.avgEngagementSeconds ?? null,
+    sessions24h: current?.sessions24h ?? null,
+    visitors7d: current?.visitors7d ?? null,
+    engagedSessions24h: current?.engagedSessions24h ?? null,
+    activeSessions: current?.activeSessions ?? null,
+    pageviews24h: current?.pageviews24h ?? null,
+    surgeAttributedVisits24h: current?.surgeAttributedVisits24h ?? 0,
+    surgeAttributedEngagedVisits24h: current?.surgeAttributedEngagedVisits24h ?? 0,
+    lastAcceptedEventAt: current?.lastAcceptedEventAt?.toISOString() ?? null,
+    lastDetectedOrigin: current?.lastDetectedOrigin ?? null,
+    trackerVersion: current?.trackerVersion ?? null,
+    acceptedEvents24h: current?.acceptedEvents24h ?? 0,
+    suspectedEvents24h: current?.suspectedEvents24h ?? 0,
+    invalidEvents24h: current?.invalidEvents24h ?? 0,
     fraudPenalty: 0,
     domainOwnershipVerified: row.ownership === "claimed",
     createdAt: row.createdAt.toISOString().slice(0, 10),
@@ -121,7 +135,7 @@ class DemoPublicDataProvider implements PublicDataProvider {
   async getOwnedSites(userId: string) { void userId; return getDemoLeaderboard("live").filter((site) => site.ownership === "claimed").slice(0, 3); }
   async getOwnedSite(userId: string, siteId: string) { return (await this.getOwnedSites(userId)).find((site) => site.siteId === siteId); }
   async getRelatedSites(slug: string) { return getDemoRelatedSites(slug); }
-  async getTimeseries(slug: string, metric: "visitors" | "active" | "referrals" = "visitors") { return getDemoTimeseries(slug, metric); }
+  async getTimeseries(slug: string, metric: "visitors" | "active" | "pageviews" | "referrals" = "visitors") { return getDemoTimeseries(slug, metric); }
   async getRankHistory(slug: string) { return (await import("../demo-data")).getRankHistory(slug); }
   async getCategories() { return getDemoCategories(); }
   async getActivity() { return getDemoActivity(); }
@@ -131,8 +145,8 @@ class DemoPublicDataProvider implements PublicDataProvider {
 }
 
 class PostgresPublicDataProvider implements PublicDataProvider {
-  readonly source = "postgres" as const;
-  private readonly db = getPostgresDb();
+  readonly source: "postgres" | "tinybird" = "postgres";
+  protected readonly db = getPostgresDb();
 
   async getLeaderboard(input: { window: string; category?: string; query?: string; limit?: number }) {
     const limit = input.limit ?? 50;
@@ -147,7 +161,7 @@ class PostgresPublicDataProvider implements PublicDataProvider {
     return mapped
       .sort((a, b) => (b.heatScore - a.heatScore) || (b.visitors ?? -1) - (a.visitors ?? -1))
       .slice(0, limit)
-      .map((site, index) => ({ ...site, rank: site.rank || index + 1 }));
+      .map((site) => ({ ...site, rank: site.rank }));
   }
 
   async getSite(slug: string) {
@@ -181,7 +195,7 @@ class PostgresPublicDataProvider implements PublicDataProvider {
     const rows = await getSnapshots(this.db, current.id, 24);
     return rows.reverse().map((row) => ({
       t: row.capturedAt.toISOString(),
-      value: metric === "active" ? row.activeNow : metric === "referrals" ? 0 : row.visitors,
+      value: metric === "active" ? row.activeNow : metric === "pageviews" ? row.pageviews : metric === "referrals" ? row.attributedVisits : row.visitors,
     }));
   }
 
@@ -244,12 +258,100 @@ class PostgresPublicDataProvider implements PublicDataProvider {
   }
 }
 
+/**
+ * Tinybird owns the traffic aggregates when ANALYTICS_PROVIDER=tinybird.
+ * Site metadata, ownership, categories, and activity remain in Postgres, but
+ * this adapter never reads Postgres tracker aggregates as a silent fallback.
+ */
+class TinybirdPublicDataProvider extends PostgresPublicDataProvider {
+  readonly source = "tinybird" as const;
+  private readonly analytics = new TinybirdAnalyticsProvider({
+    apiUrl: getServerEnv().TINYBIRD_API_URL!,
+    ingestToken: getServerEnv().TINYBIRD_INGEST_TOKEN!,
+    readToken: getServerEnv().TINYBIRD_READ_TOKEN!,
+  });
+
+  private async enrich(row: RepositorySite): Promise<DemoSite> {
+    const site = mapRepositorySite(row);
+    const [metrics24h, metrics7d] = await Promise.all([
+      this.analytics.getSiteMetrics(row.id, "24h"),
+      this.analytics.getSiteMetrics(row.id, "7d"),
+    ]);
+    return {
+      ...site,
+      activeNow: metrics24h.activeNow,
+      activeSource: site.verification === "unverified" ? null : site.verification,
+      visitors: metrics24h.visitors,
+      visitors7d: metrics7d.visitors,
+      sessions24h: metrics24h.sessions ?? null,
+      engagedSessions24h: metrics24h.engagedSessions ?? null,
+      pageviews24h: metrics24h.pageviews,
+      engagementRate: metrics24h.engagementRate,
+      avgEngagementSeconds: metrics24h.avgEngagementSeconds,
+      activeSessions: metrics24h.activeSessions ?? null,
+      surgeAttributedVisits24h: metrics24h.attributedVisits ?? site.surgeAttributedVisits24h,
+      surgeAttributedEngagedVisits24h: metrics24h.attributedEngagedVisits ?? site.surgeAttributedEngagedVisits24h,
+      lastUpdatedAt: metrics24h.generatedAt,
+      heatNotes: ["Traffic metrics are read from the selected Tinybird provider; Batch 3 does not calibrate Heat Score."],
+    };
+  }
+
+  async getLeaderboard(input: { window: string; category?: string; query?: string; limit?: number }) {
+    const limit = input.limit ?? 50;
+    const rows = input.window === "new"
+      ? await listNewPublicSites(this.db, limit, input.category, input.query)
+      : input.window === "breakout"
+        ? await listBreakoutSites(this.db, limit, input.category, input.query)
+        : await listPublicSites(this.db, { categorySlug: input.category, query: input.query, limit: Math.max(limit, 100) });
+    const mapped = await Promise.all(rows.map((row) => this.enrich(row)));
+    if (input.window === "new" || input.window === "breakout") return mapped.slice(0, limit);
+    return mapped
+      .sort((a, b) => (b.visitors ?? -1) - (a.visitors ?? -1) || (b.activeNow ?? -1) - (a.activeNow ?? -1))
+      .slice(0, limit);
+  }
+
+  async getSite(slug: string) {
+    const row = await findPublicSiteBySlug(this.db, slug);
+    return row ? this.enrich(row) : undefined;
+  }
+
+  async getSiteById(siteId: string) {
+    const row = await findSiteById(this.db, siteId);
+    return row ? this.enrich(row) : undefined;
+  }
+
+  async getOwnedSites(userId: string) {
+    return Promise.all((await listSitesForOwner(this.db, userId)).map((row) => this.enrich(row)));
+  }
+
+  async getOwnedSite(userId: string, siteId: string) {
+    return (await this.getOwnedSites(userId)).find((site) => site.siteId === siteId);
+  }
+
+  async getRelatedSites(slug: string) {
+    const current = await findPublicSiteBySlug(this.db, slug);
+    if (!current) return [];
+    const rows = await listPublicSites(this.db, { categorySlug: current.categorySlug ?? undefined, limit: 12 });
+    return Promise.all(rows.filter((row) => row.slug !== slug).slice(0, 4).map((row) => this.enrich(row)));
+  }
+
+  async getTimeseries(slug: string, metric: "visitors" | "active" | "pageviews" | "referrals" = "visitors") {
+    const current = await findPublicSiteBySlug(this.db, slug);
+    if (!current) return [];
+    return this.analytics.getTimeSeries(current.id, { window: "24h", metric });
+  }
+}
+
 let cached: PublicDataProvider | null = null;
 
 export function getPublicDataProvider(): PublicDataProvider {
   if (cached) return cached;
   const env = getServerEnv();
-  cached = env.DATA_PROVIDER === "postgres" ? new PostgresPublicDataProvider() : new DemoPublicDataProvider();
+  cached = env.DATA_PROVIDER === "demo"
+    ? new DemoPublicDataProvider()
+    : env.ANALYTICS_PROVIDER === "tinybird"
+      ? new TinybirdPublicDataProvider()
+      : new PostgresPublicDataProvider();
   return cached;
 }
 

@@ -15,7 +15,7 @@ import type {
   SiteMetrics,
   TimeSeriesPoint,
   TimeSeriesQuery,
-} from "./types.js";
+} from "./types";
 
 const WINDOW_SECONDS: Record<MetricWindow, number> = {
   live: 15 * 60,
@@ -29,7 +29,7 @@ const WINDOW_SECONDS: Record<MetricWindow, number> = {
 export const ACTIVE_SESSION_TTL_SECONDS = 90;
 
 export class DemoAnalyticsProvider implements AnalyticsProvider {
-  readonly source = "demo" as const;
+  readonly source: "demo" | "postgres" = "demo";
 
   async ingest(events: AnalyticsEvent[]): Promise<void> {
     if (events.length === 0) return;
@@ -152,6 +152,9 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
       pageviews: row?.pageviews ?? 0,
       activeNow: activeNow.get(siteId) ?? 0,
       activeLast30m: row?.visitors ?? 0,
+      sessions: engaged?.sessions ?? 0,
+      engagedSessions: engaged?.engagedSessions ?? 0,
+      activeSessions: activeNow.get(siteId) ?? 0,
       engagementRate:
         engaged && engaged.sessions > 0 ? engaged.engagedSessions / engaged.sessions : null,
       avgEngagementSeconds: null,

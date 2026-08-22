@@ -35,7 +35,7 @@ export const ownershipStatusEnum = pgEnum("ownership_status", ["unclaimed", "cla
 export const claimMethodEnum = pgEnum("claim_method", ["meta_tag", "html_file", "dns_txt", "tracker", "ga4"]);
 export const claimStatusEnum = pgEnum("claim_status", ["pending", "verified", "failed", "expired"]);
 export const dataSourceEnum = pgEnum("data_source", ["tracker", "ga4", "surgeindex", "sponsored", "demo", "unverified"]);
-export const trackerKeyStatusEnum = pgEnum("tracker_key_status", ["active", "rotated", "revoked"]);
+export const trackerKeyStatusEnum = pgEnum("tracker_key_status", ["pending", "active", "stale", "rotated", "revoked"]);
 export const snapshotGranularityEnum = pgEnum("snapshot_granularity", ["hour", "day"]);
 export const rankWindowEnum = pgEnum("rank_window", ["live", "24h", "7d"]);
 export const activityTypeEnum = pgEnum("activity_type", [
@@ -54,6 +54,14 @@ export const activityTypeEnum = pgEnum("activity_type", [
   "boost_started",
   "boost_completed",
   "badge_earned",
+  "tracker_key_generated",
+  "tracker_first_detected",
+  "tracker_connected",
+  "tracker_stale",
+  "tracker_reconnected",
+  "tracker_key_rotated",
+  "tracker_key_revoked",
+  "surgeindex_attributed_visit",
 ]);
 export const boostStatusEnum = pgEnum("boost_status", [
   "draft",
@@ -283,11 +291,19 @@ export const trackerKey = pgTable(
       .references(() => site.id, { onDelete: "cascade" }),
     publicKey: text("public_key").notNull().unique(),
     allowedDomains: text("allowed_domains").array().notNull(),
+    // The enum values are introduced in a separate migration transaction;
+    // key-management mutations always set the state explicitly.
     status: trackerKeyStatusEnum("status").notNull().default("active"),
+    version: integer("version").notNull().default(1),
+    environment: text("environment").notNull().default("production"),
     createdAt: timestamps.createdAt,
+    activatedAt: timestamp("activated_at", { withTimezone: true, mode: "date" }),
     lastEventAt: timestamp("last_event_at", { withTimezone: true, mode: "date" }),
+    lastOrigin: text("last_origin"),
+    lastError: text("last_error"),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
   },
-  (t) => [index("tracker_key_site_idx").on(t.siteId)],
+  (t) => [index("tracker_key_site_idx").on(t.siteId), index("tracker_key_status_idx").on(t.status)],
 );
 
 export const gaConnection = pgTable("ga_connection", {
@@ -320,6 +336,11 @@ export const siteMetricCurrent = pgTable(
     visitors24h: bigint("visitors_24h", { mode: "number" }),
     visitors7d: bigint("visitors_7d", { mode: "number" }),
     pageviews24h: bigint("pageviews_24h", { mode: "number" }),
+    sessions24h: bigint("sessions_24h", { mode: "number" }),
+    engagedSessions24h: bigint("engaged_sessions_24h", { mode: "number" }),
+    activeSessions: integer("active_sessions"),
+    surgeAttributedVisits24h: integer("surge_attributed_visits_24h").notNull().default(0),
+    surgeAttributedEngagedVisits24h: integer("surge_attributed_engaged_visits_24h").notNull().default(0),
     engagementRate: numeric("engagement_rate", { precision: 5, scale: 4 }),
     avgEngagementSeconds: integer("avg_engagement_seconds"),
     baselineDailyVisitors: bigint("baseline_daily_visitors", { mode: "number" }),
@@ -331,6 +352,12 @@ export const siteMetricCurrent = pgTable(
     heatLeague: text("heat_league").notNull().default("new"),
     scoreVersion: text("score_version").notNull().default("v1"),
     fraudPenalty: numeric("fraud_penalty", { precision: 4, scale: 3 }).notNull().default("0"),
+    acceptedEvents24h: integer("accepted_events_24h").notNull().default(0),
+    suspectedEvents24h: integer("suspected_events_24h").notNull().default(0),
+    invalidEvents24h: integer("invalid_events_24h").notNull().default(0),
+    lastAcceptedEventAt: timestamp("last_accepted_event_at", { withTimezone: true, mode: "date" }),
+    lastDetectedOrigin: text("last_detected_origin"),
+    trackerVersion: text("tracker_version"),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     isDemo: boolean("is_demo").notNull().default(false),
   },
@@ -347,6 +374,10 @@ export const siteMetricSnapshot = pgTable(
       .references(() => site.id, { onDelete: "cascade" }),
     granularity: snapshotGranularityEnum("granularity").notNull(),
     visitors: integer("visitors").notNull().default(0),
+    sessions: integer("sessions").notNull().default(0),
+    pageviews: integer("pageviews").notNull().default(0),
+    engagedSessions: integer("engaged_sessions").notNull().default(0),
+    attributedVisits: integer("attributed_visits").notNull().default(0),
     activeNow: integer("active_now").notNull().default(0),
     growthPct: numeric("growth_pct", { precision: 8, scale: 2 }),
     heatScore: integer("heat_score").notNull().default(0),
@@ -650,6 +681,16 @@ export const trackerEvent = pgTable(
     referrerHost: text("referrer_host"),
     country: text("country"),
     device: text("device"),
+    /** Public tracker key used for current-key connection and installation tests. */
+    trackerPublicKey: text("tracker_public_key"),
+    visible: boolean("visible").notNull().default(true),
+    engagedSeconds: integer("engaged_seconds"),
+    trackerVersion: text("tracker_version").notNull().default("1.0.0"),
+    attributionTokenHash: text("attribution_token_hash"),
+    originHost: text("origin_host"),
+    fraudScore: integer("fraud_score").notNull().default(0),
+    fraudRuleVersion: text("fraud_rule_version").notNull().default("v1"),
+    collectorRequestId: text("collector_request_id"),
     decision: fraudDecisionEnum("decision").notNull().default("valid"),
     reasons: jsonb("reasons").$type<string[]>(),
     occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull(),
@@ -660,8 +701,55 @@ export const trackerEvent = pgTable(
     index("tracker_event_site_time_idx").on(t.siteId, t.occurredAt),
     index("tracker_event_type_time_idx").on(t.eventType, t.occurredAt),
     index("tracker_event_session_idx").on(t.sessionId),
+    index("tracker_event_attribution_idx").on(t.attributionTokenHash),
+    index("tracker_event_decision_time_idx").on(t.decision, t.occurredAt),
   ],
 );
+
+/** One-time linkage between a signed SurgeIndex click and a landing event. */
+export const attributionRecord = pgTable(
+  "attribution_record",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => site.id, { onDelete: "cascade" }),
+    outboundClickId: uuid("outbound_click_id").references(() => outboundClick.id, { onDelete: "set null" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    visitorHash: text("visitor_hash").notNull(),
+    sessionHash: text("session_hash").notNull(),
+    landingEventId: text("landing_event_id").notNull().unique(),
+    createdAt: timestamps.createdAt,
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    engagedAt: timestamp("engaged_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [index("attribution_site_time_idx").on(t.siteId, t.createdAt), index("attribution_session_idx").on(t.sessionHash)],
+);
+
+/** Structured failures are operational evidence, not public event payloads. */
+export const ingestionFailure = pgTable(
+  "ingestion_failure",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id").references(() => site.id, { onDelete: "set null" }),
+    eventId: text("event_id"),
+    requestId: text("request_id").notNull(),
+    stage: text("stage").notNull(),
+    code: text("code").notNull(),
+    detail: text("detail"),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [index("ingestion_failure_time_idx").on(t.createdAt), index("ingestion_failure_site_idx").on(t.siteId)],
+);
+
+/** Idempotent cron/aggregation checkpoint. */
+export const aggregationJobState = pgTable("aggregation_job_state", {
+  jobKey: text("job_key").primaryKey(),
+  lastStartedAt: timestamp("last_started_at", { withTimezone: true, mode: "date" }),
+  lastCompletedAt: timestamp("last_completed_at", { withTimezone: true, mode: "date" }),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
 
 /** Live session registry derived from heartbeats. */
 export const activeSession = pgTable(
@@ -675,6 +763,7 @@ export const activeSession = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     hidden: boolean("hidden").notNull().default(false),
+    lastEventAt: timestamp("last_event_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [index("active_session_site_idx").on(t.siteId, t.lastHeartbeatAt)],
 );

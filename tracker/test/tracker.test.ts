@@ -62,10 +62,11 @@ describe("SurgeIndex tracker", () => {
     h.tracker.start();
     const before = h.sent.length;
     vi.advanceTimersByTime(30_000);
-    expect(h.sent.length).toBe(before + 1);
+    expect(h.sent.slice(before).map((item) => (JSON.parse(item.body) as { eventType: string }).eventType)).toContain("heartbeat");
+    const heartbeats = h.sent.filter((item) => (JSON.parse(item.body) as { eventType: string }).eventType === "heartbeat").length;
     vi.stubGlobal("document", { visibilityState: "hidden" });
     vi.advanceTimersByTime(90_000);
-    expect(h.sent.length).toBe(before + 1); // paused while hidden
+    expect(h.sent.filter((item) => (JSON.parse(item.body) as { eventType: string }).eventType === "heartbeat").length).toBe(heartbeats); // paused while hidden
     vi.unstubAllGlobals();
   });
 
@@ -132,5 +133,36 @@ describe("SurgeIndex tracker", () => {
     expect(keys).not.toContain("email");
     expect(keys).not.toContain("ip");
     expect(JSON.stringify(event)).not.toContain("@");
+  });
+
+  it("waits for explicit consent when consent-required mode is enabled", () => {
+    const sent: string[] = [];
+    const consentTracker = createTracker({ siteKey: "pk_test_consent", endpoint: "/collect", storage: memoryStorage(), send: (_url, body) => { sent.push(body); return true; }, consentRequired: true });
+    consentTracker.start();
+    expect(consentTracker.awaitingConsent).toBe(true);
+    expect(sent.length).toBe(0);
+    consentTracker.grantConsent();
+    expect(consentTracker.awaitingConsent).toBe(false);
+    expect(sent.length).toBe(2);
+  });
+
+  it("emits engagement after visible time rather than requiring input values", () => {
+    const h = setup();
+    h.tracker.start();
+    vi.advanceTimersByTime(10_000);
+    expect(h.sent.map((item) => (JSON.parse(item.body) as { eventType: string }).eventType)).toContain("engaged");
+    const engaged = JSON.parse(h.sent.find((item) => (JSON.parse(item.body) as { eventType: string }).eventType === "engaged")!.body) as { engagedSeconds?: number };
+    expect(engaged.engagedSeconds).toBeGreaterThanOrEqual(10);
+  });
+
+  it("captures only the opaque attribution token and cleans it from the visible URL", () => {
+    window.history.replaceState({}, "", "/landing?utm_source=surge&_si_at=opaque-attribution-token-1234#section");
+    const h = setup();
+    h.tracker.start();
+    const pageview = h.sent.map((item) => JSON.parse(item.body) as Record<string, unknown>).find((event) => event.eventType === "pageview");
+    expect(pageview?.attributionToken).toBe("opaque-attribution-token-1234");
+    expect(window.location.search).toContain("utm_source=surge");
+    expect(window.location.search).not.toContain("_si_at");
+    expect(pageview?.pathname).toBe("/landing");
   });
 });

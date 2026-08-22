@@ -100,7 +100,7 @@ importers:
         version: 5.101.4(react@19.2.8)
       better-auth:
         specifier: ^1.7.1
-        version: 1.7.1(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@neondatabase/serverless@0.10.4)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0))(next@16.3.2(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.62.1)(@types/node@24.13.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(pg@8.23.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.11(@types/node@24.13.3)(jsdom@26.1.0(supports-color@10.2.2))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.16.9)(tsx@4.23.12)(yaml@2.9.0)))
+        version: 1.7.1(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260702.1)(@neondatabase/serverless@0.10.4)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0))(next@16.3.2(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.62.1)(@types/node@24.13.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(pg@8.23.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.11(@types/node@24.13.3)(jsdom@26.1.0(supports-color@10.2.2))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.16.9)(tsx@4.23.12)(yaml@2.9.0)))
       clsx:
         specifier: 'catalog:'
         version: 2.1.1
@@ -125,6 +125,9 @@ importers:
       recharts:
         specifier: 'catalog:'
         version: 3.10.1(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react-is@16.13.1)(react@19.2.8)(redux@5.0.1)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
       tailwind-merge:
         specifier: 'catalog:'
         version: 3.6.0
@@ -192,6 +195,9 @@ importers:
 
   packages/analytics:
     dependencies:
+      '@surge/config':
+        specifier: workspace:*
+        version: link:../config
       '@surge/db':
         specifier: workspace:*
         version: link:../db
@@ -276,6 +282,10 @@ importers:
         version: 4.1.11(@types/node@24.13.3)(jsdom@26.1.0(supports-color@10.2.2))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.16.9)(tsx@4.23.12)(yaml@2.9.0))
 
   packages/shared:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -296,7 +306,7 @@ importers:
         specifier: 'catalog:'
         version: 4.1.11(@types/node@24.13.3)(jsdom@26.1.0(supports-color@10.2.2))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.16.9)(tsx@4.23.12)(yaml@2.9.0))
 
-  workers/collector:
+  workers/aggregation:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20250810.0
@@ -310,9 +320,31 @@ importers:
       wrangler:
         specifier: ^4.125.0
         version: 4.125.0(@cloudflare/workers-types@4.20260702.1)
+
+  workers/collector:
+    dependencies:
+      '@surge/anti-fraud':
+        specifier: workspace:*
+        version: link:../../packages/anti-fraud
+      '@surge/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       zod:
         specifier: 'catalog:'
         version: 4.4.3
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20250810.0
+        version: 4.20260702.1
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@24.13.3)(jsdom@26.1.0(supports-color@10.2.2))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.16.9)(tsx@4.23.12)(yaml@2.9.0))
+      wrangler:
+        specifier: ^4.125.0
+        version: 4.125.0(@cloudflare/workers-types@4.20260702.1)
 
   workers/queue-consumer:
     devDependencies:
@@ -330,6 +362,10 @@ importers:
         version: 4.125.0(@cloudflare/workers-types@4.20260702.1)
 
   workers/realtime:
+    dependencies:
+      '@surge/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20250810.0
@@ -4979,6 +5015,9 @@ packages:
     resolution: {integrity: sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==}
     engines: {node: '>= 18'}
 
+  server-only@0.0.1:
+    resolution: {integrity: sha512-qepMx2JxAa5jjfzxG79yPPq+8BuFToHd1hm7kI+Z4zAq1ftQiP7HcxMhDDItrbtwVeLg/cY2JnKnrcFkmiswNA==}
+
   set-cookie-parser@3.1.2:
     resolution: {integrity: sha512-5/r/lTwbJ3zQ+qwdUFZYeRNqda7P5HD8zQKqlSjdGt1/S0cjLAphHusj4Y58ahDtWn/g32xrIS58/ikOvwl0Lw==}
 
@@ -6271,7 +6310,7 @@ snapshots:
       nanostores: 1.5.2
       zod: 4.4.3
 
-  '@better-auth/drizzle-adapter@1.7.1(@better-auth/core@1.7.1(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.9)(kysely@0.29.5)(nanostores@1.5.2))(@better-auth/utils@0.4.2)(drizzle-orm@0.45.2(@neondatabase/serverless@0.10.4)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0))':
+  '@better-auth/drizzle-adapter@1.7.1(@better-auth/core@1.7.1(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.9)(kysely@0.29.5)(nanostores@1.5.2))(@better-auth/utils@0.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260702.1)(@neondatabase/serverless@0.10.4)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0))':
     dependencies:
       '@better-auth/core': 1.7.1(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.9)(kysely@0.29.5)(nanostores@1.5.2)
       '@better-auth/utils': 0.4.2
@@ -8063,10 +8102,10 @@ snapshots:
 
   baseline-browser-mapping@2.11.17: {}
 
-  better-auth@1.7.1(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@neondatabase/serverless@0.10.4)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0))(next@16.3.2(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.62.1)(@types/node@24.13.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(pg@8.23.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.11(@types/node@24.13.3)(jsdom@26.1.0(supports-color@10.2.2))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.16.9)(tsx@4.23.12)(yaml@2.9.0))):
+  better-auth@1.7.1(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260702.1)(@neondatabase/serverless@0.10.4)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0))(next@16.3.2(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.62.1)(@types/node@24.13.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(pg@8.23.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.11(@types/node@24.13.3)(jsdom@26.1.0(supports-color@10.2.2))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.16.9)(tsx@4.23.12)(yaml@2.9.0))):
     dependencies:
       '@better-auth/core': 1.7.1(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.9)(kysely@0.29.5)(nanostores@1.5.2)
-      '@better-auth/drizzle-adapter': 1.7.1(@better-auth/core@1.7.1(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.9)(kysely@0.29.5)(nanostores@1.5.2))(@better-auth/utils@0.4.2)(drizzle-orm@0.45.2(@neondatabase/serverless@0.10.4)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0))
+      '@better-auth/drizzle-adapter': 1.7.1(@better-auth/core@1.7.1(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.9)(kysely@0.29.5)(nanostores@1.5.2))(@better-auth/utils@0.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260702.1)(@neondatabase/serverless@0.10.4)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0))
       '@better-auth/kysely-adapter': 1.7.1(@better-auth/core@1.7.1(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.9)(kysely@0.29.5)(nanostores@1.5.2))(@better-auth/utils@0.4.2)(kysely@0.29.5)
       '@better-auth/memory-adapter': 1.7.1(@better-auth/core@1.7.1(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.9)(kysely@0.29.5)(nanostores@1.5.2))(@better-auth/utils@0.4.2)
       '@better-auth/mongo-adapter': 1.7.1(@better-auth/core@1.7.1(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.9)(kysely@0.29.5)(nanostores@1.5.2))(@better-auth/utils@0.4.2)
@@ -10147,6 +10186,8 @@ snapshots:
       send: 1.2.1(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
+
+  server-only@0.0.1: {}
 
   set-cookie-parser@3.1.2: {}
 

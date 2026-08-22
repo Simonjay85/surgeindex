@@ -3,7 +3,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
   "queues": {
-    "consumers": [
+  "consumers": [
       {
         "queue": "surgeindex-events",
         "max_batch_size": 100,
@@ -12,5 +12,16 @@
         "dead_letter_queue": "surgeindex-events-dlq"
       }
     ]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "PROCESSED_EVENT_IDS",
+      "id": "REPLACE_WITH_PROCESSED_EVENT_KV_ID"
+    }
+  ],
+  "vars": {
+    "ANALYTICS_PROVIDER": "tinybird",
+    "TINYBIRD_API_URL": "",
+    "INTERNAL_INGEST_URL": ""
   }
 }

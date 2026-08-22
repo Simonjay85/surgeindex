@@ -27,6 +27,7 @@ pnpm build           # tracker bundle, then Next production build
 pnpm start           # serve the Next production build
 pnpm db:up           # optional local Postgres
 pnpm tracker:build   # rebuild apps/web/public/tracker.js
+pnpm traffic:load    # bounded local/staging collector correctness probe
 pnpm preview         # OpenNext Cloudflare preview; requires adapter setup
 pnpm deploy          # OpenNext Cloudflare deploy; requires Cloudflare auth
 ```
@@ -40,9 +41,12 @@ The public experience includes:
 - Homepage with a live-style hero chart, query/category filters, Live/24H/7D/Breakouts/New tabs, ranked cards, source badges, and activity strip.
 - `/rankings`, `/breakouts`, `/categories`, `/categories/[slug]`, `/search`, and `/site/[slug]` directory surfaces.
 - Site profiles with Heat Score breakdown, rank history, attention chart, referral count, verification state, related sites, and a secure `/go/[siteSlug]` referral redirect.
+- `/live` and `/api/live/[siteId]` report accepted tracker active visitors/sessions with local or explicitly configured Durable Object realtime.
 - `/submit` domain validation and waitlist-ready submission flow, plus ownership verification architecture at `/claim/[siteId]`.
 - `/methodology`, `/pricing`, `/boost`, `/creators`, `/campaigns`, `/privacy`, `/terms`, and a custom not-found page.
 - Demo owner workspace at `/dashboard`, with sites, analytics, verification, badge, boosts, billing, and settings surfaces.
+- Production owner tracker installation and analytics at `/dashboard/sites/[siteId]/verification` and `/dashboard/sites/[siteId]/analytics`.
+- Development-only real tracker fixture at `/dev/tracker-fixture` and aggregate operational summary at `/admin/traffic`.
 - Demo admin review queue at `/admin`.
 - JSON endpoints for leaderboard, categories, activity, search, site detail, time series, site submission, event collection, and SVG badges.
 
@@ -53,15 +57,14 @@ flowchart LR
   Browser[Public web + owner dashboard] --> Next[Next.js App Router]
   Browser --> Tracker[First-party tracker.js]
   Next --> API[Route handlers]
-  Tracker --> Collector[Cloudflare collector]
-  Collector --> Queue[Cloudflare Queue]
+  Tracker --> Collector[Local or Cloudflare collector]
+  Collector --> Queue[Local adapter or Cloudflare Queue]
   Queue --> Consumer[Queue consumer]
-  Consumer --> Analytics[Tinybird or demo analytics provider]
-  Analytics --> Cache[KV leaderboard cache]
-  Next --> Cache
-  Next --> DB[(Postgres / Neon via Drizzle)]
-  Consumer --> DB
-  Realtime[Durable Object realtime room] --> Browser
+  Consumer --> Analytics[Postgres or Tinybird provider]
+  Analytics --> Aggregates[Current metrics + hourly snapshots]
+  Next --> Aggregates
+  Collector --> Realtime[Local registry or site Durable Object]
+  Realtime --> Browser
 ```
 
 The package boundaries are:
@@ -69,10 +72,10 @@ The package boundaries are:
 - `packages/shared`: types, URL/domain safety, formatting, source labels, and shared utilities.
 - `packages/scoring`: deterministic Heat Score v1, small-base protection, explainable breakdowns, and rank comparator.
 - `packages/anti-fraud`: tracker event and outbound click validation, replay/heartbeat checks, and fraud penalties.
-- `packages/analytics`: provider interface plus deterministic demo provider and Tinybird adapter.
-- `packages/db`: Drizzle schema covering identity, sites, claims, verification, metrics, rank snapshots, boosts, payments, fraud flags, moderation, and tracker events.
-- `tracker`: consent-aware first-party tracker bundle with batching, retry, visibility/pageview/engagement events, and an opaque installation key.
-- `workers/collector`, `workers/queue-consumer`, `workers/realtime`: Cloudflare Worker seams for ingestion, asynchronous processing, and live fan-out.
+- `packages/analytics`: shared event-store/provider interfaces, deterministic demo provider, Postgres event store, and Tinybird adapter.
+- `packages/db`: Drizzle schema covering identity, sites, claims, verification, current/snapshot traffic metrics, tracker keys/events, attribution, ingestion failures, active sessions, ranks, boosts, payments, fraud flags, and moderation.
+- `tracker`: consent-aware first-party tracker bundle with one-time initialization, SPA navigation, visibility/engagement, retry, attribution cleanup, and measured bundle output.
+- `workers/collector`, `workers/queue-consumer`, `workers/realtime`, `workers/aggregation`: Cloudflare Worker implementations for ingestion, asynchronous processing, site-level live fan-out, and scheduled aggregation.
 
 ## Truth and trust rules
 
@@ -84,13 +87,19 @@ Outbound links pass through `/go/[siteSlug]`, which only redirects to an allowli
 
 ## Environment and deployment
 
-Copy `.env.example` to `apps/web/.env`. `APP_MODE` and `DATA_PROVIDER` are always required. The public local demo uses `APP_MODE=demo` and `DATA_PROVIDER=demo`. Production requires `APP_MODE=production`, `DATA_PROVIDER=postgres`, a database URL, a Better Auth secret, tracker signing/hash secrets, and the relevant GA4, Tinybird, Stripe, Turnstile, and Cloudflare credentials.
+Copy `.env.example` to `apps/web/.env`. `APP_MODE` and `DATA_PROVIDER` are always required. The public local demo uses `APP_MODE=demo` and `DATA_PROVIDER=demo`. Production requires `APP_MODE=production`, `DATA_PROVIDER=postgres`, a database URL, a Better Auth secret, tracker signing/hash/rotation secrets when enabled, and the credentials/bindings for the explicitly selected analytics, queue, and realtime providers. See [docs/OPERATIONS_TRACKER_PIPELINE.md](docs/OPERATIONS_TRACKER_PIPELINE.md) for the provider matrix.
 
 `apps/web/wrangler.jsonc` is the OpenNext deployment skeleton. Replace the KV namespace placeholder and create the `surgeindex-events` queue before using `pnpm preview` or `pnpm deploy`. The collector, queue consumer, and realtime worker each have their own Wrangler config under `workers/`.
 
 The first administrator is promoted out-of-band after sign-up: `ADMIN_BOOTSTRAP_CONFIRM=<exact-email> pnpm admin:promote -- <exact-email>`. The command refuses to promote a second account unless `ADMIN_BOOTSTRAP_ALLOW_EXISTING=true` is set explicitly; there is no public role-changing endpoint.
 
 Auth, payment, GA4, Tinybird, Turnstile, and Cloudflare integrations are intentionally demo-safe until credentials and production policy are supplied. The UI labels those states instead of presenting simulated records as live business data.
+
+## Batch 3 traffic pipeline
+
+The first-party traffic implementation is documented in [BATCH_3_REPORT.md](BATCH_3_REPORT.md). Operational and privacy details are split into [tracker installation](docs/TRACKER_INSTALLATION.md), [event schema](docs/TRACKER_EVENT_SCHEMA.md), [metric definitions](docs/TRAFFIC_METRIC_DEFINITIONS.md), [privacy data flow](docs/PRIVACY_DATA_FLOW.md), [realtime architecture](docs/REALTIME_ARCHITECTURE.md), [referral attribution](docs/REFERRAL_ATTRIBUTION.md), and [operations](docs/OPERATIONS_TRACKER_PIPELINE.md).
+
+No Tinybird, Cloudflare Queue, Durable Object, or staging deployment is claimed unless real credentials and bindings are supplied and the corresponding preview/read-back checks are run.
 
 ## Review evidence
 

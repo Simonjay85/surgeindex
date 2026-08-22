@@ -52,7 +52,15 @@ export type ActivityType =
   | "surging"
   | "boost_started"
   | "boost_completed"
-  | "badge_earned";
+  | "badge_earned"
+  | "tracker_key_generated"
+  | "tracker_first_detected"
+  | "tracker_connected"
+  | "tracker_stale"
+  | "tracker_reconnected"
+  | "tracker_key_rotated"
+  | "tracker_key_revoked"
+  | "surgeindex_attributed_visit";
 
 export type FraudDecision = "valid" | "suspected" | "invalid" | "review_required";
 

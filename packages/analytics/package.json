@@ -12,6 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@surge/config": "workspace:*",
     "@surge/db": "workspace:*",
     "@surge/shared": "workspace:*",
     "drizzle-orm": "catalog:"

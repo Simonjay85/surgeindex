@@ -26,7 +26,8 @@
     "demo:events": "tsx --env-file=apps/web/.env scripts/generate-demo-events.ts",
     "ranks:recompute": "tsx --env-file=apps/web/.env scripts/recompute-ranks.ts",
     "tracker:build": "pnpm -F @surge/tracker build",
-    "tracker:test": "pnpm -F @surge/tracker test"
+    "tracker:test": "pnpm -F @surge/tracker test",
+    "traffic:load": "tsx scripts/load-tracker-events.ts"
   },
   "devDependencies": {
     "@surge/config": "workspace:*",

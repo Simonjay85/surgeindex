@@ -20,6 +20,19 @@ export interface DemoSite extends LeaderboardEntry {
   typicalActiveNow: number | null;
   engagementRate: number | null;
   avgEngagementSeconds: number | null;
+  sessions24h: number | null;
+  visitors7d: number | null;
+  engagedSessions24h: number | null;
+  activeSessions: number | null;
+  pageviews24h: number | null;
+  surgeAttributedVisits24h: number;
+  surgeAttributedEngagedVisits24h: number;
+  lastAcceptedEventAt: string | null;
+  lastDetectedOrigin: string | null;
+  trackerVersion: string | null;
+  acceptedEvents24h: number;
+  suspectedEvents24h: number;
+  invalidEvents24h: number;
   fraudPenalty: number;
   domainOwnershipVerified: boolean;
   createdAt: string;
@@ -82,6 +95,19 @@ function seed(input: SiteSeed): DemoSite {
     activeNow: input.activeNow ?? null,
     activeSource: input.verification === "unverified" ? null : input.verification,
     visitors: input.visitors ?? null,
+    sessions24h: input.visitors == null ? null : Math.round(input.visitors * 0.8),
+    visitors7d: input.visitors == null ? null : Math.round(input.visitors * 1.9),
+    engagedSessions24h: input.engagementRate == null || input.visitors == null ? null : Math.round(input.visitors * 0.8 * input.engagementRate),
+    activeSessions: input.activeNow ?? null,
+    pageviews24h: input.visitors == null ? null : Math.round(input.visitors * 1.8),
+    surgeAttributedVisits24h: 0,
+    surgeAttributedEngagedVisits24h: 0,
+    lastAcceptedEventAt: input.verification === "tracker" ? DATA_UPDATED_AT : null,
+    lastDetectedOrigin: input.verification === "tracker" ? input.domain : null,
+    trackerVersion: input.verification === "tracker" ? "demo" : null,
+    acceptedEvents24h: input.verification === "tracker" ? Math.round((input.visitors ?? 0) * 2) : 0,
+    suspectedEvents24h: 0,
+    invalidEvents24h: 0,
     growthPct: input.growthPct ?? null,
     surgeReferrals: input.surgeReferrals ?? 0,
     lastUpdatedAt: DATA_UPDATED_AT,
@@ -176,10 +202,10 @@ export function getBreakouts(): BreakoutItem[] {
   return getLeaderboard("breakout").slice(0, 8).map((site) => ({ siteId: site.siteId, slug: site.slug, domain: site.domain, name: site.name, categoryName: site.categoryName, categorySlug: site.categorySlug, verification: site.verification, multiple: site.breakoutMultiple, currentVolume: site.visitors ?? 0, baselineVolume: site.baselineDailyVisitors ?? 0, detectedAt: "Today", confidence: site.breakoutMultiple > 5 ? "high" : site.breakoutMultiple > 3 ? "medium" : "low", explanation: site.visitors ? `${formatCount(site.visitors)} visitors in the selected window versus a ${formatCount(site.baselineDailyVisitors)} baseline.` : "Growing fast, but traffic data is not verified yet.", sparkline: site.sparkline, isDemo: true }));
 }
 
-export function getTimeseries(slug: string, metric: "visitors" | "active" | "referrals" = "visitors"): TimeseriesPoint[] {
+export function getTimeseries(slug: string, metric: "visitors" | "active" | "pageviews" | "referrals" = "visitors"): TimeseriesPoint[] {
   const site = getSite(slug);
   if (!site) return [];
-  const base = metric === "active" ? site.activeNow ?? 0 : metric === "referrals" ? site.surgeReferrals : site.visitors ?? 0;
+  const base = metric === "active" ? site.activeNow ?? 0 : metric === "pageviews" ? site.pageviews24h ?? 0 : metric === "referrals" ? site.surgeReferrals : site.visitors ?? 0;
   return site.sparkline.map((value, index) => ({ t: `${index + 1}:00`, value: Math.max(0, Math.round(base * (value / Math.max(...site.sparkline)) * (metric === "referrals" ? 0.08 : 1))) }));
 }
 

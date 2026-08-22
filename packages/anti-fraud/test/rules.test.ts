@@ -102,6 +102,26 @@ describe("checkTrackerEvent", () => {
     );
     expect(v.reasons).toContain("impossible_session_duration");
   });
+
+  it("records explicit key, replay, engagement, and referrer reason codes", () => {
+    const v = checkTrackerEvent(input({
+      invalidTrackerKey: true,
+      revokedTrackerKey: true,
+      replayedBatch: true,
+      attributionTokenReplay: true,
+      invalidEngagement: true,
+      suspiciousReferrer: true,
+    }));
+    expect(v.decision).toBe("invalid");
+    expect(v.reasons).toEqual(expect.arrayContaining([
+      "invalid_tracker_key",
+      "revoked_tracker_key",
+      "replayed_batch",
+      "attribution_token_replay",
+      "invalid_engagement_duration",
+      "suspicious_referrer",
+    ]));
+  });
 });
 
 describe("checkOutboundClick", () => {

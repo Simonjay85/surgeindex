@@ -1,0 +1,7 @@
+{
+  "name": "surgeindex-aggregation",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": { "INTERNAL_AGGREGATION_URL": "https://app-staging.example.com/api/internal/traffic/aggregate" }
+}

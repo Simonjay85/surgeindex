@@ -10,7 +10,14 @@
   },
   "vars": {
     "APP_MODE": "demo",
-    "DATA_PROVIDER": "demo"
+    "DATA_PROVIDER": "demo",
+    "ANALYTICS_PROVIDER": "postgres",
+    "REALTIME_PROVIDER": "local",
+    "REALTIME_SERVICE_URL": "https://realtime-staging.example.com",
+    "QUEUE_PROVIDER": "local",
+    "TRACKER_ENABLED": "false",
+    "TRACKER_PUBLIC_URL": "https://cdn-staging.example.com/tracker.js",
+    "TRACKER_COLLECTOR_URL": "https://events-staging.example.com/v1/events"
   },
   "kv_namespaces": [
     {
@@ -25,5 +32,8 @@
         "binding": "EVENTS_QUEUE"
       }
     ]
+  },
+  "triggers": {
+    "crons": ["*/5 * * * *"]
   }
 }

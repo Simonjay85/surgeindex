@@ -48,6 +48,11 @@ export interface RepositorySite {
     visitors24h: number | null;
     visitors7d: number | null;
     pageviews24h: number | null;
+    sessions24h: number | null;
+    engagedSessions24h: number | null;
+    activeSessions: number | null;
+    surgeAttributedVisits24h: number;
+    surgeAttributedEngagedVisits24h: number;
     engagementRate: number | null;
     avgEngagementSeconds: number | null;
     baselineDailyVisitors: number | null;
@@ -59,6 +64,12 @@ export interface RepositorySite {
     heatLeague: string;
     scoreVersion: string;
     updatedAt: Date;
+    lastAcceptedEventAt: Date | null;
+    lastDetectedOrigin: string | null;
+    trackerVersion: string | null;
+    acceptedEvents24h: number;
+    suspectedEvents24h: number;
+    invalidEvents24h: number;
   } | null;
   rank: { rank: number; previousRank: number | null; capturedAt: Date } | null;
 }
@@ -145,6 +156,11 @@ type SiteJoinRow = {
     visitors24h: number | null;
     visitors7d: number | null;
     pageviews24h: number | null;
+    sessions24h: number | null;
+    engagedSessions24h: number | null;
+    activeSessions: number | null;
+    surgeAttributedVisits24h: number;
+    surgeAttributedEngagedVisits24h: number;
     engagementRate: string | null;
     avgEngagementSeconds: number | null;
     baselineDailyVisitors: number | null;
@@ -156,6 +172,12 @@ type SiteJoinRow = {
     heatLeague: string;
     scoreVersion: string;
     updatedAt: Date;
+    lastAcceptedEventAt: Date | null;
+    lastDetectedOrigin: string | null;
+    trackerVersion: string | null;
+    acceptedEvents24h: number;
+    suspectedEvents24h: number;
+    invalidEvents24h: number;
   } | null;
   rank: { siteId: string; rank: number; previousRank: number | null; capturedAt: Date } | null;
 };
@@ -167,6 +189,11 @@ function hydrateSite(row: SiteJoinRow): RepositorySite {
         visitors24h: row.current.visitors24h,
         visitors7d: row.current.visitors7d,
         pageviews24h: row.current.pageviews24h,
+        sessions24h: row.current.sessions24h,
+        engagedSessions24h: row.current.engagedSessions24h,
+        activeSessions: row.current.activeSessions,
+        surgeAttributedVisits24h: row.current.surgeAttributedVisits24h,
+        surgeAttributedEngagedVisits24h: row.current.surgeAttributedEngagedVisits24h,
         engagementRate: row.current.engagementRate == null ? null : Number(row.current.engagementRate),
         avgEngagementSeconds: row.current.avgEngagementSeconds,
         baselineDailyVisitors: row.current.baselineDailyVisitors,
@@ -178,6 +205,12 @@ function hydrateSite(row: SiteJoinRow): RepositorySite {
         heatLeague: row.current.heatLeague,
         scoreVersion: row.current.scoreVersion,
         updatedAt: row.current.updatedAt,
+        lastAcceptedEventAt: row.current.lastAcceptedEventAt,
+        lastDetectedOrigin: row.current.lastDetectedOrigin,
+        trackerVersion: row.current.trackerVersion,
+        acceptedEvents24h: row.current.acceptedEvents24h,
+        suspectedEvents24h: row.current.suspectedEvents24h,
+        invalidEvents24h: row.current.invalidEvents24h,
       }
     : null;
   const rank = row.rank?.siteId
@@ -357,7 +390,7 @@ export async function listClaimReviews(db: Repository, limit = 100): Promise<Rep
 
 export async function getSnapshots(db: Repository, siteId: string, limit = 24) {
   return db
-    .select({ capturedAt: siteMetricSnapshot.capturedAt, visitors: siteMetricSnapshot.visitors, activeNow: siteMetricSnapshot.activeNow, growthPct: siteMetricSnapshot.growthPct, heatScore: siteMetricSnapshot.heatScore })
+    .select({ capturedAt: siteMetricSnapshot.capturedAt, visitors: siteMetricSnapshot.visitors, sessions: siteMetricSnapshot.sessions, pageviews: siteMetricSnapshot.pageviews, engagedSessions: siteMetricSnapshot.engagedSessions, attributedVisits: siteMetricSnapshot.attributedVisits, activeNow: siteMetricSnapshot.activeNow, growthPct: siteMetricSnapshot.growthPct, heatScore: siteMetricSnapshot.heatScore })
     .from(siteMetricSnapshot)
     .where(eq(siteMetricSnapshot.siteId, siteId))
     .orderBy(desc(siteMetricSnapshot.capturedAt))

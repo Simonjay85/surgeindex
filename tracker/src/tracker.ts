@@ -1,48 +1,15 @@
 /**
- * SurgeIndex tracker — a lightweight, privacy-first browser script.
+ * SurgeIndex first-party tracker.
  *
- * Design constraints (spec §16):
- *  - Loaded with `defer`, never render-blocking.
- *  - No cookies, no personal data, no page content, no full IPs.
- *  - Anonymous rotating visitor id (localStorage, rotated every 24h).
- *  - Heartbeat ~30s while visible; paused when hidden.
- *  - SPA navigation via history API patching.
- *  - sendBeacon with keepalive fetch fallback and conservative retry.
- *  - Explicit opt-out respected (localStorage flag + DNT policy documented).
+ * The browser only sends a site public key, anonymous first-party IDs,
+ * pathname, referrer hostname, timing fields, and an optional opaque
+ * attribution token. It never reads form values, page text, document titles,
+ * cookies, or full URLs beyond the one attribution parameter.
  */
 
-interface TrackerConfig {
-  siteKey: string;
-  endpoint: string;
-  heartbeatMs?: number;
-  /** Overridable for tests. */
-  storage?: StorageLike;
-  send?: SendFn;
-  now?: () => number;
-}
+export type TrackerEventType = "pageview" | "session_start" | "heartbeat" | "engaged" | "session_end";
 
-interface StorageLike {
-  getItem(k: string): string | null;
-  setItem(k: string, v: string): void;
-  removeItem(k: string): void;
-}
-
-type SendFn = (url: string, body: string, useBeacon: boolean) => boolean | void;
-
-const VISITOR_KEY = "si_vid";
-const OPT_OUT_KEY = "si_opt_out";
-const VISITOR_TTL_MS = 24 * 60 * 60 * 1000;
-const HEARTBEAT_MS = 30_000;
-const RETRY_DELAYS = [1000, 5000, 15000];
-
-export type TrackerEventType =
-  | "pageview"
-  | "session_start"
-  | "heartbeat"
-  | "engaged"
-  | "session_end";
-
-interface TrackerEvent {
+export interface TrackerEvent {
   eventId: string;
   eventType: TrackerEventType;
   siteKey: string;
@@ -51,113 +18,188 @@ interface TrackerEvent {
   pathname: string;
   referrerHost?: string;
   occurredAt: string;
-  viewport?: string;
-  locale?: string;
+  visible?: boolean;
+  engagedSeconds?: number;
+  trackerVersion: string;
+  attributionToken?: string;
 }
+
+export interface StorageLike {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+export type SendFn = (url: string, body: string, useBeacon: boolean) => boolean | void;
+
+export interface TrackerConfig {
+  siteKey: string;
+  endpoint: string;
+  heartbeatMs?: number;
+  engagedAfterMs?: number;
+  trackerVersion?: string;
+  consentRequired?: boolean;
+  consentGranted?: boolean;
+  storage?: StorageLike;
+  sessionStorage?: StorageLike;
+  send?: SendFn;
+  now?: () => number;
+}
+
+const VISITOR_TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_HEARTBEAT_MS = 30_000;
+const DEFAULT_ENGAGED_AFTER_MS = 10_000;
+const RETRY_DELAYS = [1000, 5000, 15_000];
+const ATTRIBUTION_PARAM = "_si_at";
+const OPT_OUT_KEY = "si_opt_out";
+const CONSENT_KEY = "si_consent";
+const TRACKER_VERSION = "3.0.0";
+
+const noopStorage: StorageLike = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 
 function randomId(): string {
   const c = globalThis.crypto;
   if (c && "randomUUID" in c) return c.randomUUID();
-  // Fallback for exotic environments
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
     const r = (Math.random() * 16) | 0;
     const v = ch === "x" ? r : (r & 0x3) | 0x8;
-  return v.toString(16);
+    return v.toString(16);
   });
 }
 
-function getVisitorId(storage: StorageLike, now: number): string {
+function browserStorage(name: "localStorage" | "sessionStorage"): StorageLike {
   try {
-    const raw = storage.getItem(VISITOR_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as { id: string; ts: number };
-      if (now - parsed.ts < VISITOR_TTL_MS) {
-        return parsed.id;
-      }
+    const value = globalThis[name];
+    return value && typeof value.getItem === "function" ? value : noopStorage;
+  } catch {
+    return noopStorage;
+  }
+}
+
+function getVisitorId(storage: StorageLike, siteKey: string, now: number): string {
+  const key = `si_vid:${siteKey}`;
+  try {
+      const value = storage.getItem(key);
+    if (value) {
+      const parsed = JSON.parse(value) as { id?: string; ts?: number };
+      if (parsed.id && typeof parsed.ts === "number" && now - parsed.ts < VISITOR_TTL_MS) return parsed.id;
     }
   } catch {
-    // corrupted entry — rotate
+    // Rotate a corrupt identifier below.
   }
   const id = randomId();
   try {
-    storage.setItem(VISITOR_KEY, JSON.stringify({ id, ts: now }));
+    storage.setItem(key, JSON.stringify({ id, ts: now }));
   } catch {
-    // storage unavailable (private mode) — ephemeral id is acceptable
+    // Private browsing may reject storage; an ephemeral ID is still safe.
   }
   return id;
 }
 
+function pathname(): string {
+  if (typeof location === "undefined") return "/";
+  const raw = location.pathname || "/";
+  return (`/${raw.replace(/^\/+/, "")}`).replace(/\/+/g, "/").slice(0, 512) || "/";
+}
+
+function referrerHost(): string | undefined {
+  if (typeof document === "undefined" || !document.referrer) return undefined;
+  try {
+    const host = new URL(document.referrer).hostname.toLowerCase().replace(/^www\./, "");
+    return /^[a-z0-9.-]{1,253}$/.test(host) ? host : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function captureAttributionToken(): string | undefined {
+  if (typeof location === "undefined") return undefined;
+  try {
+    const url = new URL(location.href);
+    const token = url.searchParams.get(ATTRIBUTION_PARAM) ?? undefined;
+    if (!token || !/^[A-Za-z0-9._~-]{16,512}$/.test(token)) return undefined;
+    url.searchParams.delete(ATTRIBUTION_PARAM);
+    if (typeof history !== "undefined" && typeof history.replaceState === "function") {
+      history.replaceState(history.state, document.title, `${url.pathname}${url.search}${url.hash}`);
+    }
+    return token;
+  } catch {
+    return undefined;
+  }
+}
+
 export function createTracker(config: TrackerConfig) {
-  const heartbeatMs = config.heartbeatMs ?? HEARTBEAT_MS;
-  const storage: StorageLike =
-    config.storage ??
-    (typeof localStorage !== "undefined"
-      ? localStorage
-      : { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  const heartbeatMs = Math.max(10_000, config.heartbeatMs ?? DEFAULT_HEARTBEAT_MS);
+  const engagedAfterMs = Math.max(1000, config.engagedAfterMs ?? DEFAULT_ENGAGED_AFTER_MS);
+  const storage = config.storage ?? browserStorage("localStorage");
+  // Never fall back to localStorage for a tab/session identifier. A local
+  // storage fallback would make two tabs look like one active session.
+  const sessionStorage = config.sessionStorage ?? browserStorage("sessionStorage");
   const now = config.now ?? (() => Date.now());
-  const send: SendFn =
-    config.send ??
-    ((url, body, useBeacon) => {
-      const nav = navigator as Navigator & { sendBeacon?: (u: string, d?: BodyInit) => boolean };
-      if (useBeacon && typeof nav.sendBeacon === "function") {
-        try {
-          return nav.sendBeacon(url, body);
-        } catch {
-          // fall through to fetch
-        }
+  const send: SendFn = config.send ?? ((url, body, useBeacon) => {
+    const nav = typeof navigator !== "undefined" ? (navigator as Navigator & { sendBeacon?: (u: string, d?: BodyInit) => boolean }) : null;
+    if (useBeacon && nav?.sendBeacon) {
+      try {
+        if (nav.sendBeacon(url, body)) return true;
+      } catch {
+        // Fall through to keepalive fetch.
       }
-      void fetch(url, {
-        method: "POST",
-        body,
-        keepalive: true,
-        headers: { "Content-Type": "application/json" },
-      }).catch(() => {});
-      return true;
-    });
+    }
+    if (typeof fetch === "function") {
+      void fetch(url, { method: "POST", body, keepalive: true, headers: { "Content-Type": "application/json" } }).catch(() => {});
+    }
+    return true;
+  });
 
-  let sessionId = randomId();
-  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  let engaged = false;
+  let visitorId = getVisitorId(storage, config.siteKey, now());
+  let sessionId = readOrCreateSession(sessionStorage, config.siteKey);
+  let attributionToken: string | undefined;
   let started = false;
-  let lastHeartbeatAt = 0;
-  let lastSendFailed = false;
-  const queue: Array<{ event: TrackerEvent; attempt: number }> = [];
+  let waitingForConsent = Boolean(config.consentRequired && !config.consentGranted && readConsent(storage) !== "granted");
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  let engagementTimer: ReturnType<typeof setTimeout> | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let engaged = false;
+  let visibleSince = 0;
+  let visibleAccumulatedMs = 0;
+  let lastSendFailed = false;
+  const retryQueue: Array<{ event: TrackerEvent; attempt: number }> = [];
+  const originalHistory: { pushState?: History["pushState"]; replaceState?: History["replaceState"] } = {};
 
-  function isOptedOut(): boolean {
+  function optedOut(): boolean {
     try {
-      return storage.getItem(OPT_OUT_KEY) === "1";
+      return storage.getItem(OPT_OUT_KEY) === "1" || (typeof window !== "undefined" && (window as Window & { __SURGEINDEX_OPTOUT__?: boolean }).__SURGEINDEX_OPTOUT__ === true);
     } catch {
       return false;
     }
   }
 
   function buildEvent(eventType: TrackerEventType): TrackerEvent {
-    return {
+    visitorId = getVisitorId(storage, config.siteKey, now());
+    const event: TrackerEvent = {
       eventId: randomId(),
       eventType,
       siteKey: config.siteKey,
-      visitorId: getVisitorId(storage, now()),
+      visitorId,
       sessionId,
-      pathname: typeof location !== "undefined" ? location.pathname : "/",
-      referrerHost:
-        typeof document !== "undefined" && document.referrer
-          ? new URL(document.referrer).host
-          : undefined,
+      pathname: pathname(),
       occurredAt: new Date(now()).toISOString(),
-      viewport:
-        typeof screen !== "undefined" ? `${screen.width}x${screen.height}` : undefined,
-      locale: typeof navigator !== "undefined" ? navigator.language : undefined,
+      trackerVersion: config.trackerVersion ?? TRACKER_VERSION,
     };
+    const host = referrerHost();
+    if (host) event.referrerHost = host;
+    if (eventType !== "session_end") event.visible = typeof document === "undefined" || document.visibilityState !== "hidden";
+    if (eventType === "engaged") event.engagedSeconds = Math.max(1, Math.round(Math.max(visibleAccumulatedMs, engagedAfterMs) / 1000));
+    if (attributionToken) event.attributionToken = attributionToken;
+    return event;
   }
 
   function emit(eventType: TrackerEventType, useBeacon = false): TrackerEvent {
     const event = buildEvent(eventType);
-    const body = JSON.stringify(event);
-    const ok = send(config.endpoint, body, useBeacon);
+    const ok = send(config.endpoint, JSON.stringify(event), useBeacon);
     if (ok === false) {
       lastSendFailed = true;
-      queue.push({ event, attempt: 0 });
+      retryQueue.push({ event, attempt: 0 });
       scheduleRetry();
     } else {
       lastSendFailed = false;
@@ -166,39 +208,62 @@ export function createTracker(config: TrackerConfig) {
   }
 
   function scheduleRetry() {
-    if (retryTimer !== null) return;
+    if (retryTimer !== null || retryQueue.length === 0) return;
     retryTimer = setTimeout(() => {
       retryTimer = null;
-      // Conservative backoff: re-send queued events, dropping them after
-      // the final attempt rather than looping forever.
-      for (let i = queue.length - 1; i >= 0; i--) {
-        const item = queue[i]!;
-        if (item.attempt >= RETRY_DELAYS.length) {
-          queue.splice(i, 1);
-          continue;
-        }
-        const delay = RETRY_DELAYS[item.attempt] ?? RETRY_DELAYS[RETRY_DELAYS.length - 1] ?? 1000;
-        queue.splice(i, 1);
+      const pending = retryQueue.splice(0, retryQueue.length);
+      for (const item of pending) {
+        const delay = RETRY_DELAYS[Math.min(item.attempt, RETRY_DELAYS.length - 1)] ?? 1000;
         setTimeout(() => {
           const ok = send(config.endpoint, JSON.stringify(item.event), false);
-          if (ok === false) {
+          if (ok === false && item.attempt < RETRY_DELAYS.length) {
             item.attempt += 1;
-            queue.push(item);
+            retryQueue.push(item);
             scheduleRetry();
           }
         }, delay);
       }
-    }, 2000);
+    }, 100);
+  }
+
+  function clearEngagementTimer() {
+    if (engagementTimer !== null) {
+      clearTimeout(engagementTimer);
+      engagementTimer = null;
+    }
+  }
+
+  function armEngagement() {
+    clearEngagementTimer();
+    if (engaged || typeof document === "undefined" || document.visibilityState === "hidden") return;
+    visibleSince = now();
+    const remaining = Math.max(0, engagedAfterMs - visibleAccumulatedMs);
+    engagementTimer = setTimeout(() => {
+      engagementTimer = null;
+      if (document.visibilityState === "hidden" || engaged || optedOut()) return;
+      visibleAccumulatedMs += Math.max(0, now() - visibleSince);
+      engaged = true;
+      emit("engaged");
+    }, remaining);
+  }
+
+  function pauseVisibility() {
+    if (visibleSince) visibleAccumulatedMs += Math.max(0, now() - visibleSince);
+    visibleSince = 0;
+    clearEngagementTimer();
+    stopHeartbeat();
+  }
+
+  function resumeVisibility() {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    startHeartbeat();
+    armEngagement();
   }
 
   function startHeartbeat() {
     stopHeartbeat();
-    lastHeartbeatAt = now();
     heartbeatTimer = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-        return; // paused while hidden — spec §16
-      }
-      lastHeartbeatAt = now();
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       emit("heartbeat");
     }, heartbeatMs);
   }
@@ -210,102 +275,121 @@ export function createTracker(config: TrackerConfig) {
     }
   }
 
-  function armEngagement() {
-    if (engaged || typeof document === "undefined") return;
-    const markEngaged = () => {
-      if (!engaged) {
-        engaged = true;
-        emit("engaged");
-      }
-    };
-    const events = ["keydown", "mousedown", "touchstart", "scroll"] as const;
-    for (const ev of events) {
-      document.addEventListener(ev, markEngaged, { once: true, passive: true, capture: true });
-    }
-  }
-
   function trackNavigation() {
+    if (!started || optedOut()) return;
     emit("pageview");
+    engaged = false;
+    visibleAccumulatedMs = 0;
     armEngagement();
   }
 
   function patchHistory() {
-    const wrap = (name: "pushState" | "replaceState") => {
+    if (typeof history === "undefined") return;
+    for (const name of ["pushState", "replaceState"] as const) {
       const original = history[name];
-      if (typeof original !== "function") return;
+      if (typeof original !== "function") continue;
+      originalHistory[name] = original;
       history[name] = function (this: History, ...args: Parameters<typeof original>) {
         const result = original.apply(this, args);
         trackNavigation();
         return result;
       };
-    };
-    wrap("pushState");
-    wrap("replaceState");
+    }
     window.addEventListener("popstate", trackNavigation);
   }
 
-  return {
-    start() {
-      if (started) return; // duplicate initialization guard
-      started = true;
-      if (isOptedOut()) return;
-      emit("session_start");
-      if (lastSendFailed) {
-        // Keep the initial pageview with the same retry window when the first
-        // delivery already proved the connection is unavailable.
-        queue.push({ event: buildEvent("pageview"), attempt: 0 });
-        scheduleRetry();
-        armEngagement();
-      } else {
-        trackNavigation();
-      }
-      startHeartbeat();
-      patchHistory();
-      const onVisible = () => {
-        if (document.visibilityState === "visible") {
-          // Restart heartbeat cadence after returning to the tab.
-          startHeartbeat();
-        } else {
-          stopHeartbeat();
-          lastHeartbeatAt = now();
-        }
-      };
-      document.addEventListener("visibilitychange", onVisible);
-      window.addEventListener("pagehide", () => {
-        stopHeartbeat();
-        emit("session_end", true);
-      });
-    },
-    /** Exposed for the host page / tests. */
-    optOut() {
-      try {
-        storage.setItem(OPT_OUT_KEY, "1");
-      } catch {
-        // ignore
-      }
+  function begin() {
+    if (started || optedOut()) return;
+    if (waitingForConsent) return;
+    started = true;
+    visitorId = getVisitorId(storage, config.siteKey, now());
+    sessionId = readOrCreateSession(sessionStorage, config.siteKey);
+    attributionToken = captureAttributionToken();
+    emit("session_start");
+    if (lastSendFailed) {
+      retryQueue.push({ event: buildEvent("pageview"), attempt: 0 });
+      scheduleRetry();
+    } else {
+      emit("pageview");
+    }
+    armEngagement();
+    startHeartbeat();
+    patchHistory();
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") pauseVisibility();
+      else resumeVisibility();
+    });
+    if (typeof window !== "undefined") window.addEventListener("pagehide", () => {
       stopHeartbeat();
+      clearEngagementTimer();
+      if (!optedOut()) emit("session_end", true);
+    }, { once: true });
+  }
+
+  return {
+    start() { begin(); },
+    grantConsent() {
+      try { storage.setItem(CONSENT_KEY, "granted"); } catch { /* storage optional */ }
+      waitingForConsent = false;
+      begin();
     },
-    get sessionId_() {
-      return sessionId;
+    optOut() {
+      try { storage.setItem(OPT_OUT_KEY, "1"); } catch { /* storage optional */ }
+      stopHeartbeat();
+      clearEngagementTimer();
     },
-    get pendingRetryCount() {
-      return queue.length;
-    },
-    forceHeartbeat() {
-      lastHeartbeatAt = now();
-      return emit("heartbeat");
+    get sessionId_() { return sessionId; },
+    get visitorId_() { return visitorId; },
+    get pendingRetryCount() { return retryQueue.length; },
+    get awaitingConsent() { return waitingForConsent; },
+    forceHeartbeat() { return !started || optedOut() ? null : emit("heartbeat"); },
+    destroy() {
+      stopHeartbeat();
+      clearEngagementTimer();
+      if (typeof history !== "undefined") {
+        if (originalHistory.pushState) history.pushState = originalHistory.pushState;
+        if (originalHistory.replaceState) history.replaceState = originalHistory.replaceState;
+      }
     },
   };
 }
 
-/** Auto-initialize from the script tag's data-site attribute. */
-export function autoInit(endpoint: string) {
-  const script =
-    document.currentScript instanceof HTMLScriptElement ? document.currentScript : null;
+export function autoInit(defaultEndpoint: string) {
+  if (typeof document === "undefined") return;
+  const script = document.currentScript instanceof HTMLScriptElement
+    ? document.currentScript
+    : Array.from(document.scripts).find((candidate) => candidate.src.includes("tracker.js"));
   const siteKey = script?.dataset.site;
   if (!siteKey) {
     console.warn("[surgeindex] tracker loaded without data-site key");
     return;
   }
-  createTracker({ siteKey, endpoint }).start();
+  const globalWindow = window as Window & { __surgeindexTracker?: ReturnType<typeof createTracker> };
+  if (globalWindow.__surgeindexTracker) return;
+  const tracker = createTracker({
+    siteKey,
+    endpoint: script?.dataset.collector ?? defaultEndpoint,
+    consentRequired: script?.dataset.consentRequired === "true",
+    consentGranted: script?.dataset.consent === "granted",
+    heartbeatMs: script?.dataset.heartbeatSeconds ? Number(script.dataset.heartbeatSeconds) * 1000 : undefined,
+  });
+  globalWindow.__surgeindexTracker = tracker;
+  tracker.start();
+}
+
+function readConsent(storage: StorageLike): string | null {
+  try { return storage.getItem(CONSENT_KEY); } catch { return null; }
+}
+
+function readOrCreateSession(storage: StorageLike, siteKey: string): string {
+  const key = `si_sid:${siteKey}`;
+  try {
+    const existing = storage.getItem(key);
+    if (existing && /^[A-Za-z0-9._:-]{8,128}$/.test(existing)) return existing;
+  } catch {
+    // Create an ephemeral session below.
+  }
+  const id = randomId();
+  try { storage.setItem(key, id); } catch { /* storage optional */ }
+  return id;
 }
