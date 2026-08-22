@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { getRelatedSites, getSite, getTimeseries } from "../../../../lib/demo-data";
+import { getPublicDataProvider } from "../../../../lib/server/public-provider";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const site = getSite(slug);
+  const provider = getPublicDataProvider();
+  const site = await provider.getSite(slug);
   if (!site) return NextResponse.json({ error: "Site not found" }, { status: 404 });
-  return NextResponse.json({ data: { ...site, related: getRelatedSites(slug), timeseries: getTimeseries(slug) }, source: "demo" });
+  return NextResponse.json({ data: { ...site, related: await provider.getRelatedSites(slug), timeseries: await provider.getTimeseries(slug) }, source: provider.source });
 }

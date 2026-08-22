@@ -1,0 +1,41 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { getServerEnv, resetServerEnvCache } from "../src/index";
+
+const original = { ...process.env };
+
+function setMode(mode?: string, provider?: string) {
+  process.env.NODE_ENV = "test";
+  if (mode === undefined) delete process.env.APP_MODE;
+  else process.env.APP_MODE = mode;
+  if (provider === undefined) delete process.env.DATA_PROVIDER;
+  else process.env.DATA_PROVIDER = provider;
+  delete process.env.DATABASE_URL;
+  delete process.env.BETTER_AUTH_SECRET;
+  resetServerEnvCache();
+}
+
+describe("explicit application configuration", () => {
+  beforeEach(() => setMode("demo", "demo"));
+  afterEach(() => {
+    process.env = { ...original };
+    resetServerEnvCache();
+  });
+
+  it("does not infer a mode or provider from legacy variables", () => {
+    delete process.env.APP_MODE;
+    delete process.env.DATA_PROVIDER;
+    process.env.DEMO_MODE = "true";
+    resetServerEnvCache();
+    expect(() => getServerEnv()).toThrow(/APP_MODE/);
+  });
+
+  it("requires postgres and a secret in production", () => {
+    setMode("production", "demo");
+    expect(() => getServerEnv()).toThrow(/DATA_PROVIDER/);
+    setMode("production", "postgres");
+    process.env.DATABASE_URL = "postgresql://example";
+    expect(() => getServerEnv()).toThrow(/BETTER_AUTH_SECRET/);
+    process.env.BETTER_AUTH_SECRET = "a".repeat(32);
+    expect(getServerEnv().APP_MODE).toBe("production");
+  });
+});

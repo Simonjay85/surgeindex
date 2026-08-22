@@ -1,12 +1,13 @@
-"use client";
+import { notFound } from "next/navigation";
+import { getServerEnv } from "@surge/config";
+import { BadgeClient } from "../../../../../components/badge-client";
+import { requirePageUser } from "../../../../../lib/server/authorization";
+import { getPublicDataProvider } from "../../../../../lib/server/public-provider";
 
-import { useState } from "react";
-import { BadgeCheck, Check, Copy, ExternalLink } from "lucide-react";
-import { AppShell, SourceBadge } from "../../../../../components/app-shell";
-import { DashboardShell, DashboardTopline, DemoNotice } from "../../../../../components/dashboard-shell";
-
-export default function BadgePage() {
-  const [copied, setCopied] = useState(false);
-  const embed = '<a href="https://surgeindex.example/site/launchpilot-ai" rel="noreferrer"><img src="https://surgeindex.example/api/badges/launchpilot-ai" alt="#1 Trending in AI Tools on SurgeIndex" /></a>';
-  return <AppShell><DashboardShell active="/dashboard/sites"><DashboardTopline title="Profile badge" description="A small, safe way to show where your site is trending." action={<SourceBadge source="demo" compact />} /><DemoNotice>SVG rendering is escaped and points back to the public profile.</DemoNotice><div className="section-tight"><div className="profile-columns"><div className="panel"><div className="panel-heading"><div><h2>Preview</h2><p>Light, dark, and compact variants.</p></div><BadgeCheck size={18} color="#3977bd" /></div><div style={{ display: "grid", gap: 13 }}><div style={{ padding: 22, border: "1px solid var(--border)", borderRadius: 15, background: "#fff" }}><div className="source-badge source-coral" style={{ fontSize: 13, padding: "8px 10px" }}><span className="source-dot" /> #1 Trending in AI Tools · SurgeIndex</div></div><div style={{ padding: 22, borderRadius: 15, background: "var(--foreground)" }}><div className="source-badge source-coral" style={{ fontSize: 13, padding: "8px 10px" }}><span className="source-dot" /> #1 Trending in AI Tools · SurgeIndex</div></div><div><span className="source-badge source-coral source-compact"><span className="source-dot" /> #1 AI Tools</span></div></div></div><div className="panel"><div className="panel-heading"><div><h2>Embed code</h2><p>Text is generated from safe site fields and HTML-escaped.</p></div></div><pre className="code-panel"><code>{embed}</code></pre><div className="copy-row"><button className="button button-dark button-small" onClick={() => { setCopied(true); setTimeout(() => setCopied(false), 1600); }}>{copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy HTML"}</button><a className="button button-quiet button-small" href="/api/badges/launchpilot-ai" target="_blank" rel="noreferrer">Open SVG <ExternalLink size={13} /></a></div><div className="method-note">Badge status is computed from the public profile. It does not expose internal IDs or arbitrary HTML.</div></div></div></div></DashboardShell></AppShell>;
+export default async function BadgePage({ params }: { params: Promise<{ siteId: string }> }) {
+  const user = await requirePageUser();
+  const { siteId } = await params;
+  const site = await getPublicDataProvider().getOwnedSite(user.id, siteId);
+  if (!site) notFound();
+  return <BadgeClient site={site} publicBaseUrl={getServerEnv().NEXT_PUBLIC_APP_URL} />;
 }

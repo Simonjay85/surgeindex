@@ -2,9 +2,10 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { neon } from "@neondatabase/serverless";
 import { drizzle as drizzleNeon } from "drizzle-orm/neon-http";
 import { Pool } from "pg";
-import * as schema from "./schema.js";
+import * as schema from "./schema";
 
-export type SurgeDatabase = NodePgDatabase<typeof schema> | ReturnType<typeof drizzleNeon>;
+export type PostgresDatabase = NodePgDatabase<typeof schema>;
+export type SurgeDatabase = PostgresDatabase | ReturnType<typeof drizzleNeon>;
 
 let instance: SurgeDatabase | null = null;
 let pool: Pool | null = null;
@@ -30,6 +31,14 @@ export function getDb(): SurgeDatabase {
     instance = drizzle(pool, { schema });
   }
   return instance;
+}
+
+/** Repositories use transactions and therefore require the node-postgres driver. */
+export function getPostgresDb(): PostgresDatabase {
+  if ((process.env.DB_DRIVER ?? "pg") !== "pg") {
+    throw new Error("PostgreSQL repositories require DB_DRIVER=pg; use a Neon repository adapter for DB_DRIVER=neon.");
+  }
+  return getDb() as PostgresDatabase;
 }
 
 /** Call on process exit in long-lived scripts. */

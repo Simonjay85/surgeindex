@@ -2,7 +2,7 @@
 
 SurgeIndex is a production-minded MVP for discovering websites that are gaining attention. The public experience is a warm, fast directory with live-style rankings, breakout signals, explainable Heat Scores, source-aware metrics, claim flow, referral tracking, and a clearly separated sponsored distribution lane.
 
-The repository is intentionally runnable in `DEMO_MODE=true`: the public app has deterministic fictional sites so the product can be reviewed without database, GA4, Tinybird, Stripe, or Cloudflare credentials. The production seams are present in the schema, analytics provider interfaces, tracker, workers, route handlers, and deployment configuration, but the demo UI does not pretend those external systems are connected.
+The repository is intentionally runnable in `APP_MODE=demo` with `DATA_PROVIDER=demo`: the public app has deterministic fictional sites so the product can be reviewed without database, GA4, Tinybird, Stripe, or Cloudflare credentials. The production path requires `APP_MODE=production`, `DATA_PROVIDER=postgres`, a database, and a Better Auth secret. There is no silent fallback between modes or providers.
 
 ## Quick start
 
@@ -84,9 +84,11 @@ Outbound links pass through `/go/[siteSlug]`, which only redirects to an allowli
 
 ## Environment and deployment
 
-Copy `.env.example` to `apps/web/.env`. Only `DEMO_MODE`, `NEXT_PUBLIC_APP_NAME`, and `NEXT_PUBLIC_APP_URL` are needed for the public local demo. Production requires a database URL, Better Auth secret, tracker signing/hash secrets, and the relevant GA4, Tinybird, Stripe, Turnstile, and Cloudflare credentials.
+Copy `.env.example` to `apps/web/.env`. `APP_MODE` and `DATA_PROVIDER` are always required. The public local demo uses `APP_MODE=demo` and `DATA_PROVIDER=demo`. Production requires `APP_MODE=production`, `DATA_PROVIDER=postgres`, a database URL, a Better Auth secret, tracker signing/hash secrets, and the relevant GA4, Tinybird, Stripe, Turnstile, and Cloudflare credentials.
 
 `apps/web/wrangler.jsonc` is the OpenNext deployment skeleton. Replace the KV namespace placeholder and create the `surgeindex-events` queue before using `pnpm preview` or `pnpm deploy`. The collector, queue consumer, and realtime worker each have their own Wrangler config under `workers/`.
+
+The first administrator is promoted out-of-band after sign-up: `ADMIN_BOOTSTRAP_CONFIRM=<exact-email> pnpm admin:promote -- <exact-email>`. The command refuses to promote a second account unless `ADMIN_BOOTSTRAP_ALLOW_EXISTING=true` is set explicitly; there is no public role-changing endpoint.
 
 Auth, payment, GA4, Tinybird, Turnstile, and Cloudflare integrations are intentionally demo-safe until credentials and production policy are supplied. The UI labels those states instead of presenting simulated records as live business data.
 

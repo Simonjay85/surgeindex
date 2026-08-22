@@ -3,7 +3,7 @@ import { ArrowDownRight, ArrowUpRight, ExternalLink, Minus, MoveUpRight } from "
 import type { DemoSite } from "../lib/demo-data";
 import { formatCount, formatPct } from "@surge/shared";
 import { SiteMark } from "./site-mark";
-import { SourceBadge } from "./app-shell";
+import { DataModeBadge, SourceBadge } from "./app-shell";
 import { Sparkline } from "./sparkline";
 
 function RankMove({ movement }: { movement: number }) {
@@ -23,7 +23,7 @@ export function LeaderboardCard({ site, featured = false }: { site: DemoSite; fe
     <div className="leaderboard-card-top"><div className="rank-label"><span>#{site.rank}</span><RankMove movement={site.rankMovement} /></div><span className="freshness"><span className="freshness-dot" /> updated 3m ago</span></div>
     <div className="leaderboard-site-head"><SiteMark site={site} size={featured ? "large" : "default"} /><div className="leaderboard-site-title"><Link href={`/site/${site.slug}`}><h3>{site.name}</h3></Link><span>{site.domain}</span></div><span className="category-chip">{site.categoryName}</span></div>
     <p className="leaderboard-description">{site.description}</p>
-    <div className="source-row"><SourceBadge source={source} /><SourceBadge source="demo" compact /><span className="ownership-note">{site.ownership === "claimed" ? "Claimed" : "Unclaimed"}</span></div>
+    <div className="source-row"><SourceBadge source={source} />{site.isDemo ? <DataModeBadge isDemo compact /> : null}<span className="ownership-note">{site.ownership === "claimed" ? "Claimed" : "Unclaimed"}</span></div>
     <div className="leaderboard-metrics">
       <div className="score-metric"><span>Heat score</span><strong>{site.heatScore}</strong><div className="score-meter"><span style={{ width: `${site.heatScore}%` }} /></div></div>
       <div className="compact-metric"><span>{site.activeNow !== null ? "Online now" : "Visitors / 24H"}</span><strong>{site.activeNow !== null ? formatCount(site.activeNow) : formatCount(site.visitors)}</strong><small>{site.activeNow !== null ? source === "tracker" ? "Tracker signal" : "Not live data" : source === "unverified" ? "Not connected" : "Verified window"}</small></div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { BarChart3, BadgeCheck, CreditCard, Gauge, LayoutDashboard, Settings, ShieldCheck, Sparkles, Target, Wrench } from "lucide-react";
+import { CreditCard, Gauge, LayoutDashboard, Settings, Sparkles, Target, Wrench } from "lucide-react";
+import { SignOutButton } from "./sign-out-button";
 
 const nav = [
   ["Overview", "/dashboard", LayoutDashboard],
@@ -10,7 +11,7 @@ const nav = [
 ] as const;
 
 export function DashboardShell({ children, active = "/dashboard" }: { children: React.ReactNode; active?: string }) {
-  return <div className="container page-hero"><div className="dashboard-layout"><aside className="dashboard-sidebar"><span className="dashboard-sidebar-label">Workspace</span>{nav.map(([label, href, Icon]) => <Link className={active === href ? "active" : ""} key={href} href={href}><Icon size={15} />{label}</Link>)}<span className="dashboard-sidebar-label">Site tools</span><Link href="/dashboard/sites/site-launchpilot/analytics"><BarChart3 size={15} />Analytics</Link><Link href="/dashboard/sites/site-launchpilot/verification"><ShieldCheck size={15} />Verification</Link><Link href="/dashboard/sites/site-launchpilot/badge"><BadgeCheck size={15} />Badge</Link><span className="dashboard-sidebar-label">Demo</span><Link href="/admin"><Wrench size={15} />Admin panel</Link></aside><section className="dashboard-main">{children}</section></div></div>;
+  return <div className="container page-hero"><div className="dashboard-layout"><aside className="dashboard-sidebar"><span className="dashboard-sidebar-label">Workspace</span>{nav.map(([label, href, Icon]) => <Link className={active === href ? "active" : ""} key={href} href={href}><Icon size={15} />{label}</Link>)}<span className="dashboard-sidebar-label">Operations</span><Link href="/admin"><Wrench size={15} />Admin panel</Link><SignOutButton /></aside><section className="dashboard-main">{children}</section></div></div>;
 }
 
 export function DashboardTopline({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {

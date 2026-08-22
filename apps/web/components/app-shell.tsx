@@ -6,6 +6,10 @@ export function SourceBadge({ source, compact = false }: { source: "tracker" | "
   return <span className={`source-badge source-${source} ${compact ? "source-compact" : ""}`} title={source === "tracker" ? "Traffic is measured by the SurgeIndex first-party tracking script." : source === "ga4" ? "Traffic metrics are imported from a connected Google Analytics 4 property." : source === "sponsored" ? "This placement was purchased. It does not affect organic rank." : source === "demo" ? "This number is simulated for product demonstration." : undefined}><span className="source-dot" />{labels[source]}</span>;
 }
 
+export function DataModeBadge({ isDemo, compact = false }: { isDemo: boolean; compact?: boolean }) {
+  return isDemo ? <SourceBadge source="demo" compact={compact} /> : <span className={`status-chip status-active ${compact ? "source-compact" : ""}`}>Production data</span>;
+}
+
 export function Header() {
   return (
     <header className="site-header">

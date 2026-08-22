@@ -1,22 +1,19 @@
 import { z } from "zod";
 
 /**
- * Server-side environment schema. Everything except DATABASE_URL and
- * BETTER_AUTH_SECRET has a demo-safe default so the project runs with zero
- * external credentials (DEMO_MODE=true).
+ * Server-side environment schema. Demo mode is deliberately explicit. A
+ * production process may never silently select the deterministic provider.
  */
 const serverEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  DEMO_MODE: z
-    .string()
-    .optional()
-    .transform((v) => v === "true" || v === "1"),
+  APP_MODE: z.enum(["demo", "production"]),
+  DATA_PROVIDER: z.enum(["demo", "postgres"]),
   NEXT_PUBLIC_APP_NAME: z.string().default("SurgeIndex"),
   NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
-  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+  DATABASE_URL: z.string().optional(),
   DATABASE_URL_UNPOOLED: z.string().optional(),
   DB_DRIVER: z.enum(["pg", "neon"]).default("pg"),
-  BETTER_AUTH_SECRET: z.string().min(16, "BETTER_AUTH_SECRET must be set"),
+  BETTER_AUTH_SECRET: z.string().optional(),
   BETTER_AUTH_URL: z.string().optional(),
   GOOGLE_AUTH_CLIENT_ID: z.string().optional(),
   GOOGLE_AUTH_CLIENT_SECRET: z.string().optional(),
@@ -67,22 +64,41 @@ export function getServerEnv(): ServerEnv {
     const issues = parsed.error.issues
       .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
       .join("\n");
-    throw new Error(
-      `Invalid environment configuration:\n${issues}\n\nCopy .env.example to apps/web/.env and fill in the required values.`,
-    );
+    throw new Error(`Invalid environment configuration:\n${issues}\n\nCopy .env.example to apps/web/.env and fill in the required values.`);
   }
-  cached = parsed.data;
+  const values = parsed.data;
+  const configurationIssues: string[] = [];
+  if (values.DATA_PROVIDER === "postgres" && !values.DATABASE_URL) {
+    configurationIssues.push("  - DATABASE_URL: required when DATA_PROVIDER=postgres");
+  }
+  if (values.APP_MODE === "production" && values.DATA_PROVIDER !== "postgres") {
+    configurationIssues.push("  - DATA_PROVIDER: production mode requires DATA_PROVIDER=postgres");
+  }
+  if (values.APP_MODE === "production" && (!values.BETTER_AUTH_SECRET || values.BETTER_AUTH_SECRET.length < 32)) {
+    configurationIssues.push("  - BETTER_AUTH_SECRET: production requires at least 32 characters");
+  }
+  if (configurationIssues.length > 0) {
+    throw new Error(`Invalid environment configuration:\n${configurationIssues.join("\n")}\n\nCopy .env.example to apps/web/.env and fill in the required values.`);
+  }
+  cached = values;
   return cached;
 }
 
 export function isDemoMode(): boolean {
-  // Anything other than an explicit DEMO_MODE=false in production counts as
-  // demo until real credentials are wired.
-  return process.env.DEMO_MODE !== "false";
+  return getServerEnv().APP_MODE === "demo";
 }
 
 export function isProduction(): boolean {
-  return process.env.NODE_ENV === "production" && process.env.DEMO_MODE !== "true";
+  return getServerEnv().APP_MODE === "production";
+}
+
+export function dataProviderName(): ServerEnv["DATA_PROVIDER"] {
+  return getServerEnv().DATA_PROVIDER;
+}
+
+/** Useful for isolated unit tests that mutate process.env between cases. */
+export function resetServerEnvCache(): void {
+  cached = null;
 }
 
 export function featureFlags() {

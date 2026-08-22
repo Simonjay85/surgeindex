@@ -40,7 +40,14 @@ export const snapshotGranularityEnum = pgEnum("snapshot_granularity", ["hour", "
 export const rankWindowEnum = pgEnum("rank_window", ["live", "24h", "7d"]);
 export const activityTypeEnum = pgEnum("activity_type", [
   "site_submitted",
+  "site_approved",
+  "site_rejected",
   "site_verified",
+  "ownership_verification_started",
+  "ownership_verified",
+  "category_changed",
+  "site_suspended",
+  "site_restored",
   "entered_top_10",
   "rank_up",
   "surging",
@@ -112,6 +119,8 @@ export const account = pgTable(
     id: text("id").primaryKey(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
+    /** Better Auth 1.7 scopes account identity by issuer. */
+    issuer: text("issuer").notNull().default("credential"),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -189,6 +198,24 @@ export const siteTag = pgTable(
   (t) => [unique("site_tag_unique").on(t.siteId, t.tag)],
 );
 
+/** Optional secondary categories. site.category_id remains the primary category. */
+export const siteCategory = pgTable(
+  "site_category",
+  {
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => site.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => category.id, { onDelete: "cascade" }),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [
+    primaryKey({ columns: [t.siteId, t.categoryId] }),
+    index("site_category_category_idx").on(t.categoryId),
+  ],
+);
+
 export const siteOwner = pgTable(
   "site_owner",
   {
@@ -222,9 +249,14 @@ export const siteClaim = pgTable(
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error"),
     requestedAt: timestamps.createdAt,
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true, mode: "date" }),
     verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "date" }),
   },
-  (t) => [index("site_claim_site_idx").on(t.siteId, t.status)],
+  (t) => [
+    index("site_claim_site_idx").on(t.siteId, t.status),
+    index("site_claim_user_idx").on(t.userId, t.status),
+  ],
 );
 
 /** Traffic data source verification state (one row per site). */
@@ -339,7 +371,10 @@ export const rankSnapshot = pgTable(
     previousRank: integer("previous_rank"),
     capturedAt: timestamp("captured_at", { withTimezone: true, mode: "date" }).notNull(),
   },
-  (t) => [index("rank_snapshot_scope_time_idx").on(t.scope, t.window, t.capturedAt)],
+  (t) => [
+    index("rank_snapshot_scope_time_idx").on(t.scope, t.window, t.capturedAt),
+    unique("rank_snapshot_site_unique").on(t.siteId, t.scope, t.window, t.capturedAt),
+  ],
 );
 
 export const scoreVersion = pgTable("score_version", {
@@ -558,10 +593,16 @@ export const moderationAction = pgTable(
     action: text("action").notNull(),
     targetType: text("target_type").notNull(),
     targetId: text("target_id").notNull(),
+    previousState: jsonb("previous_state").$type<Record<string, unknown>>(),
+    newState: jsonb("new_state").$type<Record<string, unknown>>(),
     reason: text("reason"),
+    requestId: text("request_id").notNull(),
     createdAt: timestamps.createdAt,
   },
-  (t) => [index("moderation_action_target_idx").on(t.targetType, t.targetId)],
+  (t) => [
+    index("moderation_action_target_idx").on(t.targetType, t.targetId),
+    index("moderation_action_request_idx").on(t.requestId),
+  ],
 );
 
 export const blockedDomain = pgTable("blocked_domain", {
@@ -579,11 +620,18 @@ export const adminAuditLog = pgTable(
     action: text("action").notNull(),
     targetType: text("target_type").notNull(),
     targetId: text("target_id"),
+    previousState: jsonb("previous_state").$type<Record<string, unknown>>(),
+    newState: jsonb("new_state").$type<Record<string, unknown>>(),
     details: jsonb("details").$type<Record<string, unknown>>(),
+    reason: text("reason"),
+    requestId: text("request_id").notNull(),
     actorIpHash: text("actor_ip_hash"),
     createdAt: timestamps.createdAt,
   },
-  (t) => [index("admin_audit_time_idx").on(t.createdAt)],
+  (t) => [
+    index("admin_audit_time_idx").on(t.createdAt),
+    index("admin_audit_request_idx").on(t.requestId),
+  ],
 );
 
 /* ─────────────────── Raw tracker events (demo analytics) ─────────────────── */

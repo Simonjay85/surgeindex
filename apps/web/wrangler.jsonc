@@ -9,7 +9,8 @@
     "directory": ".open-next/assets"
   },
   "vars": {
-    "DEMO_MODE": "true"
+    "APP_MODE": "demo",
+    "DATA_PROVIDER": "demo"
   },
   "kv_namespaces": [
     {

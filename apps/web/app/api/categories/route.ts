@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getCategories } from "../../../lib/demo-data";
+import { getPublicDataProvider } from "../../../lib/server/public-provider";
 
-export function GET() {
-  return NextResponse.json({ data: getCategories(), source: "demo" }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=900" } });
+export async function GET() {
+  const provider = getPublicDataProvider();
+  return NextResponse.json({ data: await provider.getCategories(), source: provider.source }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=900" } });
 }

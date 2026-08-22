@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { getLeaderboard } from "../../../lib/demo-data";
+import { getPublicDataProvider } from "../../../lib/server/public-provider";
 
-export function GET(request: Request) {
+export async function GET(request: Request) {
   const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
   if (!q) return NextResponse.json({ data: [] });
-  return NextResponse.json({ data: getLeaderboard("live", undefined, q).slice(0, 8), source: "demo" }, { headers: { "Cache-Control": "private, max-age=15" } });
+  const provider = getPublicDataProvider();
+  return NextResponse.json({ data: await provider.getLeaderboard({ window: "live", query: q, limit: 8 }), source: provider.source }, { headers: { "Cache-Control": "private, max-age=15" } });
 }

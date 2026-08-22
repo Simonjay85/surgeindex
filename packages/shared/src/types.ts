@@ -39,7 +39,14 @@ export type ClaimMethod = "meta_tag" | "html_file" | "dns_txt" | "tracker" | "ga
 
 export type ActivityType =
   | "site_submitted"
+  | "site_approved"
+  | "site_rejected"
   | "site_verified"
+  | "ownership_verification_started"
+  | "ownership_verified"
+  | "category_changed"
+  | "site_suspended"
+  | "site_restored"
   | "entered_top_10"
   | "rank_up"
   | "surging"
