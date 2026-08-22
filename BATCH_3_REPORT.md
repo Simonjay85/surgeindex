@@ -2,7 +2,7 @@
 
 Date: 2026-08-23  
 Branch: feat/surgeindex-traffic-pipeline  
-Implementation commit: to be recorded after the local implementation commit (no merge or push performed)
+Implementation commit: `dfec579` (local only; no merge or push performed)
 
 ## Result
 
