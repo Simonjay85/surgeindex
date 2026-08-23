@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ChevronRight, Radio, Search, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronRight, Gavel, HeartHandshake, Radio, Search, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { CategoryInfo } from "@surge/shared";
 import type { DemoSite } from "../lib/demo-data";
@@ -41,6 +41,24 @@ function HomeSearch({ categoryOptions }: { categoryOptions: CategoryInfo[] }) {
   </form>;
 }
 
+function ProductLanes() {
+  return <section className="section section-product-lanes"><div className="container">
+    <SectionHeading eyebrow="THE PRODUCT LAYERS" title="Two ways to take part in the moment." description="The public board shows earned attention. These product lanes make the next action visible without mixing paid reach into organic rank." />
+    <div className="product-lanes-grid">
+      <Link className="product-lane-card product-lane-card-featured" href="/bid-the-moment">
+        <div className="product-lane-top"><span className="product-lane-icon"><Gavel size={20} /></span><span className="status-chip status-active">Preview now</span></div>
+        <div><div className="eyebrow">PAID DISTRIBUTION</div><h3>Bid the Moment</h3><p>Reserve a transparent spotlight when the right audience is gathering. The existing Boost flow measures delivery separately and never changes organic rank.</p></div>
+        <div className="product-lane-footer"><span>Open the preview</span><ArrowRight size={16} /></div>
+      </Link>
+      <Link className="product-lane-card" href="/fanward">
+        <div className="product-lane-top"><span className="product-lane-icon product-lane-icon-muted"><HeartHandshake size={20} /></span><span className="status-chip status-completed">Coming soon</span></div>
+        <div><div className="eyebrow">COMMUNITY + CREATOR SIGNALS</div><h3>Fanward</h3><p>A future fan and creator layer for measurable attention. The current local build keeps this surface in waitlist mode until the product rules are ready.</p></div>
+        <div className="product-lane-footer"><span>See the preview</span><ArrowRight size={16} /></div>
+      </Link>
+    </div>
+  </div></section>;
+}
+
 export function HomeClient({ initialSites, categories, isDemo, initialWindow = "live", initialCategory = "all", initialQuery = "" }: { initialSites: DemoSite[]; categories: CategoryInfo[]; isDemo: boolean; initialWindow?: string; initialCategory?: string; initialQuery?: string }) {
   const router = useRouter();
   const [activeWindow, setActiveWindow] = useState(initialWindow);
@@ -76,6 +94,8 @@ export function HomeClient({ initialSites, categories, isDemo, initialWindow = "
       {topSites.length ? <div className="featured-grid">{topSites.map((site) => <LeaderboardCard key={site.siteId} site={site} featured />)}</div> : <div className="empty-state"><span className="empty-icon"><Search size={18} /></span><h3>No sites match that search.</h3><p>Try a domain, site name, or another category. New websites can be submitted even before traffic is connected.</p><Link className="button button-quiet" href="/submit">Submit a site</Link></div>}
       <div className="activity-strip"><div className="activity-strip-label"><Radio size={15} /> Activity feed</div><div className="activity-strip-copy"><strong>{isDemo ? "LaunchPilot" : "Public index"}</strong> <span>{isDemo ? "is surging 5.4× above its usual baseline" : "updates from persisted site events"}</span></div><div className="activity-strip-time">{isDemo ? "2 min ago · " : "now · "}<DataModeBadge isDemo={isDemo} compact /></div></div>
     </div></section>
+
+    <ProductLanes />
 
     <section className="section section-tight"><div className="container"><SectionHeading eyebrow="THE CASE FOR PROVENANCE" title="Earn the rank. Buy the reach." description="SurgeIndex keeps organic attention and paid distribution in separate lanes, so a spotlight can never masquerade as momentum." /><div className="signal-principle"><h2>People should be able to tell what they’re looking at.</h2><div className="signal-principle-copy"><p>Every metric has a source. Every sponsored placement says so. Every Heat Score is computed from the site’s own attention signals—not a budget.</p><div className="principle-points"><div className="principle-point"><strong>Organic</strong><span>Verified traffic, growth, and confidence earn the rank.</span></div><div className="principle-point"><strong>Boosted</strong><span>Paid exposure is useful, transparent, and never rank-changing.</span></div></div></div></div></div></section>
 

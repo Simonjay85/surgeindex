@@ -38,6 +38,23 @@ const serverEnvSchema = z.object({
   GA4_SOURCE_OVERLAP_REVIEW_DAYS: z.coerce.number().int().min(1).max(90).default(7),
   GA4_STALE_AFTER_MINUTES: z.coerce.number().int().min(5).max(10080).default(180),
   GA4_OFFLINE_AFTER_HOURS: z.coerce.number().int().min(1).max(720).default(48),
+  BOOST_ENABLED: z
+    .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())
+    .default(false),
+  BOOST_LIVE_MODE_ENABLED: z
+    .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())
+    .default(false),
+  BOOST_DEFAULT_CURRENCY: z.string().regex(/^[A-Z]{3}$/).default("USD"),
+  BOOST_INVENTORY_TIME_ZONE: z.string().min(1).max(64).default("UTC"),
+  BOOST_RESERVATION_MINUTES: z.coerce.number().int().min(5).max(120).default(30),
+  BOOST_DEFAULT_CAMPAIGN_DAYS: z.coerce.number().int().min(1).max(365).default(7),
+  BOOST_MAX_CAMPAIGN_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  BOOST_MAX_FREQUENCY_PER_VISITOR_PER_DAY: z.coerce.number().int().min(1).max(100).default(3),
+  BOOST_IMPRESSION_VISIBILITY_PERCENT: z.coerce.number().int().min(1).max(100).default(50),
+  BOOST_IMPRESSION_VISIBILITY_MS: z.coerce.number().int().min(100).max(10_000).default(1_000),
+  BOOST_ATTRIBUTION_WINDOW_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
+  BOOST_MAX_OVERDELIVERY_PERCENT: z.coerce.number().int().min(0).max(100).default(10),
+  BOOST_UNDERDELIVERY_GRACE_DAYS: z.coerce.number().int().min(0).max(30).default(2),
   NEXT_PUBLIC_APP_NAME: z.string().default("SurgeIndex"),
   NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
   DATABASE_URL: z.string().optional(),
@@ -55,7 +72,23 @@ const serverEnvSchema = z.object({
   TINYBIRD_READ_TOKEN: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  STRIPE_API_VERSION: z.string().min(1).max(32).default("2025-06-30.basil"),
+  STRIPE_CHECKOUT_SUCCESS_URL: z.string().url().optional(),
+  STRIPE_CHECKOUT_CANCEL_URL: z.string().url().optional(),
+  STRIPE_ENABLED: z
+    .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())
+    .default(false),
+  STRIPE_TEST_MODE_REQUIRED: z
+    .preprocess((value) => value === undefined || value === true || value === "true" || value === "1", z.boolean())
+    .default(true),
+  STRIPE_TAX_ENABLED: z
+    .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())
+    .default(false),
+  BOOST_STARTER_PRICE_ID: z.string().optional(),
+  BOOST_GROWTH_PRICE_ID: z.string().optional(),
+  BOOST_LAUNCH_PRICE_ID: z.string().optional(),
   TURNSTILE_SITE_KEY: z.string().optional(),
   TURNSTILE_SECRET_KEY: z.string().optional(),
   CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
@@ -134,6 +167,27 @@ export function getServerEnv(): ServerEnv {
   }
   if (values.GA4_ENABLED && values.GA4_TOKEN_ENCRYPTION_KEY && !isAes256Key(values.GA4_TOKEN_ENCRYPTION_KEY)) {
     configurationIssues.push("  - GA4_TOKEN_ENCRYPTION_KEY: must decode to exactly 32 bytes");
+  }
+  if (values.APP_MODE === "demo" && values.STRIPE_SECRET_KEY?.startsWith("sk_live_")) {
+    configurationIssues.push("  - STRIPE_SECRET_KEY: demo mode cannot use a live Stripe secret");
+  }
+  if (values.STRIPE_TEST_MODE_REQUIRED && values.STRIPE_SECRET_KEY?.startsWith("sk_live_")) {
+    configurationIssues.push("  - STRIPE_TEST_MODE_REQUIRED: live Stripe keys are not allowed while test mode is required");
+  }
+  if (values.BOOST_LIVE_MODE_ENABLED && values.APP_MODE !== "production") {
+    configurationIssues.push("  - BOOST_LIVE_MODE_ENABLED: live Boost mode requires APP_MODE=production");
+  }
+  if (values.BOOST_LIVE_MODE_ENABLED && !values.BOOST_ENABLED) {
+    configurationIssues.push("  - BOOST_ENABLED: must be true when BOOST_LIVE_MODE_ENABLED=true");
+  }
+  if (values.BOOST_LIVE_MODE_ENABLED || values.STRIPE_ENABLED) {
+    if (!values.STRIPE_SECRET_KEY) configurationIssues.push("  - STRIPE_SECRET_KEY: required when Stripe/Boost live mode is enabled");
+    if (!values.STRIPE_WEBHOOK_SECRET) configurationIssues.push("  - STRIPE_WEBHOOK_SECRET: required when Stripe/Boost live mode is enabled");
+    if (!values.STRIPE_CHECKOUT_SUCCESS_URL) configurationIssues.push("  - STRIPE_CHECKOUT_SUCCESS_URL: required when Stripe/Boost live mode is enabled");
+    if (!values.STRIPE_CHECKOUT_CANCEL_URL) configurationIssues.push("  - STRIPE_CHECKOUT_CANCEL_URL: required when Stripe/Boost live mode is enabled");
+  }
+  if (values.BOOST_LIVE_MODE_ENABLED && (!values.BOOST_STARTER_PRICE_ID || !values.BOOST_GROWTH_PRICE_ID || !values.BOOST_LAUNCH_PRICE_ID)) {
+    configurationIssues.push("  - BOOST_*_PRICE_ID: Starter, Growth, and Launch Price IDs are required for live Boost mode");
   }
   if (values.ANALYTICS_PROVIDER === "tinybird" && (!values.TINYBIRD_API_URL || !values.TINYBIRD_INGEST_TOKEN || !values.TINYBIRD_READ_TOKEN)) {
     configurationIssues.push("  - TINYBIRD_API_URL/TINYBIRD_INGEST_TOKEN/TINYBIRD_READ_TOKEN: required when ANALYTICS_PROVIDER=tinybird");

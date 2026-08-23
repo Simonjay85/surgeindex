@@ -18,6 +18,7 @@
   "dependencies": {
     "@surge/analytics": "workspace:*",
     "@surge/anti-fraud": "workspace:*",
+    "@surge/boost": "workspace:*",
     "@surge/config": "workspace:*",
     "@surge/db": "workspace:*",
     "@surge/ga4": "workspace:*",
@@ -35,6 +36,7 @@
     "react-dom": "catalog:",
     "recharts": "catalog:",
     "server-only": "^0.0.1",
+    "stripe": "^22.5.0",
     "tailwind-merge": "catalog:",
     "zod": "catalog:"
   },

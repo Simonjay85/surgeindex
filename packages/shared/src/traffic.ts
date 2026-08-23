@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { FraudDecision } from "./types";
+import type { FraudDecision, TrafficOrigin } from "./types";
 
 /**
  * The only browser events accepted by the first-party tracker. Keeping this
@@ -67,6 +67,8 @@ export interface NormalizedTrackerEvent {
   attributionTokenHash: string | null;
   /** Internal click UUID extracted from a verified, signed token. */
   attributionClickId: string | null;
+  attributionCampaignId?: string | null;
+  trafficOrigin?: TrafficOrigin;
   trackerPublicKey: string;
   originHost: string | null;
   country: string | null;

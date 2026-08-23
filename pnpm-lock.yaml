@@ -59,6 +59,9 @@ importers:
 
   .:
     devDependencies:
+      '@surge/boost':
+        specifier: workspace:*
+        version: link:packages/boost
       '@surge/config':
         specifier: workspace:*
         version: link:packages/config
@@ -86,6 +89,9 @@ importers:
       '@surge/anti-fraud':
         specifier: workspace:*
         version: link:../../packages/anti-fraud
+      '@surge/boost':
+        specifier: workspace:*
+        version: link:../../packages/boost
       '@surge/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -137,6 +143,9 @@ importers:
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
+      stripe:
+        specifier: ^22.5.0
+        version: 22.5.0(@types/node@24.13.3)
       tailwind-merge:
         specifier: 'catalog:'
         version: 3.6.0
@@ -225,6 +234,15 @@ importers:
         version: 4.1.11(@types/node@24.13.3)(jsdom@26.1.0(supports-color@10.2.2))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.16.9)(tsx@4.23.12)(yaml@2.9.0))
 
   packages/anti-fraud:
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@24.13.3)(jsdom@26.1.0(supports-color@10.2.2))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.16.9)(tsx@4.23.12)(yaml@2.9.0))
+
+  packages/boost:
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -5190,6 +5208,15 @@ packages:
   strip-json-comments@3.1.1:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
+
+  stripe@22.5.0:
+    resolution: {integrity: sha512-QVwMwriC0bbySx6R4dpsvJ0W//GojC1kwWVS6rPSoVqDUIZX4Hy3TaUrd2AZeXEAaKbfWIjQjvo3vKAReHZ0vQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
 
   styled-jsx@5.1.6:
     resolution: {integrity: sha512-qSVyDTeMotdvQYoHWLNGwRFJHC+i+ZvdBRYosOFgC+Wg1vx4frN2/RG/NA7SYqqvKNLf39P2LSRA2pu6n0XYZA==}
@@ -10444,6 +10471,10 @@ snapshots:
       min-indent: 1.0.1
 
   strip-json-comments@3.1.1: {}
+
+  stripe@22.5.0(@types/node@24.13.3):
+    optionalDependencies:
+      '@types/node': 24.13.3
 
   styled-jsx@5.1.6(@babel/core@7.29.7(supports-color@10.2.2))(react@19.2.8):
     dependencies:

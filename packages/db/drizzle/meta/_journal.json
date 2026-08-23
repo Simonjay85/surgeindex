@@ -57,6 +57,13 @@
       "when": 1787498037098,
       "tag": "0007_overjoyed_beyonder",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787499565335,
+      "tag": "0008_ordinary_groot",
+      "breakpoints": true
     }
   ]
 }

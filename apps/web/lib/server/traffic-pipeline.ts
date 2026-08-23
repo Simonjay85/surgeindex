@@ -5,7 +5,7 @@ import { and, desc, eq, gt } from "drizzle-orm";
 import { checkTrackerEvent, FRAUD_RULE_VERSION } from "@surge/anti-fraud";
 import { PostgresEventStoreProvider, TinybirdEventStoreProvider } from "@surge/analytics";
 import { getServerEnv } from "@surge/config";
-import { getPostgresDb, attributionRecord, ingestionFailure, trackerEvent, trackerKey, site } from "@surge/db";
+import { getPostgresDb, attributionRecord, ingestionFailure, trackerEvent, trackerKey, site, outboundClick } from "@surge/db";
 import {
   flattenTrackerBatch,
   normalizeDevice,
@@ -141,6 +141,8 @@ export async function collectTrackerRequest(request: Request): Promise<Collector
       trackerVersion: event.trackerVersion,
       attributionTokenHash: attribution.tokenHash,
       attributionClickId: attribution.clickId,
+      attributionCampaignId: attribution.campaignId,
+      trafficOrigin: attribution.trafficOrigin,
       trackerPublicKey: event.siteKey,
       originHost,
       country: request.headers.get("cf-ipcountry")?.slice(0, 2).toUpperCase() ?? null,
@@ -229,14 +231,16 @@ async function countRecent(field: "visitorHash" | "sessionId", value: string): P
   return rows.length;
 }
 
-async function resolveAttribution(event: TrackerEvent, siteId: string, signingSecret: string, hashSecret: string, sessionHash: string): Promise<{ valid: boolean; invalid: boolean; replayed: boolean; tokenHash: string | null; clickId: string | null }> {
-  if (!event.attributionToken) return { valid: true, invalid: false, replayed: false, tokenHash: null, clickId: null };
+async function resolveAttribution(event: TrackerEvent, siteId: string, signingSecret: string, hashSecret: string, sessionHash: string): Promise<{ valid: boolean; invalid: boolean; replayed: boolean; tokenHash: string | null; clickId: string | null; campaignId: string | null; trafficOrigin: "organic_surgedindex_referral" | "paid_surgedindex_referral" | "direct" }> {
+  if (!event.attributionToken) return { valid: true, invalid: false, replayed: false, tokenHash: null, clickId: null, campaignId: null, trafficOrigin: "direct" };
   const payload = verifyAttributionToken(event.attributionToken, signingSecret);
-  if (!payload || payload.siteId !== siteId || payload.expiresAt <= Date.now()) return { valid: false, invalid: true, replayed: false, tokenHash: null, clickId: null };
+  if (!payload || payload.siteId !== siteId || payload.expiresAt <= Date.now()) return { valid: false, invalid: true, replayed: false, tokenHash: null, clickId: null, campaignId: null, trafficOrigin: "direct" };
   const tokenHash = hashRotating(hashSecret, `attribution:${event.attributionToken}`);
   const db = getPostgresDb();
+  const [click] = await db.select({ campaignId: outboundClick.campaignId, trafficOrigin: outboundClick.trafficOrigin }).from(outboundClick).where(and(eq(outboundClick.id, payload.clickId), eq(outboundClick.siteId, siteId))).limit(1);
   const [existing] = await db.select({ sessionHash: attributionRecord.sessionHash, expiresAt: attributionRecord.expiresAt }).from(attributionRecord).where(eq(attributionRecord.tokenHash, tokenHash)).limit(1);
-  return { valid: true, invalid: false, replayed: Boolean(existing && existing.sessionHash !== sessionHash && existing.expiresAt > new Date()), tokenHash, clickId: payload.clickId };
+  const trafficOrigin = click?.trafficOrigin === "paid_surgedindex_referral" ? "paid_surgedindex_referral" : "organic_surgedindex_referral";
+  return { valid: Boolean(click), invalid: !click, replayed: Boolean(existing && existing.sessionHash !== sessionHash && existing.expiresAt > new Date()), tokenHash, clickId: payload.clickId, campaignId: click?.campaignId ?? null, trafficOrigin };
 }
 
 export function verifyAttributionToken(token: string, secret: string): { siteId: string; clickId: string; expiresAt: number } | null {

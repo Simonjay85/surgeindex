@@ -24,10 +24,10 @@ export function Header() {
           <Link href="/rankings">Rankings</Link>
           <Link href="/breakouts">Breakouts</Link>
           <Link href="/categories">Categories</Link>
-          <Link href="/boost">Boost</Link>
+          <Link className="nav-feature-active" href="/bid-the-moment">Bid the Moment</Link>
           <Link href="/methodology">Methodology</Link>
           <span className="nav-divider" />
-          <Link className="nav-future" href="/creators">Creators <span>soon</span></Link>
+          <Link className="nav-future" href="/fanward">Fanward <span>preview</span></Link>
         </nav>
         <div className="header-actions">
           <Link className="icon-button" href="/search" aria-label="Search sites"><Search size={18} /></Link>
@@ -50,6 +50,7 @@ export function Footer() {
         </div>
         <div className="footer-links">
           <div><span className="footer-label">Explore</span><Link href="/rankings">Rankings</Link><Link href="/breakouts">Breakouts</Link><Link href="/categories">Categories</Link></div>
+          <div><span className="footer-label">Product</span><Link href="/bid-the-moment">Bid the Moment</Link><Link href="/fanward">Fanward</Link><Link href="/dashboard/boosts">Campaign dashboard</Link></div>
           <div><span className="footer-label">For site owners</span><Link href="/submit">Submit a site</Link><Link href="/dashboard">Dashboard</Link><Link href="/boost">Boost exposure</Link></div>
           <div><span className="footer-label">Learn</span><Link href="/methodology">Methodology</Link><Link href="/pricing">Pricing</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div>
         </div>

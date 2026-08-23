@@ -116,6 +116,38 @@ export const gaReportWindowEnum = pgEnum("ga_report_window", ["yesterday", "7d",
 export const rankingSourceEnum = pgEnum("ranking_source", ["tracker", "ga4"]);
 export const gaQuotaApiEnum = pgEnum("ga_quota_api", ["core", "realtime"]);
 export const ownerRoleEnum = pgEnum("owner_role", ["owner", "editor"]);
+export const boostCampaignStateEnum = pgEnum("boost_campaign_state", [
+  "draft",
+  "inventory_check",
+  "awaiting_checkout",
+  "inventory_reserved",
+  "pending_payment",
+  "payment_processing",
+  "paid",
+  "paid_pending_inventory_review",
+  "scheduled",
+  "active",
+  "paused",
+  "delivery_complete",
+  "completed",
+  "underdelivered",
+  "cancel_requested",
+  "cancelled",
+  "refund_pending",
+  "partially_refunded",
+  "refunded",
+  "payment_failed",
+  "checkout_expired",
+  "disputed",
+  "suspended",
+]);
+export const boostReservationStatusEnum = pgEnum("boost_reservation_status", ["held", "confirmed", "released", "expired"]);
+export const boostCreativeStateEnum = pgEnum("boost_creative_state", ["draft", "pending_review", "approved", "rejected", "suspended"]);
+export const boostImpressionClassificationEnum = pgEnum("boost_impression_classification", ["opportunity", "rendered", "qualified", "duplicate", "invalid", "suspected", "viewability_failed", "expired_token", "frequency_capped", "owner_self_view"]);
+export const stripeEnvironmentEnum = pgEnum("stripe_environment", ["test", "live"]);
+export const boostPaymentStatusEnum = pgEnum("boost_payment_status", ["pending", "processing", "succeeded", "failed", "expired", "partially_refunded", "refunded", "disputed"]);
+export const boostRefundStatusEnum = pgEnum("boost_refund_status", ["requested", "processing", "succeeded", "failed", "cancelled"]);
+export const boostDisputeStatusEnum = pgEnum("boost_dispute_status", ["open", "won", "lost", "closed"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
@@ -994,6 +1026,7 @@ export const outboundClick = pgTable(
       .references(() => site.id, { onDelete: "cascade" }),
     campaignId: uuid("campaign_id"),
     placement: text("placement").notNull().default("organic"),
+    trafficOrigin: text("traffic_origin").notNull().default("organic_surgedindex_referral"),
     visitorHash: text("visitor_hash").notNull(),
     referrerPath: text("referrer_path"),
     isUnique: boolean("is_unique").notNull().default(true),
@@ -1040,6 +1073,39 @@ export const boostPlacementDef = pgTable("boost_placement_def", {
   isActive: boolean("is_active").notNull().default(true),
 });
 
+/** Server-owned V1 placement catalog. The legacy enum-backed table remains for compatibility. */
+export const boostPlacementConfig = pgTable("boost_placement_config", {
+  key: text("key").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  routePattern: text("route_pattern").notNull(),
+  eligibleCategories: text("eligible_categories").array().notNull().default(sql`ARRAY[]::text[]`),
+  deviceSupport: text("device_support").array().notNull().default(sql`ARRAY['desktop','mobile','tablet']::text[]`),
+  creativeSpec: jsonb("creative_spec").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  frequencyPolicy: jsonb("frequency_policy").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  viewabilityRule: jsonb("viewability_rule").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  isActive: boolean("is_active").notNull().default(true),
+  ...timestamps,
+});
+
+export const boostPackage = pgTable("boost_package", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  packageKey: text("package_key").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  currency: text("currency").notNull().default("USD"),
+  amountCents: integer("amount_cents"),
+  stripePriceId: text("stripe_price_id"),
+  targetQualifiedImpressions: integer("target_qualified_impressions"),
+  eligiblePlacements: text("eligible_placements").array().notNull().default(sql`ARRAY[]::text[]`),
+  eligibleCategories: text("eligible_categories").array().notNull().default(sql`ARRAY[]::text[]`),
+  defaultDurationDays: integer("default_duration_days").notNull().default(7),
+  maximumDurationDays: integer("maximum_duration_days").notNull().default(30),
+  isActive: boolean("is_active").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(0),
+  ...timestamps,
+});
+
 export const boostCampaign = pgTable(
   "boost_campaign",
   {
@@ -1051,17 +1117,34 @@ export const boostCampaign = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     status: boostStatusEnum("status").notNull().default("draft"),
+    state: boostCampaignStateEnum("state").notNull().default("draft"),
     placement: boostPlacementEnum("placement").notNull(),
+    placementKey: text("placement_key").notNull().default("homepage_boosted"),
     categoryId: uuid("category_id").references(() => category.id, { onDelete: "set null" }),
+    packageId: uuid("package_id").references(() => boostPackage.id, { onDelete: "set null" }),
+    packageKey: text("package_key").notNull().default("custom"),
+    packageSnapshot: jsonb("package_snapshot").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     headline: text("headline").notNull().default(""),
+    shortDescription: text("short_description").notNull().default(""),
+    ctaLabel: text("cta_label").notNull().default("Visit site"),
+    destinationUrl: text("destination_url"),
+    logoUrl: text("logo_url"),
+    creativeVersion: integer("creative_version").notNull().default(1),
+    pacingMode: text("pacing_mode").notNull().default("even"),
     budgetCents: integer("budget_cents").notNull().default(0),
     spendCents: integer("spend_cents").notNull().default(0),
     currency: text("currency").notNull().default("USD"),
     targetImpressions: integer("target_impressions").notNull().default(0),
     deliveredImpressions: integer("delivered_impressions").notNull().default(0),
+    renderedImpressions: integer("rendered_impressions").notNull().default(0),
+    invalidImpressions: integer("invalid_impressions").notNull().default(0),
     validImpressions: integer("valid_impressions").notNull().default(0),
+    clicks: integer("clicks").notNull().default(0),
     validClicks: integer("valid_clicks").notNull().default(0),
     uniqueClicks: integer("unique_clicks").notNull().default(0),
+    attributedVisits: integer("attributed_visits").notNull().default(0),
+    attributedEngagedVisits: integer("attributed_engaged_visits").notNull().default(0),
+    ownerSelfViewExcluded: boolean("owner_self_view_excluded").notNull().default(true),
     startAt: timestamp("start_at", { withTimezone: true, mode: "date" }),
     endAt: timestamp("end_at", { withTimezone: true, mode: "date" }),
     dailyCap: integer("daily_cap"),
@@ -1077,6 +1160,185 @@ export const boostCampaign = pgTable(
     index("boost_campaign_site_idx").on(t.siteId),
     index("boost_campaign_owner_idx").on(t.ownerId),
   ],
+);
+
+export const boostCampaignCreative = pgTable(
+  "boost_campaign_creative",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    campaignId: uuid("campaign_id").notNull().references(() => boostCampaign.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    state: boostCreativeStateEnum("state").notNull().default("draft"),
+    headline: text("headline").notNull(),
+    description: text("description").notNull(),
+    ctaLabel: text("cta_label").notNull(),
+    destinationUrl: text("destination_url").notNull(),
+    logoUrl: text("logo_url"),
+    moderationReason: text("moderation_reason"),
+    approvedByUserId: text("approved_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at", { withTimezone: true, mode: "date" }),
+    ...timestamps,
+  },
+  (t) => [unique("boost_creative_campaign_version_unique").on(t.campaignId, t.version), index("boost_creative_campaign_state_idx").on(t.state, t.updatedAt)],
+);
+
+export const boostCampaignStateTransition = pgTable(
+  "boost_campaign_state_transition",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    campaignId: uuid("campaign_id").notNull().references(() => boostCampaign.id, { onDelete: "cascade" }),
+    previousState: boostCampaignStateEnum("previous_state"),
+    newState: boostCampaignStateEnum("new_state").notNull(),
+    reason: text("reason").notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, { onDelete: "set null" }),
+    requestId: text("request_id").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("boost_state_transition_campaign_time_idx").on(t.campaignId, t.occurredAt), index("boost_state_transition_request_idx").on(t.requestId)],
+);
+
+export const boostInventoryWindow = pgTable(
+  "boost_inventory_window",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    placementKey: text("placement_key").notNull(),
+    categoryId: uuid("category_id").references(() => category.id, { onDelete: "set null" }),
+    startsAt: timestamp("starts_at", { withTimezone: true, mode: "date" }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true, mode: "date" }).notNull(),
+    estimatedOpportunities: integer("estimated_opportunities").notNull().default(0),
+    estimatedQualifiedImpressions: integer("estimated_qualified_impressions").notNull().default(0),
+    reservedImpressions: integer("reserved_impressions").notNull().default(0),
+    safeCapacity: integer("safe_capacity").notNull().default(0),
+    confidence: text("confidence").notNull().default("unknown"),
+    generatedAt: timestamp("generated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    ...timestamps,
+  },
+  (t) => [index("boost_inventory_window_lookup_idx").on(t.placementKey, t.categoryId, t.startsAt, t.endsAt)],
+);
+
+export const boostInventoryReservation = pgTable(
+  "boost_inventory_reservation",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    campaignId: uuid("campaign_id").notNull().references(() => boostCampaign.id, { onDelete: "cascade" }),
+    windowId: uuid("window_id").references(() => boostInventoryWindow.id, { onDelete: "set null" }),
+    placementKey: text("placement_key").notNull(),
+    categoryId: uuid("category_id").references(() => category.id, { onDelete: "set null" }),
+    reservedImpressions: integer("reserved_impressions").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true, mode: "date" }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true, mode: "date" }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    status: boostReservationStatusEnum("status").notNull().default("held"),
+    stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+    createdAt: timestamps.createdAt,
+    releasedAt: timestamp("released_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [index("boost_reservation_window_idx").on(t.placementKey, t.categoryId, t.startsAt, t.endsAt, t.status), index("boost_reservation_campaign_idx").on(t.campaignId, t.status)],
+);
+
+export const boostOrder = pgTable(
+  "boost_order",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    campaignId: uuid("campaign_id").notNull().references(() => boostCampaign.id, { onDelete: "cascade" }).unique(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    packageKey: text("package_key").notNull(),
+    packageSnapshot: jsonb("package_snapshot").$type<Record<string, unknown>>().notNull(),
+    currency: text("currency").notNull(),
+    expectedAmountCents: integer("expected_amount_cents").notNull(),
+    paidAmountCents: integer("paid_amount_cents").notNull().default(0),
+    refundedAmountCents: integer("refunded_amount_cents").notNull().default(0),
+    stripeEnvironment: stripeEnvironmentEnum("stripe_environment").notNull().default("test"),
+    paymentStatus: boostPaymentStatusEnum("payment_status").notNull().default("pending"),
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "date" }),
+    refundedAt: timestamp("refunded_at", { withTimezone: true, mode: "date" }),
+    ...timestamps,
+  },
+  (t) => [index("boost_order_user_idx").on(t.userId, t.createdAt), index("boost_order_payment_status_idx").on(t.paymentStatus, t.updatedAt)],
+);
+
+export const stripeCustomer = pgTable(
+  "stripe_customer",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    stripeCustomerId: text("stripe_customer_id").notNull(),
+    stripeEnvironment: stripeEnvironmentEnum("stripe_environment").notNull(),
+    ...timestamps,
+  },
+  (t) => [unique("stripe_customer_user_environment_unique").on(t.userId, t.stripeEnvironment), unique("stripe_customer_provider_id_unique").on(t.stripeEnvironment, t.stripeCustomerId)],
+);
+
+export const boostStripeCheckoutSession = pgTable(
+  "boost_stripe_checkout_session",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id").notNull().references(() => boostOrder.id, { onDelete: "cascade" }).unique(),
+    stripeSessionId: text("stripe_session_id").notNull(),
+    stripeEnvironment: stripeEnvironmentEnum("stripe_environment").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    paymentIntentId: text("payment_intent_id"),
+    status: text("status").notNull().default("open"),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamps.createdAt,
+    updatedAt: timestamps.updatedAt,
+  },
+  (t) => [unique("boost_checkout_session_environment_id_unique").on(t.stripeEnvironment, t.stripeSessionId), unique("boost_checkout_session_idempotency_unique").on(t.stripeEnvironment, t.idempotencyKey)],
+);
+
+export const boostPayment = pgTable(
+  "boost_payment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id").notNull().references(() => boostOrder.id, { onDelete: "cascade" }),
+    stripeEnvironment: stripeEnvironmentEnum("stripe_environment").notNull(),
+    status: boostPaymentStatusEnum("status").notNull().default("pending"),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull(),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    stripeChargeId: text("stripe_charge_id"),
+    createdAt: timestamps.createdAt,
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "date" }),
+    updatedAt: timestamps.updatedAt,
+  },
+  (t) => [unique("boost_payment_environment_intent_unique").on(t.stripeEnvironment, t.stripePaymentIntentId), index("boost_payment_order_idx").on(t.orderId, t.createdAt)],
+);
+
+export const boostRefund = pgTable(
+  "boost_refund",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id").notNull().references(() => boostOrder.id, { onDelete: "cascade" }),
+    stripeEnvironment: stripeEnvironmentEnum("stripe_environment").notNull(),
+    stripeRefundId: text("stripe_refund_id"),
+    amountCents: integer("amount_cents").notNull(),
+    status: boostRefundStatusEnum("status").notNull().default("requested"),
+    reason: text("reason").notNull(),
+    requestedByUserId: text("requested_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    approvedByUserId: text("approved_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    requestId: text("request_id").notNull(),
+    createdAt: timestamps.createdAt,
+    updatedAt: timestamps.updatedAt,
+  },
+  (t) => [unique("boost_refund_environment_provider_id_unique").on(t.stripeEnvironment, t.stripeRefundId), index("boost_refund_order_idx").on(t.orderId, t.createdAt)],
+);
+
+export const boostDispute = pgTable(
+  "boost_dispute",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    paymentId: uuid("payment_id").references(() => boostPayment.id, { onDelete: "set null" }),
+    orderId: uuid("order_id").notNull().references(() => boostOrder.id, { onDelete: "cascade" }),
+    stripeEnvironment: stripeEnvironmentEnum("stripe_environment").notNull(),
+    stripeDisputeId: text("stripe_dispute_id").notNull(),
+    status: boostDisputeStatusEnum("status").notNull().default("open"),
+    reason: text("reason"),
+    evidenceSnapshot: jsonb("evidence_snapshot").$type<Record<string, unknown>>(),
+    createdAt: timestamps.createdAt,
+    updatedAt: timestamps.updatedAt,
+  },
+  (t) => [unique("boost_dispute_environment_provider_id_unique").on(t.stripeEnvironment, t.stripeDisputeId), index("boost_dispute_status_idx").on(t.status, t.createdAt)],
 );
 
 export const boostImpression = pgTable(
@@ -1098,6 +1360,129 @@ export const boostImpression = pgTable(
     index("boost_impression_campaign_idx").on(t.campaignId, t.occurredAt),
     index("boost_impression_dedupe_idx").on(t.campaignId, t.visitorHash, t.occurredAt),
   ],
+);
+
+/** Signed opportunity ledger. A rendered card is not billable until qualified. */
+export const boostImpressionOpportunity = pgTable(
+  "boost_impression_opportunity",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    campaignId: uuid("campaign_id").notNull().references(() => boostCampaign.id, { onDelete: "cascade" }),
+    placementKey: text("placement_key").notNull(),
+    creativeVersion: integer("creative_version").notNull(),
+    visitorContextHash: text("visitor_context_hash").notNull(),
+    routeContext: text("route_context"),
+    tokenHash: text("token_hash").notNull().unique(),
+    issuedAt: timestamp("issued_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [index("boost_opportunity_campaign_idx").on(t.campaignId, t.issuedAt), index("boost_opportunity_expiry_idx").on(t.expiresAt, t.usedAt)],
+);
+
+export const boostImpressionEvent = pgTable(
+  "boost_impression_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: text("event_id").notNull().unique(),
+    opportunityId: uuid("opportunity_id").references(() => boostImpressionOpportunity.id, { onDelete: "set null" }),
+    campaignId: uuid("campaign_id").notNull().references(() => boostCampaign.id, { onDelete: "cascade" }),
+    siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+    visitorHash: text("visitor_hash").notNull(),
+    classification: boostImpressionClassificationEnum("classification").notNull(),
+    visiblePercent: integer("visible_percent"),
+    visibleMilliseconds: integer("visible_milliseconds"),
+    userAgentClass: text("user_agent_class"),
+    reasonCode: text("reason_code"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    isDemo: boolean("is_demo").notNull().default(false),
+  },
+  (t) => [index("boost_impression_event_campaign_time_idx").on(t.campaignId, t.occurredAt), index("boost_impression_event_visitor_idx").on(t.campaignId, t.visitorHash, t.occurredAt)],
+);
+
+export const boostImpressionAggregate = pgTable(
+  "boost_impression_aggregate",
+  {
+    campaignId: uuid("campaign_id").notNull().references(() => boostCampaign.id, { onDelete: "cascade" }),
+    bucketStart: timestamp("bucket_start", { withTimezone: true, mode: "date" }).notNull(),
+    opportunities: integer("opportunities").notNull().default(0),
+    renderedImpressions: integer("rendered_impressions").notNull().default(0),
+    qualifiedImpressions: integer("qualified_impressions").notNull().default(0),
+    invalidImpressions: integer("invalid_impressions").notNull().default(0),
+    suspectedImpressions: integer("suspected_impressions").notNull().default(0),
+    duplicateImpressions: integer("duplicate_impressions").notNull().default(0),
+    updatedAt: timestamps.updatedAt,
+  },
+  (t) => [primaryKey({ columns: [t.campaignId, t.bucketStart] }), index("boost_impression_aggregate_time_idx").on(t.bucketStart)],
+);
+
+export const boostClickEvent = pgTable(
+  "boost_click_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    campaignId: uuid("campaign_id").notNull().references(() => boostCampaign.id, { onDelete: "cascade" }),
+    siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+    impressionOpportunityId: uuid("impression_opportunity_id").references(() => boostImpressionOpportunity.id, { onDelete: "set null" }),
+    visitorHash: text("visitor_hash").notNull(),
+    destinationUrl: text("destination_url").notNull(),
+    valid: boolean("valid").notNull().default(false),
+    uniqueClick: boolean("unique_click").notNull().default(false),
+    decision: fraudDecisionEnum("decision").notNull().default("valid"),
+    referrerPath: text("referrer_path"),
+    creativeVersion: integer("creative_version").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    isDemo: boolean("is_demo").notNull().default(false),
+  },
+  (t) => [index("boost_click_campaign_time_idx").on(t.campaignId, t.occurredAt), index("boost_click_visitor_time_idx").on(t.campaignId, t.visitorHash, t.occurredAt)],
+);
+
+export const boostAttributionAggregate = pgTable(
+  "boost_attribution_aggregate",
+  {
+    campaignId: uuid("campaign_id").notNull().references(() => boostCampaign.id, { onDelete: "cascade" }),
+    siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    attributedVisits: integer("attributed_visits").notNull().default(0),
+    attributedEngagedVisits: integer("attributed_engaged_visits").notNull().default(0),
+    updatedAt: timestamps.updatedAt,
+  },
+  (t) => [primaryKey({ columns: [t.campaignId, t.day] }), index("boost_attribution_site_day_idx").on(t.siteId, t.day)],
+);
+
+export const boostFrequencyCap = pgTable(
+  "boost_frequency_cap",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    campaignId: uuid("campaign_id").notNull().references(() => boostCampaign.id, { onDelete: "cascade" }),
+    visitorHash: text("visitor_hash").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true, mode: "date" }).notNull(),
+    exposureCount: integer("exposure_count").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    createdAt: timestamps.createdAt,
+    updatedAt: timestamps.updatedAt,
+  },
+  (t) => [unique("boost_frequency_campaign_visitor_window_unique").on(t.campaignId, t.visitorHash, t.windowStart), index("boost_frequency_expiry_idx").on(t.expiresAt)],
+);
+
+export const boostDeliveryJob = pgTable(
+  "boost_delivery_job",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    campaignId: uuid("campaign_id").notNull().references(() => boostCampaign.id, { onDelete: "cascade" }),
+    jobKey: text("job_key").notNull(),
+    jobType: text("job_type").notNull(),
+    status: text("status").notNull().default("queued"),
+    expectedProgress: numeric("expected_progress", { precision: 6, scale: 4 }),
+    actualProgress: numeric("actual_progress", { precision: 6, scale: 4 }),
+    lastDeliveryAt: timestamp("last_delivery_at", { withTimezone: true, mode: "date" }),
+    startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
+    finishedAt: timestamp("finished_at", { withTimezone: true, mode: "date" }),
+    errorCode: text("error_code"),
+    requestId: text("request_id"),
+    ...timestamps,
+  },
+  (t) => [unique("boost_delivery_job_key_unique").on(t.campaignId, t.jobKey), index("boost_delivery_job_status_idx").on(t.status, t.updatedAt)],
 );
 
 export const payment = pgTable(
@@ -1125,9 +1510,14 @@ export const processedWebhookEvent = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     provider: paymentProviderEnum("provider").notNull(),
     eventId: text("event_id").notNull(),
+    stripeEnvironment: stripeEnvironmentEnum("stripe_environment").notNull().default("test"),
+    eventType: text("event_type"),
+    requestId: text("request_id"),
+    processingResult: text("processing_result"),
+    errorCode: text("error_code"),
     processedAt: timestamp("processed_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("processed_webhook_unique").on(t.provider, t.eventId)],
+  (t) => [uniqueIndex("processed_webhook_unique").on(t.provider, t.stripeEnvironment, t.eventId)],
 );
 
 export const subscription = pgTable("subscription", {
@@ -1239,6 +1629,8 @@ export const trackerEvent = pgTable(
     engagedSeconds: integer("engaged_seconds"),
     trackerVersion: text("tracker_version").notNull().default("1.0.0"),
     attributionTokenHash: text("attribution_token_hash"),
+    trafficOrigin: text("traffic_origin").notNull().default("direct"),
+    attributionCampaignId: uuid("attribution_campaign_id").references(() => boostCampaign.id, { onDelete: "set null" }),
     originHost: text("origin_host"),
     fraudScore: integer("fraud_score").notNull().default(0),
     fraudRuleVersion: text("fraud_rule_version").notNull().default("v1"),
@@ -1267,6 +1659,8 @@ export const attributionRecord = pgTable(
       .notNull()
       .references(() => site.id, { onDelete: "cascade" }),
     outboundClickId: uuid("outbound_click_id").references(() => outboundClick.id, { onDelete: "set null" }),
+    campaignId: uuid("campaign_id").references(() => boostCampaign.id, { onDelete: "set null" }),
+    trafficOrigin: text("traffic_origin").notNull().default("organic_surgedindex_referral"),
     tokenHash: text("token_hash").notNull().unique(),
     visitorHash: text("visitor_hash").notNull(),
     sessionHash: text("session_hash").notNull(),

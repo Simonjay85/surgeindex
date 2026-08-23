@@ -1,5 +1,5 @@
 import { and, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
-import { getPostgresDb, activeSession, activityEvent, attributionRecord, site, siteMetricCurrent, siteMetricSnapshot, siteVerification, trackerEvent, trackerKey, fraudFlag, outboundClick } from "@surge/db";
+import { getPostgresDb, activeSession, activityEvent, attributionRecord, site, siteMetricCurrent, siteMetricSnapshot, siteVerification, trackerEvent, trackerKey, fraudFlag, outboundClick, boostAttributionAggregate, boostCampaign } from "@surge/db";
 import type { NormalizedTrackerEvent } from "@surge/shared";
 import type {
   AnalyticsEvent,
@@ -70,6 +70,8 @@ export class PostgresEventStoreProvider implements EventStoreProvider {
             engagedSeconds: event.engagedSeconds,
             trackerVersion: event.trackerVersion,
             attributionTokenHash: event.attributionTokenHash,
+            trafficOrigin: event.trafficOrigin ?? "direct",
+            attributionCampaignId: event.attributionCampaignId ?? null,
             originHost: event.originHost,
             fraudScore: event.fraudScore,
             fraudRuleVersion: event.fraudRuleVersion,
@@ -100,9 +102,9 @@ export class PostgresEventStoreProvider implements EventStoreProvider {
           });
           continue;
         }
-        await updateActiveSession(tx, event);
+        if (event.trafficOrigin !== "paid_surgedindex_referral") await updateActiveSession(tx, event);
         await updateAttribution(tx, event);
-        await markTrackerConnected(tx, event);
+        if (event.trafficOrigin !== "paid_surgedindex_referral") await markTrackerConnected(tx, event);
       }
       for (const siteId of siteIds) await recomputeSiteMetrics(tx, siteId);
     });
@@ -145,11 +147,15 @@ async function updateActiveSession(tx: Parameters<Parameters<ReturnType<typeof g
 
 async function updateAttribution(tx: Parameters<Parameters<ReturnType<typeof getPostgresDb>["transaction"]>[0]>[0], event: NormalizedTrackerEvent) {
   if (event.attributionTokenHash && event.attributionClickId && event.eventType === "pageview") {
+    const [click] = await tx.select({ campaignId: outboundClick.campaignId, trafficOrigin: outboundClick.trafficOrigin }).from(outboundClick).where(and(eq(outboundClick.id, event.attributionClickId), eq(outboundClick.siteId, event.siteId))).limit(1);
+    const trafficOrigin = click?.trafficOrigin === "paid_surgedindex_referral" ? "paid_surgedindex_referral" : "organic_surgedindex_referral";
     const [created] = await tx
       .insert(attributionRecord)
       .values({
         siteId: event.siteId,
         outboundClickId: event.attributionClickId,
+        campaignId: click?.campaignId ?? null,
+        trafficOrigin,
         tokenHash: event.attributionTokenHash,
         visitorHash: event.visitorHash,
         sessionHash: event.sessionHash,
@@ -159,6 +165,10 @@ async function updateAttribution(tx: Parameters<Parameters<ReturnType<typeof get
       .onConflictDoNothing({ target: attributionRecord.tokenHash })
       .returning({ id: attributionRecord.id });
     if (created) {
+      if (trafficOrigin === "paid_surgedindex_referral" && click?.campaignId) {
+        await tx.update(boostCampaign).set({ attributedVisits: sql`${boostCampaign.attributedVisits} + 1`, updatedAt: new Date() }).where(eq(boostCampaign.id, click.campaignId));
+        await tx.insert(boostAttributionAggregate).values({ campaignId: click.campaignId, siteId: event.siteId, day: new Date().toISOString().slice(0, 10), attributedVisits: 1, attributedEngagedVisits: 0 }).onConflictDoUpdate({ target: [boostAttributionAggregate.campaignId, boostAttributionAggregate.day], set: { attributedVisits: sql`${boostAttributionAggregate.attributedVisits} + 1`, updatedAt: new Date() } });
+      }
       const [recent] = await tx
         .select({ id: activityEvent.id })
         .from(activityEvent)
@@ -175,10 +185,17 @@ async function updateAttribution(tx: Parameters<Parameters<ReturnType<typeof get
     }
   }
   if (event.eventType === "engaged") {
-    await tx
+    const engagedRows = await tx
       .update(attributionRecord)
       .set({ engagedAt: new Date(event.occurredAt) })
-      .where(and(eq(attributionRecord.siteId, event.siteId), eq(attributionRecord.sessionHash, event.sessionHash), isNull(attributionRecord.engagedAt), gt(attributionRecord.expiresAt, new Date())));
+      .where(and(eq(attributionRecord.siteId, event.siteId), eq(attributionRecord.sessionHash, event.sessionHash), isNull(attributionRecord.engagedAt), gt(attributionRecord.expiresAt, new Date())))
+      .returning({ campaignId: attributionRecord.campaignId, trafficOrigin: attributionRecord.trafficOrigin });
+    for (const engaged of engagedRows) {
+      if (engaged.trafficOrigin === "paid_surgedindex_referral" && engaged.campaignId) {
+        await tx.update(boostCampaign).set({ attributedEngagedVisits: sql`${boostCampaign.attributedEngagedVisits} + 1`, updatedAt: new Date() }).where(eq(boostCampaign.id, engaged.campaignId));
+        await tx.insert(boostAttributionAggregate).values({ campaignId: engaged.campaignId, siteId: event.siteId, day: new Date().toISOString().slice(0, 10), attributedVisits: 0, attributedEngagedVisits: 1 }).onConflictDoUpdate({ target: [boostAttributionAggregate.campaignId, boostAttributionAggregate.day], set: { attributedEngagedVisits: sql`${boostAttributionAggregate.attributedEngagedVisits} + 1`, updatedAt: new Date() } });
+      }
+    }
   }
 }
 
@@ -219,7 +236,7 @@ async function recomputeSiteMetrics(tx: Parameters<Parameters<ReturnType<typeof 
       count(*) filter (where occurred_at >= now() - interval '24 hours' and decision = 'suspected')::int as suspected_events_24h,
       count(*) filter (where occurred_at >= now() - interval '24 hours' and decision in ('invalid','review_required'))::int as invalid_events_24h,
       max(occurred_at) filter (where decision = 'valid') as last_accepted_event_at
-    from tracker_event where site_id = ${siteId}
+    from tracker_event where site_id = ${siteId} and traffic_origin <> 'paid_surgedindex_referral'
   `);
   const stats = (statsResult.rows[0] ?? {}) as Record<string, unknown>;
   const activeResult = await tx.execute(sql`
@@ -232,10 +249,10 @@ async function recomputeSiteMetrics(tx: Parameters<Parameters<ReturnType<typeof 
     select
       count(*) filter (where created_at >= now() - interval '24 hours')::int as attributed_visits,
       count(*) filter (where engaged_at is not null and engaged_at >= now() - interval '24 hours')::int as attributed_engaged
-    from attribution_record where site_id = ${siteId} and expires_at >= now() - interval '24 hours'
+    from attribution_record where site_id = ${siteId} and traffic_origin = 'organic_surgedindex_referral' and expires_at >= now() - interval '24 hours'
   `);
   const attribution = (attributionResult.rows[0] ?? {}) as Record<string, unknown>;
-  const clickResult = await tx.execute(sql`select count(*) filter (where occurred_at >= now() - interval '24 hours' and valid = true)::int as referral_clicks from outbound_click where site_id = ${siteId}`);
+  const clickResult = await tx.execute(sql`select count(*) filter (where occurred_at >= now() - interval '24 hours' and valid = true and traffic_origin = 'organic_surgedindex_referral')::int as referral_clicks from outbound_click where site_id = ${siteId}`);
   const clicks = (clickResult.rows[0] ?? {}) as Record<string, unknown>;
   const visitors24h = numberValue(stats.visitors_24h);
   const sessions24h = numberValue(stats.sessions_24h);
@@ -303,6 +320,8 @@ export class PostgresAnalyticsProvider extends DemoAnalyticsProvider implements 
       trackerVersion: event.trackerVersion ?? "1.0.0",
       attributionTokenHash: event.attributionTokenHash ?? null,
       attributionClickId: null,
+      trafficOrigin: "direct",
+      attributionCampaignId: null,
       trackerPublicKey: event.trackerPublicKey ?? "",
       originHost: event.originHost ?? null,
       country: event.country ?? null,
@@ -328,7 +347,7 @@ export class PostgresAnalyticsProvider extends DemoAnalyticsProvider implements 
         count(distinct session_id) filter (where event_type = 'engaged')::int as engaged_sessions,
         coalesce(avg(engaged_seconds) filter (where event_type = 'engaged'), 0)::int as avg_engagement_seconds
       from tracker_event
-      where site_id = ${siteId} and decision = 'valid' and occurred_at >= now() - (${seconds} || ' seconds')::interval
+      where site_id = ${siteId} and decision = 'valid' and traffic_origin <> 'paid_surgedindex_referral' and occurred_at >= now() - (${seconds} || ' seconds')::interval
     `);
     const activeResult = await db.execute(sql`
       select count(distinct visitor_hash)::int as active_visitors, count(*)::int as active_sessions
@@ -363,7 +382,7 @@ export class PostgresAnalyticsProvider extends DemoAnalyticsProvider implements 
       select to_timestamp(floor(extract(epoch from occurred_at) / ${bucketMinutes * 60}) * ${bucketMinutes * 60}) as bucket,
         ${metricExpression}::int as value
       from tracker_event
-      where site_id = ${siteId} and decision = 'valid' and occurred_at >= now() - (${seconds} || ' seconds')::interval ${filter}
+      where site_id = ${siteId} and decision = 'valid' and traffic_origin <> 'paid_surgedindex_referral' and occurred_at >= now() - (${seconds} || ' seconds')::interval ${filter}
       group by bucket order by bucket asc
     `);
     return result.rows.map((row) => ({ t: new Date(String(row.bucket)).toISOString(), value: numberValue(row.value) }));

@@ -73,6 +73,12 @@ export type ActivityType =
 
 export type FraudDecision = "valid" | "suspected" | "invalid" | "review_required";
 
+export type TrafficOrigin =
+  | "organic_surgedindex_referral"
+  | "paid_surgedindex_referral"
+  | "external"
+  | "direct";
+
 export type SortKey =
   | "heat"
   | "active_now"

@@ -45,6 +45,7 @@
     "ga4:health": "tsx --env-file=apps/web/.env scripts/ga4-health.ts"
   },
   "devDependencies": {
+    "@surge/boost": "workspace:*",
     "@surge/config": "workspace:*",
     "@surge/db": "workspace:*",
     "@surge/ga4": "workspace:*",
