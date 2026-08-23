@@ -1,0 +1,34 @@
+import Link from "next/link";
+import { ArrowLeft, CheckCircle2, CreditCard, ShieldCheck, Target } from "lucide-react";
+import { AppShell, DataModeBadge } from "../../../../components/app-shell";
+import { DashboardShell, DashboardTopline, DemoNotice } from "../../../../components/dashboard-shell";
+import { requirePageUser } from "../../../../lib/server/authorization";
+import { BoostServiceError, getBoostCampaignReport } from "../../../../lib/server/boost-service";
+import { getServerEnv } from "@surge/config";
+
+export const metadata = { title: "Boost campaign report" };
+
+function money(cents: number, currency: string) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
+}
+
+export default async function BoostCampaignPage({ params }: { params: Promise<{ campaignId: string }> }) {
+  const user = await requirePageUser();
+  const campaignId = (await params).campaignId;
+  const isDemo = getServerEnv().APP_MODE !== "production" || getServerEnv().DATA_PROVIDER !== "postgres";
+  if (isDemo) return <AppShell><DashboardShell active="/dashboard/boosts"><DashboardTopline title="Boost campaign report" description="Demo delivery is labeled and not billable." action={<Link className="text-link" href="/dashboard/boosts"><ArrowLeft size={14} /> Back to campaigns</Link>} /><DemoNotice>Demo reports are illustrative only; they do not represent payment, delivery, or attribution in production.</DemoNotice><div className="section-tight"><div className="panel"><h2>Demo campaign</h2><p>Qualified impressions, valid clicks, and tracker-confirmed visits remain separate stages.</p></div></div></DashboardShell></AppShell>;
+  let result: Awaited<ReturnType<typeof getBoostCampaignReport>> | null = null;
+  let campaignMissing = false;
+  try {
+    result = await getBoostCampaignReport(user.id, campaignId);
+  } catch (error) {
+    if (error instanceof BoostServiceError && error.code === "campaign_not_found") campaignMissing = true;
+    else throw error;
+  }
+
+  if (campaignMissing) return <AppShell><DashboardShell active="/dashboard/boosts"><DashboardTopline title="Campaign not found" description="This campaign is not attached to your workspace." action={<Link className="text-link" href="/dashboard/boosts"><ArrowLeft size={14} /> Back to campaigns</Link>} /><div className="empty-state"><CheckCircle2 size={25} /><h2>Nothing to show</h2><p>Campaign access is scoped to the authorized owner.</p></div></DashboardShell></AppShell>;
+  if (!result) throw new Error("boost_campaign_report_unavailable");
+  const { campaign, report, sourceLabels } = result;
+
+  return <AppShell><DashboardShell active="/dashboard/boosts"><DashboardTopline title={campaign.headline || "Boost campaign report"} description={`${campaign.placementKey} · ${campaign.state}`} action={<Link className="text-link" href="/dashboard/boosts"><ArrowLeft size={14} /> Back to campaigns</Link>} /><div className="demo-ribbon dashboard-notice"><DataModeBadge isDemo={false} compact /> <span>Persisted production campaign aggregates. Paid activity never enters Heat Score or organic rank.</span></div><div className="section-tight"><div className="panel-actions"><a className="button button-quiet" href={`/api/boost/campaigns/${campaign.id}/report/csv`} download>Download CSV report</a></div><div className="dashboard-grid"><div className="dashboard-card"><small>Qualified delivery</small><strong>{report.qualifiedImpressions.toLocaleString()}</strong><p>Target {report.targetQualifiedImpressions.toLocaleString()} · {report.deliveryPercentage == null ? "—" : `${report.deliveryPercentage}%`}</p></div><div className="dashboard-card"><small>Rendered / invalid</small><strong>{report.renderedImpressions.toLocaleString()}</strong><p>{report.invalidImpressions.toLocaleString()} invalid events excluded</p></div><div className="dashboard-card"><small>Valid clicks</small><strong>{report.validClicks.toLocaleString()}</strong><p>{report.ctr == null ? "CTR not available" : `${report.ctr}% CTR`}</p></div><div className="dashboard-card"><small>Tracker-confirmed visits</small><strong>{report.attributedVisits == null ? "Not available" : report.attributedVisits.toLocaleString()}</strong><p>{report.attributedEngagedVisits == null ? "Destination tracker unavailable" : `${report.attributedEngagedVisits.toLocaleString()} engaged`}</p></div></div></div><div className="section-tight"><div className="profile-columns"><div className="panel"><div className="panel-heading"><div><h2>Funnel stages</h2><p>Each denominator is explicit.</p></div><Target size={17} color="#bc7628" /></div><div className="dashboard-list"><div className="dashboard-list-row"><div><strong>Qualified impressions</strong><span>{sourceLabels.delivery}</span></div><strong>{report.qualifiedImpressions.toLocaleString()}</strong></div><div className="dashboard-list-row"><div><strong>Valid clicks</strong><span>{sourceLabels.clicks}</span></div><strong>{report.validClicks.toLocaleString()}</strong></div><div className="dashboard-list-row"><div><strong>Attributed visits</strong><span>{sourceLabels.attribution}</span></div><strong>{report.attributedVisits == null ? "Not available" : report.attributedVisits.toLocaleString()}</strong></div><div className="dashboard-list-row"><div><strong>Attributed engaged visits</strong><span>Tracker engagement threshold</span></div><strong>{report.attributedEngagedVisits == null ? "Not available" : report.attributedEngagedVisits.toLocaleString()}</strong></div></div></div><div className="panel"><div className="panel-heading"><div><h2>Cost metrics</h2><p>{sourceLabels.payment}</p></div><CreditCard size={17} /></div><div className="dashboard-list"><div className="dashboard-list-row"><div><strong>Amount paid</strong><span>Server-confirmed payment only</span></div><strong>{money(report.amountPaidCents, report.currency)}</strong></div><div className="dashboard-list-row"><div><strong>Effective cost / qualified impression</strong></div><strong>{report.effectiveCostPerQualifiedImpressionCents == null ? "Not available" : money(report.effectiveCostPerQualifiedImpressionCents, report.currency)}</strong></div><div className="dashboard-list-row"><div><strong>Effective cost / valid click</strong></div><strong>{report.effectiveCostPerValidClickCents == null ? "Not available" : money(report.effectiveCostPerValidClickCents, report.currency)}</strong></div><div className="dashboard-list-row"><div><strong>Effective cost / visit</strong></div><strong>{report.effectiveCostPerAttributedVisitCents == null ? "Not available" : money(report.effectiveCostPerAttributedVisitCents, report.currency)}</strong></div></div></div></div></div><div className="section-tight"><div className="method-note"><ShieldCheck size={14} /> Sponsored placement is not editorial endorsement. Payment, impressions, clicks, and paid referrals are excluded from organic ranking.</div></div></DashboardShell></AppShell>;
+}

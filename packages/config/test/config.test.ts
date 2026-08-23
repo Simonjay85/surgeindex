@@ -50,4 +50,22 @@ describe("explicit application configuration", () => {
     process.env.GA4_PROVIDER_MODE = "google";
     expect(() => getServerEnv()).toThrow(/GA4_OAUTH_CLIENT_ID|GA4_TOKEN_ENCRYPTION_KEY/);
   });
+
+  it("keeps Stripe test/live configuration isolated and server-required", () => {
+    setMode("demo", "demo");
+    process.env.STRIPE_SECRET_KEY = "sk_live_never-in-demo";
+    expect(() => getServerEnv()).toThrow(/demo mode cannot use a live Stripe secret/);
+
+    setMode("production", "postgres");
+    process.env.DATABASE_URL = "postgresql://example";
+    process.env.BETTER_AUTH_SECRET = "a".repeat(32);
+    process.env.STRIPE_ENABLED = "true";
+    process.env.STRIPE_SECRET_KEY = "sk_test_fixture";
+    expect(() => getServerEnv()).toThrow(/STRIPE_WEBHOOK_SECRET|STRIPE_CHECKOUT_SUCCESS_URL/);
+
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_fixture";
+    process.env.STRIPE_CHECKOUT_SUCCESS_URL = "https://example.test/boost/success";
+    process.env.STRIPE_CHECKOUT_CANCEL_URL = "https://example.test/boost/cancel";
+    expect(getServerEnv().STRIPE_TEST_MODE_REQUIRED).toBe(true);
+  });
 });

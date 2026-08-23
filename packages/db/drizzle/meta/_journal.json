@@ -64,6 +64,20 @@
       "when": 1787499565335,
       "tag": "0008_ordinary_groot",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787500731097,
+      "tag": "0009_foamy_sumo",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787500990438,
+      "tag": "0010_windy_ultragirl",
+      "breakpoints": true
     }
   ]
 }

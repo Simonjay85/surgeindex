@@ -16,6 +16,7 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
+    "@gsap/react": "^2.1.2",
     "@surge/analytics": "workspace:*",
     "@surge/anti-fraud": "workspace:*",
     "@surge/boost": "workspace:*",
@@ -28,6 +29,7 @@
     "better-auth": "^1.7.1",
     "clsx": "catalog:",
     "drizzle-orm": "catalog:",
+    "gsap": "^3.15.0",
     "lucide-react": "catalog:",
     "next": "16.3.2",
     "pg": "catalog:",

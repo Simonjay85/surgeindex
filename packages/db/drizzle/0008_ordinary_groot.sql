@@ -313,6 +313,16 @@ ALTER TABLE "boost_campaign" ADD COLUMN "clicks" integer DEFAULT 0 NOT NULL;--> 
 ALTER TABLE "boost_campaign" ADD COLUMN "attributed_visits" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
 ALTER TABLE "boost_campaign" ADD COLUMN "attributed_engaged_visits" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
 ALTER TABLE "boost_campaign" ADD COLUMN "owner_self_view_excluded" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+UPDATE "boost_campaign" SET "state" = CASE "status"
+  WHEN 'pending_payment' THEN 'pending_payment'::"boost_campaign_state"
+  WHEN 'scheduled' THEN 'scheduled'::"boost_campaign_state"
+  WHEN 'active' THEN 'active'::"boost_campaign_state"
+  WHEN 'paused' THEN 'paused'::"boost_campaign_state"
+  WHEN 'completed' THEN 'completed'::"boost_campaign_state"
+  WHEN 'cancelled' THEN 'cancelled'::"boost_campaign_state"
+  WHEN 'refunded' THEN 'refunded'::"boost_campaign_state"
+  ELSE 'draft'::"boost_campaign_state"
+END;--> statement-breakpoint
 ALTER TABLE "outbound_click" ADD COLUMN "traffic_origin" text DEFAULT 'organic_surgedindex_referral' NOT NULL;--> statement-breakpoint
 ALTER TABLE "processed_webhook_event" ADD COLUMN "stripe_environment" "stripe_environment" DEFAULT 'test' NOT NULL;--> statement-breakpoint
 ALTER TABLE "processed_webhook_event" ADD COLUMN "event_type" text;--> statement-breakpoint

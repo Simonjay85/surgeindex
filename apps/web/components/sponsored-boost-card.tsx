@@ -1,0 +1,61 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import type { BoostPlacementKey } from "@surge/boost";
+
+type ServedBoost = {
+  isDemo: boolean;
+  campaignId: string;
+  siteSlug: string;
+  placementKey: BoostPlacementKey;
+  headline: string;
+  description?: string;
+  descriptionText?: string;
+  ctaLabel: string;
+  clickToken: string;
+  impressionToken: string;
+};
+
+export function SponsoredBoostCard({ placement = "homepage_boosted" }: { placement?: BoostPlacementKey }) {
+  const [served, setServed] = useState<ServedBoost | null>(null);
+  const cardRef = useRef<HTMLElement | null>(null);
+  const startedAt = useRef<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recorded = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/boost/serve?placement=${encodeURIComponent(placement)}`, { headers: { accept: "application/json" }, cache: "no-store" })
+      .then((response) => response.ok ? response.json() as Promise<{ data: ServedBoost | null }> : Promise.reject(new Error("boost_serve_failed")))
+      .then((payload) => { if (!cancelled) setServed(payload.data); })
+      .catch(() => { if (!cancelled) setServed(null); });
+    return () => { cancelled = true; };
+  }, [placement]);
+
+  useEffect(() => {
+    if (!served || !cardRef.current) return;
+    const node = cardRef.current;
+    const qualify = () => {
+      if (recorded.current) return;
+      recorded.current = true;
+      void fetch("/api/boost/impressions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: served.impressionToken, eventId: crypto.randomUUID(), visiblePercent: 50, visibleMilliseconds: 1_000 }) });
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+        startedAt.current = Date.now();
+        timer.current = setTimeout(() => { if ((startedAt.current ?? 0) > 0) qualify(); }, 1_000);
+      } else if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+        startedAt.current = null;
+      }
+    }, { threshold: [0, 0.5, 1] });
+    observer.observe(node);
+    return () => { observer.disconnect(); if (timer.current) clearTimeout(timer.current); };
+  }, [served]);
+
+  if (!served) return null;
+  const description = served.descriptionText ?? served.description ?? "";
+  return <article ref={cardRef} className="sponsored-card" aria-label="Sponsored placement"><div className="sponsored-card-label"><span>Sponsored</span>{served.isDemo ? <em>Demo delivery · not billable</em> : <em>Paid placement</em>}</div><div className="sponsored-card-body"><div><h3>{served.headline}</h3><p>{description}</p></div><Link className="button button-coral button-small" href={`/go/${served.siteSlug}?campaign=${encodeURIComponent(served.clickToken)}`} prefetch={false}>{served.ctaLabel}</Link></div><p className="sponsored-card-note">This website paid for placement. Payment does not affect organic rank or Heat Score.</p></article>;
+}

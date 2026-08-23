@@ -1305,6 +1305,25 @@ export const boostPayment = pgTable(
   (t) => [unique("boost_payment_environment_intent_unique").on(t.stripeEnvironment, t.stripePaymentIntentId), index("boost_payment_order_idx").on(t.orderId, t.createdAt)],
 );
 
+export const boostPaymentAttempt = pgTable(
+  "boost_payment_attempt",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id").notNull().references(() => boostOrder.id, { onDelete: "cascade" }),
+    stripeEnvironment: stripeEnvironmentEnum("stripe_environment").notNull(),
+    checkoutSessionId: text("checkout_session_id"),
+    paymentIntentId: text("payment_intent_id"),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull(),
+    status: text("status").notNull().default("pending"),
+    errorCode: text("error_code"),
+    requestId: text("request_id"),
+    createdAt: timestamps.createdAt,
+    updatedAt: timestamps.updatedAt,
+  },
+  (t) => [index("boost_payment_attempt_order_idx").on(t.orderId, t.createdAt), unique("boost_payment_attempt_environment_session_unique").on(t.stripeEnvironment, t.checkoutSessionId)],
+);
+
 export const boostRefund = pgTable(
   "boost_refund",
   {

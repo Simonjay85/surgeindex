@@ -33,6 +33,13 @@ pnpm ga4:sync        # production Postgres Core sync; demo mode exits disabled
 pnpm ga4:realtime    # production Postgres Realtime sync; demo mode exits disabled
 pnpm ga4:backfill    # production Postgres bounded backfill; demo mode exits disabled
 pnpm ga4:health      # production Postgres GA4 operations view; demo mode exits disabled
+pnpm boost:fixture   # deterministic Boost delivery/reporting fixture; never charges
+pnpm boost:forecast  # production inventory forecast; demo mode exits disabled
+pnpm boost:pace      # idempotent pacing job seam; demo mode exits disabled
+pnpm boost:aggregate # rebuild persisted delivery aggregates; demo mode exits disabled
+pnpm boost:reconcile-payments # inspect pending application payment ledger rows
+pnpm boost:release-reservations # release expired Checkout inventory holds
+pnpm stripe:test-webhook # local signed Stripe fixture only; no network or charge
 pnpm preview         # OpenNext Cloudflare preview; requires adapter setup
 pnpm deploy          # OpenNext Cloudflare deploy; requires Cloudflare auth
 ```
@@ -102,6 +109,8 @@ The first administrator is promoted out-of-band after sign-up: `ADMIN_BOOTSTRAP_
 Auth, payment, GA4, Tinybird, Turnstile, and Cloudflare integrations are intentionally demo-safe until credentials and production policy are supplied. The UI labels those states instead of presenting simulated records as live business data.
 
 Batch 5 GA4 implementation details are documented in [BATCH_5_REPORT.md](BATCH_5_REPORT.md), [OAuth](docs/GA4_OAUTH.md), [property selection](docs/GA4_PROPERTY_SELECTION.md), [metric definitions](docs/GA4_METRIC_DEFINITIONS.md), [sync architecture](docs/GA4_SYNC_ARCHITECTURE.md), [quota management](docs/GA4_QUOTA_MANAGEMENT.md), [source reconciliation](docs/GA4_SOURCE_RECONCILIATION.md), [token security](docs/GA4_TOKEN_SECURITY.md), and [operations](docs/GA4_OPERATIONS.md). Real Google credential verification remains an explicit prerequisite for external launch claims. Register one exact `GA4_OAUTH_REDIRECT_URI` per environment at `/api/ga4/callback`; Google does not support wildcard redirect URIs.
+
+Batch 6 Boost/Stripe implementation details are documented in [BATCH_6_REPORT.md](BATCH_6_REPORT.md), [product rules](docs/BOOST_PRODUCT_RULES.md), [inventory](docs/BOOST_INVENTORY.md), [state machine](docs/BOOST_CAMPAIGN_STATE_MACHINE.md), [ad serving](docs/BOOST_AD_SERVING.md), [impression measurement](docs/BOOST_IMPRESSION_MEASUREMENT.md), [attribution](docs/BOOST_ATTRIBUTION.md), [reporting](docs/BOOST_REPORTING.md), [Stripe Checkout](docs/STRIPE_CHECKOUT.md), [Stripe webhooks](docs/STRIPE_WEBHOOKS.md), [refunds and underdelivery](docs/BOOST_REFUNDS_AND_UNDERDELIVERY.md), and [operations](docs/BOOST_OPERATIONS.md). Stripe test-mode verification remains pending until a real test Checkout and signed webhook are exercised.
 
 ## Batch 3 traffic pipeline
 

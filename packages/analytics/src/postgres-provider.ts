@@ -280,7 +280,7 @@ async function recomputeSiteMetrics(tx: Parameters<Parameters<ReturnType<typeof 
     updatedAt: now,
     isDemo: false,
   };
-  const [lastEvent] = await tx.select({ originHost: trackerEvent.originHost, trackerVersion: trackerEvent.trackerVersion }).from(trackerEvent).where(and(eq(trackerEvent.siteId, siteId), eq(trackerEvent.decision, "valid"))).orderBy(desc(trackerEvent.receivedAt)).limit(1);
+  const [lastEvent] = await tx.select({ originHost: trackerEvent.originHost, trackerVersion: trackerEvent.trackerVersion }).from(trackerEvent).where(and(eq(trackerEvent.siteId, siteId), eq(trackerEvent.decision, "valid"), sql`${trackerEvent.trafficOrigin} <> 'paid_surgedindex_referral'`)).orderBy(desc(trackerEvent.receivedAt)).limit(1);
   await tx
     .insert(siteMetricCurrent)
     .values({ ...current, lastDetectedOrigin: lastEvent?.originHost ?? null, trackerVersion: lastEvent?.trackerVersion ?? null })
@@ -320,8 +320,8 @@ export class PostgresAnalyticsProvider extends DemoAnalyticsProvider implements 
       trackerVersion: event.trackerVersion ?? "1.0.0",
       attributionTokenHash: event.attributionTokenHash ?? null,
       attributionClickId: null,
-      trafficOrigin: "direct",
-      attributionCampaignId: null,
+      trafficOrigin: event.trafficOrigin ?? "direct",
+      attributionCampaignId: event.attributionCampaignId ?? null,
       trackerPublicKey: event.trackerPublicKey ?? "",
       originHost: event.originHost ?? null,
       country: event.country ?? null,

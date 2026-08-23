@@ -1,11 +1,11 @@
 import "server-only";
 
 import Stripe from "stripe";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { BoostServiceError, prepareBoostOrder, releaseBoostReservation, transitionCampaignTx } from "./boost-service";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { prepareBoostOrder, transitionCampaignTx } from "./boost-service";
 import { getBoostPackage } from "./boost-config";
 import { getServerEnv } from "@surge/config";
-import { boostCampaign, boostCampaignCreative, boostDispute, boostInventoryReservation, boostOrder, boostPayment, boostRefund, boostStripeCheckoutSession, processedWebhookEvent, stripeCustomer, user, getPostgresDb } from "@surge/db";
+import { adminAuditLog, boostCampaign, boostCampaignCreative, boostDispute, boostInventoryReservation, boostOrder, boostPayment, boostPaymentAttempt, boostRefund, boostStripeCheckoutSession, processedWebhookEvent, stripeCustomer, user, getPostgresDb } from "@surge/db";
 
 export class StripeServiceError extends Error {
   constructor(public readonly code: "stripe_disabled" | "stripe_configuration" | "stripe_mode_mismatch" | "checkout_unavailable" | "checkout_object_invalid" | "webhook_invalid" | "payment_not_found" | "refund_invalid", message: string, public readonly status = 409) {
@@ -64,6 +64,8 @@ export async function createBoostCheckout(input: { userId: string; campaignId: s
     throw new StripeServiceError("checkout_unavailable", "The configured Stripe price could not be verified.", 503);
   }
   if (!price.active || price.type !== "one_time" || price.unit_amount !== pkg.amountCents || price.currency.toUpperCase() !== order.currency.toLowerCase().toUpperCase()) throw new StripeServiceError("checkout_object_invalid", "The configured Stripe price does not match the server package snapshot.", 409);
+  const [campaign] = await db.select({ siteId: boostCampaign.siteId }).from(boostCampaign).where(eq(boostCampaign.id, order.campaignId)).limit(1);
+  if (!campaign) throw new StripeServiceError("checkout_unavailable", "The campaign was not found while preparing Checkout.", 404);
   const [payer] = await db.select({ email: user.email, name: user.name }).from(user).where(eq(user.id, input.userId)).limit(1);
   if (!payer) throw new StripeServiceError("checkout_unavailable", "The payer account was not found.", 404);
   const customerId = await ensureCustomer(client, environment, input.userId, payer.email, payer.name);
@@ -81,13 +83,14 @@ export async function createBoostCheckout(input: { userId: string; campaignId: s
       cancel_url: checkoutUrl(env.STRIPE_CHECKOUT_CANCEL_URL, order.campaignId),
       expires_at: Math.floor((Date.now() + Math.max(30, env.BOOST_RESERVATION_MINUTES) * 60_000) / 1000),
       automatic_tax: env.STRIPE_TAX_ENABLED ? { enabled: true } : undefined,
-      metadata: { campaign_id: order.campaignId, order_id: order.id, site_id: String((order.packageSnapshot.siteId as string | undefined) ?? ""), package_id: order.packageKey, environment },
+      metadata: { campaign_id: order.campaignId, order_id: order.id, site_id: campaign.siteId, package_id: order.packageKey, environment },
     }, { idempotencyKey });
   } catch {
     throw new StripeServiceError("checkout_unavailable", "Stripe Checkout could not be created. Your reservation remains subject to its expiry window.", 503);
   }
   await db.transaction(async (tx) => {
     await tx.insert(boostStripeCheckoutSession).values({ orderId: order.id, stripeSessionId: session.id, stripeEnvironment: environment, idempotencyKey, paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null, status: session.status ?? "open", expiresAt: session.expires_at ? new Date(session.expires_at * 1000) : null }).onConflictDoNothing({ target: boostStripeCheckoutSession.orderId });
+    await tx.insert(boostPaymentAttempt).values({ orderId: order.id, stripeEnvironment: environment, checkoutSessionId: session.id, paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null, amountCents: order.expectedAmountCents, currency: order.currency, status: "pending", requestId: input.requestId }).onConflictDoNothing();
     await tx.update(boostInventoryReservation).set({ stripeCheckoutSessionId: session.id }).where(eq(boostInventoryReservation.id, reservation[0].id));
   });
   return { sessionId: session.id, url: session.url, environment, reused: false };
@@ -101,16 +104,21 @@ function metadataValue(metadata: Stripe.Metadata, key: string): string | null {
 async function confirmCheckoutSession(session: Stripe.Checkout.Session, environment: "test" | "live", requestId: string) {
   const campaignId = metadataValue(session.metadata ?? {}, "campaign_id");
   const orderId = metadataValue(session.metadata ?? {}, "order_id");
+  const siteId = metadataValue(session.metadata ?? {}, "site_id");
+  const packageId = metadataValue(session.metadata ?? {}, "package_id");
   const metadataEnvironment = metadataValue(session.metadata ?? {}, "environment");
-  if (!campaignId || !orderId || metadataEnvironment !== environment || session.payment_status !== "paid") throw new StripeServiceError("checkout_object_invalid", "The completed Checkout object failed server-side payment validation.", 409);
+  if (!campaignId || !orderId || !siteId || !packageId || metadataEnvironment !== environment || session.payment_status !== "paid") throw new StripeServiceError("checkout_object_invalid", "The completed Checkout object failed server-side payment validation.", 409);
   const db = getPostgresDb();
   return db.transaction(async (tx) => {
     const [order] = await tx.select().from(boostOrder).where(and(eq(boostOrder.id, orderId), eq(boostOrder.campaignId, campaignId), eq(boostOrder.stripeEnvironment, environment))).limit(1);
     const [campaign] = await tx.select().from(boostCampaign).where(eq(boostCampaign.id, campaignId)).limit(1);
-    if (!order || !campaign || session.currency?.toLowerCase() !== order.currency.toLowerCase() || session.amount_total !== order.expectedAmountCents) throw new StripeServiceError("checkout_object_invalid", "The completed Checkout amount or campaign binding did not match the internal order.", 409);
+    const [checkout] = await tx.select().from(boostStripeCheckoutSession).where(and(eq(boostStripeCheckoutSession.stripeSessionId, session.id), eq(boostStripeCheckoutSession.stripeEnvironment, environment))).limit(1);
+    if (!order || !campaign || campaign.siteId !== siteId || order.packageKey !== packageId || (checkout && checkout.orderId !== order.id) || session.currency?.toLowerCase() !== order.currency.toLowerCase() || session.amount_total !== order.expectedAmountCents) throw new StripeServiceError("checkout_object_invalid", "The completed Checkout amount or campaign binding did not match the internal order.", 409);
     if (order.paymentStatus === "succeeded") return { activated: false, alreadyProcessed: true, campaignId };
     await tx.update(boostOrder).set({ paymentStatus: "succeeded", paidAmountCents: session.amount_total, paidAt: new Date(), updatedAt: new Date() }).where(eq(boostOrder.id, order.id));
     await tx.insert(boostPayment).values({ orderId: order.id, stripeEnvironment: environment, status: "succeeded", amountCents: session.amount_total, currency: order.currency, stripePaymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null, paidAt: new Date() }).onConflictDoNothing();
+    if (checkout) await tx.update(boostStripeCheckoutSession).set({ status: session.status ?? "complete", paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : checkout.paymentIntentId, updatedAt: new Date() }).where(eq(boostStripeCheckoutSession.id, checkout.id));
+    await tx.update(boostPaymentAttempt).set({ status: "succeeded", paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null, updatedAt: new Date() }).where(and(eq(boostPaymentAttempt.orderId, order.id), eq(boostPaymentAttempt.stripeEnvironment, environment), eq(boostPaymentAttempt.checkoutSessionId, session.id)));
     const [reservation] = await tx.select().from(boostInventoryReservation).where(and(eq(boostInventoryReservation.campaignId, campaign.id), inArray(boostInventoryReservation.status, ["held", "confirmed"]))).orderBy(desc(boostInventoryReservation.createdAt)).limit(1);
     if (reservation) await tx.update(boostInventoryReservation).set({ status: "confirmed" }).where(eq(boostInventoryReservation.id, reservation.id));
     if (!["paid", "scheduled", "active", "paid_pending_inventory_review"].includes(campaign.state)) await transitionCampaignTx(tx, campaign.id, reservation ? "paid" : "paid_pending_inventory_review", "Signed Stripe payment confirmation matched the internal order.", null, requestId);
@@ -133,13 +141,33 @@ async function markCheckoutFailed(session: Stripe.Checkout.Session, environment:
   const db = getPostgresDb();
   await db.transaction(async (tx) => {
     await tx.update(boostOrder).set({ paymentStatus: state === "checkout_expired" ? "expired" : "failed", updatedAt: new Date() }).where(and(eq(boostOrder.id, orderId), eq(boostOrder.stripeEnvironment, environment)));
+    await tx.update(boostPaymentAttempt).set({ status: state, updatedAt: new Date() }).where(and(eq(boostPaymentAttempt.orderId, orderId), eq(boostPaymentAttempt.stripeEnvironment, environment), eq(boostPaymentAttempt.checkoutSessionId, session.id)));
     const [campaign] = await tx.select({ state: boostCampaign.state }).from(boostCampaign).where(eq(boostCampaign.id, campaignId)).limit(1);
     if (campaign && ["pending_payment", "payment_processing", "inventory_reserved"].includes(campaign.state)) {
       await tx.update(boostInventoryReservation).set({ status: state === "checkout_expired" ? "expired" : "released", releasedAt: new Date() }).where(and(eq(boostInventoryReservation.campaignId, campaignId), inArray(boostInventoryReservation.status, ["held", "confirmed"])));
+      if (campaign.state === "inventory_reserved" && state === "payment_failed") await transitionCampaignTx(tx, campaignId, "pending_payment", "Payment failed while the campaign was still inventory-reserved.", null, requestId);
       await transitionCampaignTx(tx, campaignId, state, state === "checkout_expired" ? "Stripe Checkout expired and the reservation was released." : "Stripe reported a failed payment and the reservation was released.", null, requestId);
     }
   });
   return { ignored: false };
+}
+
+async function markPaymentIntentFailed(paymentIntent: Stripe.PaymentIntent, environment: "test" | "live", requestId: string) {
+  const db = getPostgresDb();
+  await db.transaction(async (tx) => {
+    const [attempt] = await tx.select({ orderId: boostPaymentAttempt.orderId }).from(boostPaymentAttempt).where(and(eq(boostPaymentAttempt.paymentIntentId, paymentIntent.id), eq(boostPaymentAttempt.stripeEnvironment, environment))).orderBy(desc(boostPaymentAttempt.createdAt)).limit(1);
+    if (!attempt) return;
+    await tx.update(boostPayment).set({ status: "failed", updatedAt: new Date() }).where(and(eq(boostPayment.stripePaymentIntentId, paymentIntent.id), eq(boostPayment.stripeEnvironment, environment)));
+    await tx.update(boostPaymentAttempt).set({ status: "failed", errorCode: paymentIntent.last_payment_error?.code ?? "payment_failed", updatedAt: new Date() }).where(and(eq(boostPaymentAttempt.paymentIntentId, paymentIntent.id), eq(boostPaymentAttempt.stripeEnvironment, environment)));
+    await tx.update(boostOrder).set({ paymentStatus: "failed", updatedAt: new Date() }).where(and(eq(boostOrder.id, attempt.orderId), eq(boostOrder.stripeEnvironment, environment)));
+    const [order] = await tx.select({ campaignId: boostOrder.campaignId }).from(boostOrder).where(eq(boostOrder.id, attempt.orderId)).limit(1);
+    if (!order) return;
+    const [campaign] = await tx.select({ state: boostCampaign.state }).from(boostCampaign).where(eq(boostCampaign.id, order.campaignId)).limit(1);
+    if (!campaign || !["pending_payment", "payment_processing", "inventory_reserved"].includes(campaign.state)) return;
+    await tx.update(boostInventoryReservation).set({ status: "released", releasedAt: new Date() }).where(and(eq(boostInventoryReservation.campaignId, order.campaignId), inArray(boostInventoryReservation.status, ["held", "confirmed"])));
+    if (campaign.state === "inventory_reserved") await transitionCampaignTx(tx, order.campaignId, "pending_payment", "Payment intent failed while the campaign was still inventory-reserved.", null, requestId);
+    await transitionCampaignTx(tx, order.campaignId, "payment_failed", "Stripe reported an asynchronous payment failure and released the reservation.", null, requestId);
+  });
 }
 
 async function handleRefund(charge: Stripe.Charge, environment: "test" | "live", requestId: string) {
@@ -188,9 +216,11 @@ async function handleDispute(dispute: Stripe.Dispute, environment: "test" | "liv
 export async function processStripeWebhook(input: { rawBody: string; signature: string | null; requestId: string }) {
   const { client, environment } = stripeContext();
   if (!input.signature) throw new StripeServiceError("webhook_invalid", "Stripe signature is required.", 400);
+  const webhookSecret = getServerEnv().STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) throw new StripeServiceError("stripe_configuration", "Stripe webhook verification is not configured.", 500);
   let event: Stripe.Event;
   try {
-    event = client.webhooks.constructEvent(input.rawBody, input.signature, getServerEnv().STRIPE_WEBHOOK_SECRET!);
+    event = client.webhooks.constructEvent(input.rawBody, input.signature, webhookSecret);
   } catch {
     throw new StripeServiceError("webhook_invalid", "Stripe webhook signature is invalid.", 400);
   }
@@ -217,17 +247,17 @@ export async function processStripeWebhook(input: { rawBody: string; signature: 
       }
       case "payment_intent.payment_failed": {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        await db.update(boostPayment).set({ status: "failed", updatedAt: new Date() }).where(and(eq(boostPayment.stripePaymentIntentId, paymentIntent.id), eq(boostPayment.stripeEnvironment, environment)));
+        await markPaymentIntentFailed(paymentIntent, environment, input.requestId);
         break;
       }
       case "charge.refunded":
         await handleRefund(event.data.object as Stripe.Charge, environment, input.requestId);
         break;
       case "charge.dispute.created":
-        await handleDispute((event.data.object as Stripe.Charge).dispute as unknown as Stripe.Dispute, environment, input.requestId);
+        await handleDispute(event.data.object as Stripe.Dispute, environment, input.requestId);
         break;
       case "charge.dispute.closed":
-        await handleDispute((event.data.object as Stripe.Charge).dispute as unknown as Stripe.Dispute, environment, input.requestId, true);
+        await handleDispute(event.data.object as Stripe.Dispute, environment, input.requestId, true);
         break;
       default:
         break;
@@ -240,16 +270,17 @@ export async function processStripeWebhook(input: { rawBody: string; signature: 
   }
 }
 
-export async function requestBoostRefund(input: { adminUserId: string; orderId: string; amountCents: number; reason: string; requestId: string }) {
+export async function requestBoostRefund(input: { adminUserId: string; campaignId: string; orderId: string; amountCents: number; reason: string; requestId: string }) {
   const { client, environment } = stripeContext();
   const db = getPostgresDb();
   const [order] = await db.select().from(boostOrder).where(eq(boostOrder.id, input.orderId)).limit(1);
-  if (!order || order.stripeEnvironment !== environment) throw new StripeServiceError("payment_not_found", "The payment order was not found in this Stripe environment.", 404);
+  if (!order || order.stripeEnvironment !== environment || order.campaignId !== input.campaignId) throw new StripeServiceError("payment_not_found", "The payment order was not found for this campaign in this Stripe environment.", 404);
   const [payment] = await db.select().from(boostPayment).where(and(eq(boostPayment.orderId, order.id), eq(boostPayment.stripeEnvironment, environment))).orderBy(desc(boostPayment.createdAt)).limit(1);
   const refundable = order.paidAmountCents - order.refundedAmountCents;
   if (!payment?.stripePaymentIntentId || input.amountCents <= 0 || input.amountCents > refundable) throw new StripeServiceError("refund_invalid", "The refund amount is outside the refundable balance.", 422);
   const [refund] = await db.insert(boostRefund).values({ orderId: order.id, stripeEnvironment: environment, amountCents: input.amountCents, status: "requested", reason: input.reason, requestedByUserId: input.adminUserId, approvedByUserId: input.adminUserId, requestId: input.requestId }).returning();
   if (!refund) throw new StripeServiceError("refund_invalid", "The refund request could not be recorded.", 500);
+  await db.insert(adminAuditLog).values({ actorUserId: input.adminUserId, action: "boost_refund_requested", targetType: "boost_campaign", targetId: input.campaignId, previousState: { paymentStatus: order.paymentStatus }, newState: { refundStatus: "requested" }, details: { orderId: order.id, amountCents: input.amountCents, refundId: refund.id }, reason: input.reason, requestId: input.requestId });
   try {
     const stripeRefund = await client.refunds.create({ payment_intent: payment.stripePaymentIntentId, amount: input.amountCents, metadata: { surgeindex_refund_id: refund.id, order_id: order.id } }, { idempotencyKey: `surgeindex-refund:${environment}:${refund.id}` });
     await db.update(boostRefund).set({ stripeRefundId: stripeRefund.id, status: "processing", updatedAt: new Date() }).where(eq(boostRefund.id, refund.id));

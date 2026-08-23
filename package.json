@@ -42,7 +42,17 @@
     "ga4:sync": "tsx --env-file=apps/web/.env scripts/ga4-sync.ts",
     "ga4:realtime": "tsx --env-file=apps/web/.env scripts/ga4-realtime.ts",
     "ga4:backfill": "tsx --env-file=apps/web/.env scripts/ga4-backfill.ts",
-    "ga4:health": "tsx --env-file=apps/web/.env scripts/ga4-health.ts"
+    "ga4:health": "tsx --env-file=apps/web/.env scripts/ga4-health.ts",
+    "boost:fixture": "tsx scripts/boost-fixture.ts",
+    "boost:forecast": "tsx --env-file=apps/web/.env scripts/boost-forecast.ts",
+    "boost:pace": "tsx --env-file=apps/web/.env scripts/boost-pace.ts",
+    "boost:aggregate": "tsx --env-file=apps/web/.env scripts/boost-aggregate.ts",
+    "boost:complete": "tsx --env-file=apps/web/.env scripts/boost-complete.ts",
+    "boost:underdelivery": "tsx --env-file=apps/web/.env scripts/boost-underdelivery.ts",
+    "boost:reconcile-payments": "tsx --env-file=apps/web/.env scripts/boost-reconcile-payments.ts",
+    "boost:release-reservations": "tsx --env-file=apps/web/.env scripts/boost-release-reservations.ts",
+    "stripe:test-webhook": "tsx scripts/stripe-test-webhook.ts",
+    "stripe:replay-event": "tsx --env-file=apps/web/.env scripts/stripe-replay-event.ts"
   },
   "devDependencies": {
     "@surge/boost": "workspace:*",

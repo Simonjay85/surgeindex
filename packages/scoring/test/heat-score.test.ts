@@ -137,6 +137,17 @@ describe("computeHeatScore", () => {
     expect(a).toEqual(b);
   });
 
+  it("keeps a delivered large paid campaign out of Heat Score inputs", () => {
+    const organic = input({ visitors24h: 12_345, visitors7d: 52_000 });
+    const afterPaidDelivery = Object.assign({}, organic, {
+      budgetCents: 89_900,
+      paidImpressions: 1_000_000,
+      sponsoredClicks: 250_000,
+      paidReferralVisits: 125_000,
+    }) as HeatScoreInput;
+    expect(computeHeatScore(afterPaidDelivery)).toEqual(computeHeatScore(organic));
+  });
+
   it("does not publish a score while the baseline is being built", () => {
     const r = computeHeatScore(input({ baselineDailyVisitors: null, baselineSampleCount: 1, baselineConfidence: 0, dataCompleteness: 0, completedDataDays: 1 }));
     expect(r.state).toBe("building_baseline");

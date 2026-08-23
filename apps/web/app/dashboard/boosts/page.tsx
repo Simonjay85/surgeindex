@@ -1,12 +1,34 @@
-"use client";
+import { AppShell } from "../../../components/app-shell";
+import { BoostDashboardClient } from "../../../components/boost-dashboard-client";
+import { DashboardShell, DashboardTopline } from "../../../components/dashboard-shell";
+import { requirePageUser } from "../../../lib/server/authorization";
+import { listBoostPackages, listBoostPlacements } from "../../../lib/server/boost-config";
+import { listOwnedBoostCampaigns } from "../../../lib/server/boost-service";
+import { getPublicDataProvider } from "../../../lib/server/public-provider";
+import { stripeTestModeStatus } from "../../../lib/server/stripe-service";
 
-import Link from "next/link";
-import { useState } from "react";
-import { ArrowRight, Check, Eye, MousePointer2, Plus, ShieldCheck, Target } from "lucide-react";
-import { AppShell, SourceBadge } from "../../../components/app-shell";
-import { DashboardShell, DashboardTopline, DemoNotice } from "../../../components/dashboard-shell";
+export const metadata = { title: "Boost campaigns" };
 
-export default function BoostsPage() {
-  const [started, setStarted] = useState(false);
-  return <AppShell><DashboardShell active="/dashboard/boosts"><DashboardTopline title="Boost campaigns" description="A separate, measurable lane for paid distribution." action={<button className="button button-coral" onClick={() => setStarted(true)}><Plus size={15} /> Create a campaign</button>} /><DemoNotice>Mock payments are enabled only in this demo workspace.</DemoNotice>{started ? <div className="form-success" style={{ marginTop: 15 }}><Check size={15} /><p>Draft campaign created. Choose a placement and budget to continue.</p></div> : null}<div className="section-tight"><div className="dashboard-grid"><div className="dashboard-card"><small>Active campaigns</small><strong>1</strong><p>PixelForge · Homepage</p></div><div className="dashboard-card"><small>Demo spend</small><strong>$149</strong><p>Sample budget · not charged</p></div><div className="dashboard-card"><small>Qualified impressions</small><strong>18.4K</strong><p>50% visible · 1s minimum</p></div><div className="dashboard-card"><small>Valid clicks</small><strong>624</strong><p>3.4% click-through</p></div></div></div><div className="section-tight"><div className="panel"><div className="panel-heading"><div><h2>Campaign ledger</h2><p>Organic rank is shown alongside each paid row so the boundary stays visible.</p></div><SourceBadge source="sponsored" compact /></div><div style={{ overflowX: "auto" }}><table className="boost-table"><thead><tr><th>Site & creative</th><th>Placement</th><th>Status</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th /></tr></thead><tbody><tr><td><strong>PixelForge</strong><small>“Bring a visual system to life.” · Organic #2</small></td><td>Homepage</td><td><span className="status-chip status-active">active</span></td><td>18,420 <small>qualified</small></td><td>624 <small>valid</small></td><td>3.4%</td><td><button className="button button-quiet button-small">Pause</button></td></tr><tr><td><strong>ShopSignal</strong><small>“Know what customers want next.” · Organic #5</small></td><td>Category</td><td><span className="status-chip status-scheduled">scheduled</span></td><td>—</td><td>—</td><td>—</td><td><button className="button button-quiet button-small">Report</button></td></tr></tbody></table></div></div></div><div className="section-tight"><div className="profile-columns"><div className="panel"><div className="panel-heading"><div><h2>Reporting definitions</h2><p>What counts as delivery.</p></div><Eye size={17} color="#bc7628" /></div><div className="dashboard-list"><div className="dashboard-list-row"><div><strong>Qualified impression</strong><span>At least 50% visible for approximately 1 second.</span></div><Eye size={15} /></div><div className="dashboard-list-row"><div><strong>Valid click</strong><span>Approved redirect event after bot and duplicate checks.</span></div><MousePointer2 size={15} /></div><div className="dashboard-list-row"><div><strong>Unique click</strong><span>Same visitor, destination, and 30-minute window.</span></div><Target size={15} /></div></div></div><div className="panel"><div className="panel-heading"><div><h2>Ready to test?</h2><p>Start a mock campaign with no payment.</p></div><ShieldCheck size={17} color="#2f8b62" /></div><p style={{ color: "var(--foreground-muted)", fontSize: 12 }}>Production Checkout sessions are created server-side and campaigns activate only after an idempotent signed webhook.</p><Link className="button button-coral" href="/boost">Review boost rules <ArrowRight size={15} /></Link></div></div></div></DashboardShell></AppShell>;
+export default async function BoostsPage() {
+  const user = await requirePageUser();
+  const provider = getPublicDataProvider();
+  const [ownedSites, campaigns] = await Promise.all([
+    provider.getOwnedSites(user.id),
+    listOwnedBoostCampaigns(user.id),
+  ]);
+  const sites = ownedSites
+    .filter((site) => site.status === "active" && site.ownership === "claimed" && !site.isDemo)
+    .map((site) => ({ id: site.siteId, name: site.name, domain: site.domain }));
+  const packages = listBoostPackages()
+    .filter((item) => item.active && item.amountCents != null && item.targetQualifiedImpressions != null)
+    .map((item) => ({ id: item.id, name: item.name, amountCents: item.amountCents!, currency: item.currency, targetImpressions: item.targetQualifiedImpressions!, durationDays: item.defaultDurationDays }));
+  const placements = listBoostPlacements().filter((item) => item.active).map((item) => ({ key: item.key, name: item.name, description: item.description }));
+  const rows = campaigns.map((campaign) => ({
+    ...campaign,
+    startAt: campaign.startAt?.toISOString() ?? null,
+    endAt: campaign.endAt?.toISOString() ?? null,
+    createdAt: campaign.createdAt.toISOString(),
+    updatedAt: campaign.updatedAt.toISOString(),
+  }));
+  return <AppShell><DashboardShell active="/dashboard/boosts"><DashboardTopline title="Boost campaigns" description="Persistent campaigns backed by the production PostgreSQL repository." /><BoostDashboardClient initialCampaigns={rows} sites={sites} packages={packages} placements={placements} paymentConfigured={stripeTestModeStatus().configured} /></DashboardShell></AppShell>;
 }

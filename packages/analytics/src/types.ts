@@ -1,4 +1,4 @@
-import type { NormalizedTrackerEvent, TrackerEventType } from "@surge/shared";
+import type { NormalizedTrackerEvent, TrackerEventType, TrafficOrigin } from "@surge/shared";
 
 /** Shared analytics provider contract (spec §18). */
 
@@ -27,6 +27,8 @@ export interface AnalyticsEvent {
   fraudScore?: number;
   fraudRuleVersion?: string;
   collectorRequestId?: string | null;
+  trafficOrigin?: TrafficOrigin;
+  attributionCampaignId?: string | null;
   isDemo?: boolean;
 }
 

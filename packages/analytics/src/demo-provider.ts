@@ -49,6 +49,8 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
           referrerHost: e.referrerHost ?? null,
           country: e.country ?? null,
           device: e.device ?? null,
+          trafficOrigin: e.trafficOrigin ?? "direct",
+          attributionCampaignId: e.attributionCampaignId ?? null,
           decision: e.decision ?? "valid",
           reasons: e.reasons ?? [],
           occurredAt: new Date(e.occurredAt),
@@ -58,7 +60,7 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
       .onConflictDoNothing({ target: trackerEvent.eventId });
 
     for (const e of accepted) {
-      if (e.eventType === "session_start" || e.eventType === "heartbeat" || e.eventType === "pageview") {
+      if (e.trafficOrigin !== "paid_surgedindex_referral" && (e.eventType === "session_start" || e.eventType === "heartbeat" || e.eventType === "pageview")) {
         await db
           .insert(activeSession)
           .values({
@@ -93,6 +95,7 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
         and(
           gte(trackerEvent.occurredAt, since),
           eq(trackerEvent.decision, "valid"),
+          sql`${trackerEvent.trafficOrigin} <> 'paid_surgedindex_referral'`,
           sql`${trackerEvent.eventType} in ('pageview','session_start')`,
         ),
       )
@@ -130,6 +133,7 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
           eq(trackerEvent.siteId, siteId),
           gte(trackerEvent.occurredAt, since),
           eq(trackerEvent.decision, "valid"),
+          sql`${trackerEvent.trafficOrigin} <> 'paid_surgedindex_referral'`,
         ),
       );
     const [engaged] = await db
@@ -143,6 +147,7 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
           eq(trackerEvent.siteId, siteId),
           gte(trackerEvent.occurredAt, since),
           eq(trackerEvent.decision, "valid"),
+          sql`${trackerEvent.trafficOrigin} <> 'paid_surgedindex_referral'`,
         ),
       );
     const activeNow = await this.activeNowBySite(siteId);
@@ -175,6 +180,7 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
       where site_id = ${siteId}
         and occurred_at > now() - (${seconds} || ' seconds')::interval
         and decision = 'valid'
+        and traffic_origin <> 'paid_surgedindex_referral'
         and ${metricFilter(input.metric)}
       group by bucket
       order by bucket asc

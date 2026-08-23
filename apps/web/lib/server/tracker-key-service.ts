@@ -32,7 +32,7 @@ export async function getTrackerKeyStatus(userId: string, siteId: string) {
   const [key] = await db.select().from(trackerKey).where(eq(trackerKey.siteId, siteId)).orderBy(desc(trackerKey.version)).limit(1);
   if (!key) return { siteId, siteName: target.name, domain: target.domain, status: "not_installed" as const, key: null, lastEventAt: null, lastDetectedOrigin: null, trackerVersion: null, freshness: "unknown" as const, installation: installationInstructions(null, target.domain) };
   if (key.status === "revoked") return { siteId, siteName: target.name, domain: target.domain, status: "revoked" as const, key: null, lastEventAt: key.lastEventAt?.toISOString() ?? null, lastDetectedOrigin: key.lastOrigin, trackerVersion: null, freshness: "revoked" as const, installation: null };
-  const [lastEvent] = await db.select({ receivedAt: trackerEvent.receivedAt, originHost: trackerEvent.originHost, trackerVersion: trackerEvent.trackerVersion }).from(trackerEvent).where(and(eq(trackerEvent.siteId, siteId), eq(trackerEvent.trackerPublicKey, key.publicKey), eq(trackerEvent.decision, "valid"))).orderBy(desc(trackerEvent.receivedAt)).limit(1);
+  const [lastEvent] = await db.select({ receivedAt: trackerEvent.receivedAt, originHost: trackerEvent.originHost, trackerVersion: trackerEvent.trackerVersion }).from(trackerEvent).where(and(eq(trackerEvent.siteId, siteId), eq(trackerEvent.trackerPublicKey, key.publicKey), eq(trackerEvent.decision, "valid"), sql`${trackerEvent.trafficOrigin} <> 'paid_surgedindex_referral'`)).orderBy(desc(trackerEvent.receivedAt)).limit(1);
   const lastEventAt = key.lastEventAt ?? lastEvent?.receivedAt ?? null;
   const age = lastEventAt ? Math.max(0, Date.now() - lastEventAt.getTime()) : null;
   const ttl = getServerEnv().ACTIVE_SESSION_TTL_SECONDS * 1000;
@@ -90,7 +90,7 @@ export async function testTrackerInstallation(userId: string, siteId: string, si
   const [key] = await db.select({ publicKey: trackerKey.publicKey, status: trackerKey.status }).from(trackerKey).where(eq(trackerKey.siteId, siteId)).orderBy(desc(trackerKey.version)).limit(1);
   if (!key || key.status === "revoked") return { accepted: false, event: null };
   const since = new Date(sinceIso ?? Date.now() - 10 * 60 * 1000);
-  const [event] = await db.select({ eventId: trackerEvent.eventId, receivedAt: trackerEvent.receivedAt, originHost: trackerEvent.originHost, decision: trackerEvent.decision }).from(trackerEvent).where(and(eq(trackerEvent.siteId, siteId), eq(trackerEvent.trackerPublicKey, key.publicKey), eq(trackerEvent.decision, "valid"), gt(trackerEvent.receivedAt, since))).orderBy(desc(trackerEvent.receivedAt)).limit(1);
+  const [event] = await db.select({ eventId: trackerEvent.eventId, receivedAt: trackerEvent.receivedAt, originHost: trackerEvent.originHost, decision: trackerEvent.decision }).from(trackerEvent).where(and(eq(trackerEvent.siteId, siteId), eq(trackerEvent.trackerPublicKey, key.publicKey), eq(trackerEvent.decision, "valid"), sql`${trackerEvent.trafficOrigin} <> 'paid_surgedindex_referral'`, gt(trackerEvent.receivedAt, since))).orderBy(desc(trackerEvent.receivedAt)).limit(1);
   return { accepted: Boolean(event), event: event ? { eventId: event.eventId, receivedAt: event.receivedAt.toISOString(), originHost: event.originHost } : null };
 }
 

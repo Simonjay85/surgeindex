@@ -48,7 +48,7 @@ export async function getTrafficOperationalSummary() {
   `)).rows as [Record<string, unknown> | undefined];
   const [failures] = (await db.execute(sql`select count(*)::int as count from ingestion_failure where created_at >= now() - interval '24 hours'`)).rows as [Record<string, unknown> | undefined];
   const [sites] = (await db.execute(sql`select count(*) filter (where status in ('active','stale'))::int as connected_sites, count(*) filter (where status = 'stale')::int as stale_trackers from tracker_key`)).rows as [Record<string, unknown> | undefined];
-  const latest = await db.select({ receivedAt: trackerEvent.receivedAt }).from(trackerEvent).where(eq(trackerEvent.decision, "valid")).orderBy(sql`${trackerEvent.receivedAt} desc`).limit(1);
+  const latest = await db.select({ receivedAt: trackerEvent.receivedAt }).from(trackerEvent).where(and(eq(trackerEvent.decision, "valid"), sql`${trackerEvent.trafficOrigin} <> 'paid_surgedindex_referral'`)).orderBy(sql`${trackerEvent.receivedAt} desc`).limit(1);
   return {
     eventsReceived: number(events?.events_received),
     eventsAccepted: number(events?.events_accepted),

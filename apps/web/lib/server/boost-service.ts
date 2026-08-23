@@ -1,11 +1,11 @@
 import "server-only";
 
-import { and, desc, eq, gt, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, isNull, lte, or, sql } from "drizzle-orm";
 import { assertBoostTransition, buildBoostReport, forecastInventory, type BoostCampaignState, type BoostPlacementKey, type BoostReport, type InventoryForecast } from "@surge/boost";
 import { getServerEnv } from "@surge/config";
-import { boostCampaign, boostCampaignCreative, boostCampaignStateTransition, boostClickEvent, boostFrequencyCap, boostImpressionAggregate, boostImpressionEvent, boostImpressionOpportunity, boostInventoryReservation, boostInventoryWindow, boostOrder, category, getPostgresDb, site, siteMetricCurrent, siteOwner } from "@surge/db";
+import { boostCampaign, boostCampaignCreative, boostCampaignStateTransition, boostClickEvent, boostFrequencyCap, boostImpressionAggregate, boostImpressionEvent, boostImpressionOpportunity, boostInventoryReservation, boostInventoryWindow, boostOrder, boostStripeCheckoutSession, category, getPostgresDb, site, siteMetricCurrent, siteOwner, trackerKey } from "@surge/db";
 import { getBoostPackage, getBoostPlacement, legacyPlacementFor, packageSnapshot, sanitizeCreative } from "./boost-config";
-import { hashBoostToken, signClickToken, signImpressionToken, verifyImpressionToken } from "./boost-tokens";
+import { anonymousVisitorHash, hashBoostToken, signClickToken, signImpressionToken, verifyImpressionToken } from "./boost-tokens";
 
 export class BoostServiceError extends Error {
   constructor(public readonly code: "boost_disabled" | "site_not_eligible" | "site_not_found" | "package_not_found" | "placement_not_found" | "package_placement_mismatch" | "invalid_duration" | "invalid_category" | "creative_invalid" | "campaign_not_found" | "invalid_state" | "inventory_unavailable" | "reservation_not_found" | "token_invalid" | "impression_invalid" | "campaign_not_active" | "frequency_capped" | "duplicate_event" | "demo_only", message: string, public readonly status = 422) {
@@ -67,6 +67,9 @@ export async function createBoostCampaign(input: {
   if (!env.BOOST_ENABLED && env.APP_MODE !== "demo") throw new BoostServiceError("boost_disabled", "Boost is not enabled for this environment.", 409);
   const targetSite = await ownedSite(input.userId, input.siteId);
   const { pkg, placement } = validatePackageAndPlacement(input.packageKey, input.placementKey);
+  const budgetCents = pkg.amountCents;
+  const targetQualifiedImpressions = pkg.targetQualifiedImpressions;
+  if (budgetCents == null || targetQualifiedImpressions == null) throw new BoostServiceError("package_not_found", "Choose an active server-configured package.", 422);
   const durationDays = input.durationDays ?? pkg.defaultDurationDays;
   if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > Math.min(pkg.maximumDurationDays, env.BOOST_MAX_CAMPAIGN_DAYS)) throw new BoostServiceError("invalid_duration", "Choose a campaign duration within the configured limit.", 422);
   if (input.categoryId) {
@@ -83,7 +86,7 @@ export async function createBoostCampaign(input: {
   const endsAt = new Date(startsAt.getTime() + durationDays * 24 * 60 * 60 * 1000);
   const db = getPostgresDb();
   const [campaign] = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(boostCampaign).values({
+    const campaignValues = {
       siteId: targetSite.id,
       ownerId: input.userId,
       status: "draft",
@@ -101,13 +104,14 @@ export async function createBoostCampaign(input: {
       logoUrl: creative.logoUrl,
       creativeVersion: 1,
       pacingMode: "even",
-      budgetCents: pkg.amountCents,
+      budgetCents,
       currency: pkg.currency,
-      targetImpressions: pkg.targetQualifiedImpressions,
+      targetImpressions: targetQualifiedImpressions,
       startAt: startsAt,
       endAt: endsAt,
       isDemo: false,
-    }).returning({ id: boostCampaign.id });
+    } satisfies typeof boostCampaign.$inferInsert;
+    const [created] = await tx.insert(boostCampaign).values(campaignValues).returning({ id: boostCampaign.id });
     if (!created) throw new Error("boost_campaign_insert_failed");
     await tx.insert(boostCampaignCreative).values({ campaignId: created.id, version: 1, state: "pending_review", headline: creative.headline, description: creative.description, ctaLabel: creative.ctaLabel, destinationUrl: creative.destinationUrl, logoUrl: creative.logoUrl });
     await tx.insert(boostCampaignStateTransition).values({ campaignId: created.id, previousState: null, newState: "draft", reason: "Campaign draft created by authorized site owner.", actorUserId: input.userId, requestId: input.requestId });
@@ -123,12 +127,51 @@ export async function getOwnedBoostCampaign(userId: string, campaignId: string) 
   return campaign;
 }
 
+export async function listOwnedBoostCampaigns(userId: string) {
+  const env = getServerEnv();
+  if (env.APP_MODE !== "production" || env.DATA_PROVIDER !== "postgres") return [];
+  return getPostgresDb()
+    .select({
+      id: boostCampaign.id,
+      siteId: boostCampaign.siteId,
+      siteName: site.name,
+      siteDomain: site.domain,
+      packageKey: boostCampaign.packageKey,
+      placementKey: boostCampaign.placementKey,
+      headline: boostCampaign.headline,
+      state: boostCampaign.state,
+      currency: boostCampaign.currency,
+      budgetCents: boostCampaign.budgetCents,
+      targetImpressions: boostCampaign.targetImpressions,
+      validImpressions: boostCampaign.validImpressions,
+      renderedImpressions: boostCampaign.renderedImpressions,
+      invalidImpressions: boostCampaign.invalidImpressions,
+      validClicks: boostCampaign.validClicks,
+      uniqueClicks: boostCampaign.uniqueClicks,
+      attributedVisits: boostCampaign.attributedVisits,
+      attributedEngagedVisits: boostCampaign.attributedEngagedVisits,
+      startAt: boostCampaign.startAt,
+      endAt: boostCampaign.endAt,
+      createdAt: boostCampaign.createdAt,
+      updatedAt: boostCampaign.updatedAt,
+    })
+    .from(boostCampaign)
+    .innerJoin(site, eq(site.id, boostCampaign.siteId))
+    .where(eq(boostCampaign.ownerId, userId))
+    .orderBy(desc(boostCampaign.createdAt));
+}
+
 export async function prepareBoostOrder(input: { userId: string; campaignId: string; stripeEnvironment: "test" | "live"; requestId: string }) {
   const campaign = await getOwnedBoostCampaign(input.userId, input.campaignId);
   const db = getPostgresDb();
   return db.transaction(async (tx) => {
     const [existing] = await tx.select().from(boostOrder).where(eq(boostOrder.campaignId, campaign.id)).limit(1);
-    if (existing) return existing;
+    if (existing && !["failed", "expired"].includes(existing.paymentStatus)) return existing;
+    if (existing) {
+      await tx.delete(boostStripeCheckoutSession).where(eq(boostStripeCheckoutSession.orderId, existing.id));
+      const [reopened] = await tx.update(boostOrder).set({ stripeEnvironment: input.stripeEnvironment, paymentStatus: "pending", updatedAt: new Date() }).where(eq(boostOrder.id, existing.id)).returning();
+      if (reopened) return reopened;
+    }
     if (!["inventory_reserved", "awaiting_checkout", "pending_payment", "payment_processing"].includes(campaign.state)) throw new BoostServiceError("invalid_state", "Reserve inventory before opening Checkout.", 409);
     if (campaign.packageKey === "custom" || campaign.budgetCents <= 0) throw new BoostServiceError("package_not_found", "Custom campaigns require an approved server-side quote.", 422);
     if (!["pending_payment", "payment_processing"].includes(campaign.state)) await transitionCampaignTx(tx, campaign.id, "pending_payment", "Server created a payment order after inventory reservation.", input.userId, input.requestId);
@@ -140,7 +183,9 @@ export async function prepareBoostOrder(input: { userId: string; campaignId: str
 
 export async function getBoostCampaignReport(userId: string, campaignId: string): Promise<{ campaign: typeof boostCampaign.$inferSelect; report: BoostReport; sourceLabels: Record<string, string> }> {
   const campaign = await getOwnedBoostCampaign(userId, campaignId);
-  const [order] = await getPostgresDb().select({ paidAmountCents: boostOrder.paidAmountCents }).from(boostOrder).where(eq(boostOrder.campaignId, campaign.id)).limit(1);
+  const db = getPostgresDb();
+  const [order] = await db.select({ paidAmountCents: boostOrder.paidAmountCents }).from(boostOrder).where(eq(boostOrder.campaignId, campaign.id)).limit(1);
+  const [tracker] = await db.select({ id: trackerKey.id }).from(trackerKey).where(and(eq(trackerKey.siteId, campaign.siteId), eq(trackerKey.status, "active"))).limit(1);
   return {
     campaign,
     report: buildBoostReport({
@@ -151,8 +196,8 @@ export async function getBoostCampaignReport(userId: string, campaignId: string)
       clicks: campaign.clicks,
       validClicks: campaign.validClicks,
       uniqueClicks: campaign.uniqueClicks,
-      attributedVisits: campaign.attributedVisits,
-      attributedEngagedVisits: campaign.attributedEngagedVisits,
+      attributedVisits: tracker ? campaign.attributedVisits : null,
+      attributedEngagedVisits: tracker ? campaign.attributedEngagedVisits : null,
       amountPaidCents: order?.paidAmountCents ?? 0,
       currency: campaign.currency,
     }),
@@ -187,16 +232,26 @@ export async function transitionBoostCampaignForSystem(input: { campaignId: stri
   });
 }
 
+export async function transitionOwnedBoostCampaign(input: { userId: string; campaignId: string; next: BoostCampaignState; reason: string; requestId: string }) {
+  await getOwnedBoostCampaign(input.userId, input.campaignId);
+  return getPostgresDb().transaction(async (tx) => {
+    await transitionCampaignTx(tx, input.campaignId, input.next, input.reason, input.userId, input.requestId);
+    const [campaign] = await tx.select().from(boostCampaign).where(eq(boostCampaign.id, input.campaignId)).limit(1);
+    return campaign ?? null;
+  });
+}
+
 export async function forecastBoostInventory(input: { userId: string; siteId: string; placementKey: string; categoryId?: string | null; startsAt: Date; endsAt: Date; requestedImpressions: number }): Promise<InventoryForecast> {
   const targetSite = await ownedSite(input.userId, input.siteId);
   const placement = getBoostPlacement(input.placementKey);
   if (!placement) throw new BoostServiceError("placement_not_found", "Choose an active sponsored placement.", 422);
   if (!Number.isInteger(input.requestedImpressions) || input.requestedImpressions <= 0) throw new BoostServiceError("inventory_unavailable", "The requested delivery target is invalid.", 422);
   const db = getPostgresDb();
+  const categoryId = input.categoryId ?? null;
   const [current] = await db.select({ pageviews24h: siteMetricCurrent.pageviews24h, visitors24h: siteMetricCurrent.visitors24h }).from(siteMetricCurrent).where(eq(siteMetricCurrent.siteId, targetSite.id)).limit(1);
   const durationDays = Math.max(1, (input.endsAt.getTime() - input.startsAt.getTime()) / (24 * 60 * 60 * 1000));
   const estimatedOpportunities = current ? Math.max(0, Math.floor(Math.max(current.pageviews24h ?? 0, current.visitors24h ?? 0) * durationDays * 0.5)) : 0;
-  const reservedResult = await db.execute(sql`select coalesce(sum(reserved_impressions), 0)::int as reserved from boost_inventory_reservation where placement_key = ${placement.key} and status in ('held','confirmed') and starts_at < ${input.endsAt} and ends_at > ${input.startsAt} and (${input.categoryId}::uuid is null or category_id = ${input.categoryId}::uuid)`);
+  const reservedResult = await db.execute(sql`select coalesce(sum(reserved_impressions), 0)::int as reserved from boost_inventory_reservation where placement_key = ${placement.key} and status in ('held','confirmed') and starts_at < ${input.endsAt} and ends_at > ${input.startsAt} and (${categoryId}::uuid is null or category_id = ${categoryId}::uuid)`);
   const reserved = Number((reservedResult.rows[0] as { reserved?: unknown } | undefined)?.reserved ?? 0);
   return forecastInventory({ estimatedOpportunities, qualifiedViewabilityRate: 0.6, reservedImpressions: reserved, requestedImpressions: input.requestedImpressions, safetyMargin: 0.15 });
 }
@@ -206,20 +261,25 @@ export async function reserveBoostInventory(input: { userId: string; campaignId:
   const env = getServerEnv();
   const pkg = getBoostPackage(campaign.packageKey);
   if (!pkg || !campaign.startAt || !campaign.endAt) throw new BoostServiceError("inventory_unavailable", "The campaign package or dates are not available.", 422);
+  const startAt = campaign.startAt;
+  const endAt = campaign.endAt;
   const db = getPostgresDb();
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${campaign.placementKey}:${campaign.categoryId ?? "all"}:${campaign.startAt.toISOString()}:${campaign.endAt.toISOString()}`}))`);
+    if (campaign.state === "payment_failed" || campaign.state === "checkout_expired") {
+      await transitionCampaignTx(tx, campaign.id, "draft", "Owner restarted inventory after a failed or expired Checkout attempt.", input.userId, input.requestId);
+    }
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${campaign.placementKey}:${campaign.categoryId ?? "all"}:${startAt.toISOString()}:${endAt.toISOString()}`}))`);
     const existing = await tx.select().from(boostInventoryReservation).where(and(eq(boostInventoryReservation.campaignId, campaign.id), or(eq(boostInventoryReservation.status, "held"), eq(boostInventoryReservation.status, "confirmed")))).orderBy(desc(boostInventoryReservation.createdAt)).limit(1);
     if (existing[0]) return existing[0];
-    const reservedResult = await tx.execute(sql`select coalesce(sum(reserved_impressions), 0)::int as reserved from boost_inventory_reservation where placement_key = ${campaign.placementKey} and status in ('held','confirmed') and starts_at < ${campaign.endAt} and ends_at > ${campaign.startAt} and (${campaign.categoryId}::uuid is null or category_id = ${campaign.categoryId}::uuid)`);
+    const reservedResult = await tx.execute(sql`select coalesce(sum(reserved_impressions), 0)::int as reserved from boost_inventory_reservation where placement_key = ${campaign.placementKey} and status in ('held','confirmed') and starts_at < ${endAt} and ends_at > ${startAt} and (${campaign.categoryId}::uuid is null or category_id = ${campaign.categoryId}::uuid)`);
     const reserved = Number((reservedResult.rows[0] as { reserved?: unknown } | undefined)?.reserved ?? 0);
     const [current] = await tx.select({ pageviews24h: siteMetricCurrent.pageviews24h, visitors24h: siteMetricCurrent.visitors24h }).from(siteMetricCurrent).where(eq(siteMetricCurrent.siteId, campaign.siteId)).limit(1);
-    const durationDays = Math.max(1, (campaign.endAt.getTime() - campaign.startAt.getTime()) / (24 * 60 * 60 * 1000));
+    const durationDays = Math.max(1, (endAt.getTime() - startAt.getTime()) / (24 * 60 * 60 * 1000));
     const estimatedOpportunities = current ? Math.max(0, Math.floor(Math.max(current.pageviews24h ?? 0, current.visitors24h ?? 0) * durationDays * 0.5)) : 0;
     const forecast = forecastInventory({ estimatedOpportunities, qualifiedViewabilityRate: 0.6, reservedImpressions: reserved, requestedImpressions: campaign.targetImpressions, safetyMargin: 0.15 });
     if (forecast.status === "unknown" || forecast.status === "unavailable" || forecast.availableImpressions < campaign.targetImpressions) throw new BoostServiceError("inventory_unavailable", "Inventory is not available for the selected dates. Your last valid estimate was not reserved.", 409);
-    const [window] = await tx.insert(boostInventoryWindow).values({ placementKey: campaign.placementKey, categoryId: campaign.categoryId, startsAt: campaign.startAt, endsAt: campaign.endAt, estimatedOpportunities: forecast.estimatedOpportunities, estimatedQualifiedImpressions: forecast.estimatedQualifiedImpressions, reservedImpressions: reserved + campaign.targetImpressions, safeCapacity: forecast.availableImpressions + reserved, confidence: forecast.confidence, generatedAt: new Date(forecast.generatedAt), expiresAt: new Date(forecast.expiresAt) }).returning({ id: boostInventoryWindow.id });
-    const [reservation] = await tx.insert(boostInventoryReservation).values({ campaignId: campaign.id, windowId: window.id, placementKey: campaign.placementKey, categoryId: campaign.categoryId, reservedImpressions: campaign.targetImpressions, startsAt: campaign.startAt, endsAt: campaign.endAt, expiresAt: new Date(Date.now() + env.BOOST_RESERVATION_MINUTES * 60 * 1000), status: "held" }).returning();
+    const [window] = await tx.insert(boostInventoryWindow).values({ placementKey: campaign.placementKey, categoryId: campaign.categoryId, startsAt: startAt, endsAt: endAt, estimatedOpportunities: forecast.estimatedOpportunities, estimatedQualifiedImpressions: forecast.estimatedQualifiedImpressions, reservedImpressions: reserved + campaign.targetImpressions, safeCapacity: forecast.availableImpressions + reserved, confidence: forecast.confidence, generatedAt: new Date(forecast.generatedAt), expiresAt: new Date(forecast.expiresAt) }).returning({ id: boostInventoryWindow.id });
+    const [reservation] = await tx.insert(boostInventoryReservation).values({ campaignId: campaign.id, windowId: window.id, placementKey: campaign.placementKey, categoryId: campaign.categoryId, reservedImpressions: campaign.targetImpressions, startsAt: startAt, endsAt: endAt, expiresAt: new Date(Date.now() + env.BOOST_RESERVATION_MINUTES * 60 * 1000), status: "held" }).returning();
     if (!reservation) throw new Error("boost_reservation_insert_failed");
     await transitionCampaignTx(tx, campaign.id, "inventory_check", "Inventory forecast checked before checkout.", input.userId, input.requestId);
     await transitionCampaignTx(tx, campaign.id, "inventory_reserved", "Inventory reserved transactionally before checkout.", input.userId, input.requestId);
@@ -259,22 +319,42 @@ export async function qualifyBoostImpression(input: { token: string; eventId: st
       const [event] = await tx.insert(boostImpressionEvent).values({ eventId: input.eventId, opportunityId: opportunity?.id ?? null, campaignId: payload.campaignId, siteId: payload.siteId, visitorHash: input.visitorContextHash, classification, visiblePercent: input.visiblePercent, visibleMilliseconds: input.visibleMilliseconds, reasonCode, isDemo: false }).onConflictDoNothing({ target: boostImpressionEvent.eventId }).returning({ id: boostImpressionEvent.id });
       return event;
     };
-    if (!campaign || !opportunity) { await insertEvent("invalid", "campaign_or_opportunity_not_found"); throw new BoostServiceError("impression_invalid", "The impression opportunity is no longer valid.", 422); }
-    if (opportunity.usedAt) { await insertEvent("duplicate", "opportunity_replayed"); throw new BoostServiceError("duplicate_event", "This impression opportunity has already been used.", 409); }
-    if (opportunity.expiresAt <= new Date() || campaign.state !== "active" || !campaign.startAt || !campaign.endAt || campaign.startAt > new Date() || campaign.endAt <= new Date()) { await insertEvent("expired_token", "outside_schedule_or_expired"); throw new BoostServiceError("impression_invalid", "The impression opportunity is outside the active campaign window.", 422); }
-    if (input.isOwner && campaign.ownerSelfViewExcluded) { await insertEvent("owner_self_view", "owner_self_view"); throw new BoostServiceError("impression_invalid", "Owner self-view is not billable.", 422); }
-    if (input.visiblePercent < placement.viewability.minimumPercent || input.visibleMilliseconds < placement.viewability.minimumMilliseconds) { await insertEvent("viewability_failed", "viewability_threshold_not_met"); throw new BoostServiceError("impression_invalid", "The card did not meet the configured viewability threshold.", 422); }
+    if (!campaign || !opportunity) return { classification: "invalid" as const, reason: "campaign_or_opportunity_not_found" };
+    if (opportunity.usedAt) {
+      await insertEvent("duplicate", "opportunity_replayed");
+      return { classification: "duplicate" as const, campaignId: campaign.id };
+    }
+    const now = new Date();
+    if (opportunity.expiresAt <= now || campaign.state !== "active" || !campaign.startAt || !campaign.endAt || campaign.startAt > now || campaign.endAt <= now) {
+      await insertEvent("expired_token", "outside_schedule_or_expired");
+      await tx.update(boostCampaign).set({ renderedImpressions: sql`${boostCampaign.renderedImpressions} + 1`, invalidImpressions: sql`${boostCampaign.invalidImpressions} + 1`, updatedAt: now }).where(eq(boostCampaign.id, campaign.id));
+      return { classification: "expired_token" as const, campaignId: campaign.id };
+    }
+    if (input.isOwner && campaign.ownerSelfViewExcluded) {
+      await insertEvent("owner_self_view", "owner_self_view");
+      await tx.update(boostCampaign).set({ renderedImpressions: sql`${boostCampaign.renderedImpressions} + 1`, invalidImpressions: sql`${boostCampaign.invalidImpressions} + 1`, updatedAt: now }).where(eq(boostCampaign.id, campaign.id));
+      return { classification: "owner_self_view" as const, campaignId: campaign.id };
+    }
+    if (input.visiblePercent < placement.viewability.minimumPercent || input.visibleMilliseconds < placement.viewability.minimumMilliseconds) {
+      await insertEvent("viewability_failed", "viewability_threshold_not_met");
+      await tx.update(boostCampaign).set({ renderedImpressions: sql`${boostCampaign.renderedImpressions} + 1`, invalidImpressions: sql`${boostCampaign.invalidImpressions} + 1`, updatedAt: now }).where(eq(boostCampaign.id, campaign.id));
+      return { classification: "viewability_failed" as const, campaignId: campaign.id };
+    }
     const windowStart = new Date();
     windowStart.setUTCHours(0, 0, 0, 0);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${campaign.id}:${input.visitorContextHash}:${windowStart.toISOString()}`}))`);
     const [frequency] = await tx.select().from(boostFrequencyCap).where(and(eq(boostFrequencyCap.campaignId, campaign.id), eq(boostFrequencyCap.visitorHash, input.visitorContextHash), eq(boostFrequencyCap.windowStart, windowStart))).limit(1);
-    if (frequency && frequency.exposureCount >= placement.frequencyCapPerVisitorPerDay) { await insertEvent("frequency_capped", "frequency_cap_reached"); throw new BoostServiceError("frequency_capped", "The visitor frequency cap has been reached.", 409); }
+    if (frequency && frequency.exposureCount >= placement.frequencyCapPerVisitorPerDay) {
+      await insertEvent("frequency_capped", "frequency_cap_reached");
+      await tx.update(boostCampaign).set({ renderedImpressions: sql`${boostCampaign.renderedImpressions} + 1`, invalidImpressions: sql`${boostCampaign.invalidImpressions} + 1`, updatedAt: new Date() }).where(eq(boostCampaign.id, campaign.id));
+      return { classification: "frequency_capped" as const, campaignId: campaign.id };
+    }
     if (frequency) await tx.update(boostFrequencyCap).set({ exposureCount: sql`${boostFrequencyCap.exposureCount} + 1`, updatedAt: new Date() }).where(eq(boostFrequencyCap.id, frequency.id));
     else await tx.insert(boostFrequencyCap).values({ campaignId: campaign.id, visitorHash: input.visitorContextHash, windowStart, exposureCount: 1, expiresAt: new Date(windowStart.getTime() + 24 * 60 * 60 * 1000) });
     const inserted = await insertEvent("qualified", "viewability_qualified");
     if (!inserted) throw new BoostServiceError("duplicate_event", "This impression event has already been recorded.", 409);
     await tx.update(boostImpressionOpportunity).set({ usedAt: new Date() }).where(eq(boostImpressionOpportunity.id, opportunity.id));
-    await tx.update(boostCampaign).set({ deliveredImpressions: sql`${boostCampaign.deliveredImpressions} + 1`, validImpressions: sql`${boostCampaign.validImpressions} + 1`, updatedAt: new Date() }).where(eq(boostCampaign.id, campaign.id));
+    await tx.update(boostCampaign).set({ deliveredImpressions: sql`${boostCampaign.deliveredImpressions} + 1`, validImpressions: sql`${boostCampaign.validImpressions} + 1`, renderedImpressions: sql`${boostCampaign.renderedImpressions} + 1`, updatedAt: new Date() }).where(eq(boostCampaign.id, campaign.id));
     const bucketStart = new Date();
     bucketStart.setMinutes(0, 0, 0);
     await tx.insert(boostImpressionAggregate).values({ campaignId: campaign.id, bucketStart, opportunities: 1, renderedImpressions: 1, qualifiedImpressions: 1 }).onConflictDoUpdate({ target: [boostImpressionAggregate.campaignId, boostImpressionAggregate.bucketStart], set: { opportunities: sql`${boostImpressionAggregate.opportunities} + 1`, renderedImpressions: sql`${boostImpressionAggregate.renderedImpressions} + 1`, qualifiedImpressions: sql`${boostImpressionAggregate.qualifiedImpressions} + 1`, updatedAt: new Date() } });
@@ -309,10 +389,14 @@ export async function servedBoost(input: { placementKey: BoostPlacementKey; cate
   const rows = await db.select({ campaign: boostCampaign, siteSlug: site.slug, siteDomain: site.domain, siteName: site.name, siteDescription: site.description, siteLogo: site.logoUrl, siteVerification: site.verification }).from(boostCampaign).innerJoin(site, eq(site.id, boostCampaign.siteId)).where(and(eq(boostCampaign.state, "active"), eq(boostCampaign.placementKey, input.placementKey), eq(site.status, "active"), eq(site.isDemo, false), lte(boostCampaign.startAt, now), gte(boostCampaign.endAt, now), gt(boostCampaign.targetImpressions, boostCampaign.deliveredImpressions))).orderBy(desc(boostCampaign.updatedAt)).limit(50);
   for (const row of rows) {
     if (input.categoryId && row.campaign.categoryId && input.categoryId !== row.campaign.categoryId) continue;
-    const [frequency] = await db.select({ exposureCount: boostFrequencyCap.exposureCount }).from(boostFrequencyCap).where(and(eq(boostFrequencyCap.campaignId, row.campaign.id), eq(boostFrequencyCap.visitorHash, input.visitorContextHash), gte(boostFrequencyCap.expiresAt, now))).limit(1);
+    // Derive the visitor key only after the campaign/site is selected. This
+    // keeps frequency caps and signed tokens site-scoped without persisting a
+    // raw IP or sharing one cross-site identifier across advertisers.
+    const campaignVisitorHash = anonymousVisitorHash(input.request, row.campaign.siteId);
+    const [frequency] = await db.select({ exposureCount: boostFrequencyCap.exposureCount }).from(boostFrequencyCap).where(and(eq(boostFrequencyCap.campaignId, row.campaign.id), eq(boostFrequencyCap.visitorHash, campaignVisitorHash), gte(boostFrequencyCap.expiresAt, now))).limit(1);
     if (frequency && Number(frequency.exposureCount) >= env.BOOST_MAX_FREQUENCY_PER_VISITOR_PER_DAY) continue;
-    const opportunity = await createImpressionOpportunity({ campaignId: row.campaign.id, siteId: row.campaign.siteId, placementKey: row.campaign.placementKey as BoostPlacementKey, creativeVersion: row.campaign.creativeVersion, visitorContextHash: input.visitorContextHash, routeContext: input.routeContext, expiresAt: new Date(Date.now() + 5 * 60 * 1000) });
-    const clickToken = signClickToken({ v: 1, kind: "click", campaignId: row.campaign.id, siteId: row.campaign.siteId, siteSlug: row.siteSlug, placementKey: row.campaign.placementKey, creativeVersion: row.campaign.creativeVersion, visitorContextHash: input.visitorContextHash, destinationUrl: row.campaign.destinationUrl ?? `https://${row.siteDomain}`, issuedAt: Date.now(), expiresAt: Date.now() + 5 * 60 * 1000 });
+    const opportunity = await createImpressionOpportunity({ campaignId: row.campaign.id, siteId: row.campaign.siteId, placementKey: row.campaign.placementKey as BoostPlacementKey, creativeVersion: row.campaign.creativeVersion, visitorContextHash: campaignVisitorHash, routeContext: input.routeContext, expiresAt: new Date(Date.now() + 5 * 60 * 1000) });
+    const clickToken = signClickToken({ campaignId: row.campaign.id, siteId: row.campaign.siteId, siteSlug: row.siteSlug, placementKey: row.campaign.placementKey, creativeVersion: row.campaign.creativeVersion, visitorContextHash: campaignVisitorHash, destinationUrl: row.campaign.destinationUrl ?? `https://${row.siteDomain}`, issuedAt: Date.now(), expiresAt: Date.now() + 5 * 60 * 1000 });
     return { isDemo: false, campaignId: row.campaign.id, siteId: row.campaign.siteId, siteSlug: row.siteSlug, siteName: row.siteName, domain: row.siteDomain, description: row.siteDescription, logoUrl: row.siteLogo, verification: row.siteVerification, placementKey: row.campaign.placementKey, creativeVersion: row.campaign.creativeVersion, headline: row.campaign.headline, descriptionText: row.campaign.shortDescription, ctaLabel: row.campaign.ctaLabel, destinationUrl: row.campaign.destinationUrl, impressionToken: opportunity.token, clickToken };
   }
   return null;
