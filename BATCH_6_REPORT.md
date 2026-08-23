@@ -4,8 +4,8 @@
 
 - Branch: `feat/surgeindex-boost-stripe`
 - Batch 5 accepted baseline: `d628487de533b49dba356a22ee31827305de3c9c`
-- Implementation commit: `c54d811` baseline plus the local Batch 6 hardening commit recorded below
-- Final report commit: recorded in the final handoff after the report-only commit
+- Implementation commit: `b252148e6df27d2c33883c17a80bdd1dbe01f974`
+- Final report commit: the report-only follow-up is the final local `HEAD` reported in the handoff
 - Merge/push: not performed
 - Status: **Implementation complete — Stripe test-mode verification pending**
 
