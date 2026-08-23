@@ -20,6 +20,7 @@ import { getPostgresDb } from "@surge/db";
 import { getServerEnv } from "@surge/config";
 import { TinybirdAnalyticsProvider } from "@surge/analytics";
 import { getScoreExplanation as getPersistedScoreExplanation, listPersistedBreakouts } from "./ranking-engine";
+import { getGa4PublicRealtime } from "./ga4-service";
 import {
   DEMO_SITES,
   getActivity as getDemoActivity,
@@ -155,6 +156,8 @@ function mapRepositorySite(row: RepositorySite): DemoSite {
     freshness: mapFreshness(current?.freshness),
     dataConfidence: current?.dataConfidence ?? null,
     scoreVersion: current?.scoreVersion ?? null,
+    primaryRankingSource: current?.rankingSource ?? (verification === "ga4" ? "ga4" : "tracker"),
+    providerDefinitionVersion: current?.providerDefinitionVersion ?? null,
     breakoutState: mapBreakoutState(current?.breakoutState),
     fraudPenalty: 0,
     domainOwnershipVerified: row.ownership === "claimed",
@@ -167,6 +170,15 @@ function mapRepositorySite(row: RepositorySite): DemoSite {
       : ["No verified traffic yet."],
     tags: [],
   };
+}
+
+async function enrichGa4PublicSite(row: RepositorySite, db: ReturnType<typeof getPostgresDb>): Promise<DemoSite> {
+  const mapped = mapRepositorySite(row);
+  if (mapped.primaryRankingSource !== "ga4" && mapped.verification !== "ga4") return mapped;
+  const realtime = await getGa4PublicRealtime(row.id, db);
+  return realtime
+    ? { ...mapped, ga4RealtimeActiveUsers: realtime.activeUsers, ga4RealtimeMinuteRange: realtime.minuteRange }
+    : mapped;
 }
 
 function mapDemoSite(site: DemoSite): DemoSite {
@@ -220,8 +232,7 @@ class PostgresPublicDataProvider implements PublicDataProvider {
       : input.window === "breakout"
         ? await listBreakoutSites(this.db, limit, input.category, input.query, input.league as "new" | "emerging" | "established" | undefined)
         : await listPublicSites(this.db, { categorySlug: input.category, league: input.league as "new" | "emerging" | "established" | undefined, query: input.query, limit: Math.max(limit, 100) });
-    const mapped = rows
-      .map(mapRepositorySite)
+    const mapped = (await Promise.all(rows.map((row) => enrichGa4PublicSite(row, this.db))))
       .filter((site) => !input.league || input.league === "all" || site.league === input.league);
     if (input.window === "breakout") return mapped;
     if (input.window === "new") return mapped;
@@ -233,16 +244,16 @@ class PostgresPublicDataProvider implements PublicDataProvider {
 
   async getSite(slug: string) {
     const row = await findPublicSiteBySlug(this.db, slug);
-    return row ? mapRepositorySite(row) : undefined;
+    return row ? enrichGa4PublicSite(row, this.db) : undefined;
   }
 
   async getSiteById(siteId: string) {
     const row = await findSiteById(this.db, siteId);
-    return row ? mapRepositorySite(row) : undefined;
+    return row ? enrichGa4PublicSite(row, this.db) : undefined;
   }
 
   async getOwnedSites(userId: string) {
-    return (await listSitesForOwner(this.db, userId)).map(mapRepositorySite);
+    return Promise.all((await listSitesForOwner(this.db, userId)).map((row) => enrichGa4PublicSite(row, this.db)));
   }
 
   async getOwnedSite(userId: string, siteId: string) {
@@ -253,7 +264,7 @@ class PostgresPublicDataProvider implements PublicDataProvider {
     const current = await this.getSite(slug);
     if (!current) return [];
     const rows = await listPublicSites(this.db, { categorySlug: current.categorySlug, limit: 12 });
-    return rows.filter((row) => row.slug !== slug).slice(0, 4).map(mapRepositorySite);
+    return Promise.all(rows.filter((row) => row.slug !== slug).slice(0, 4).map((row) => enrichGa4PublicSite(row, this.db)));
   }
 
   async getTimeseries(slug: string, metric = "visitors") {

@@ -65,6 +65,9 @@ importers:
       '@surge/db':
         specifier: workspace:*
         version: link:packages/db
+      '@surge/ga4':
+        specifier: workspace:*
+        version: link:packages/ga4
       '@surge/shared':
         specifier: workspace:*
         version: link:packages/shared
@@ -89,6 +92,9 @@ importers:
       '@surge/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@surge/ga4':
+        specifier: workspace:*
+        version: link:../../packages/ga4
       '@surge/scoring':
         specifier: workspace:*
         version: link:../../packages/scoring
@@ -264,6 +270,18 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@24.13.3)(jsdom@26.1.0(supports-color@10.2.2))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.16.9)(tsx@4.23.12)(yaml@2.9.0))
+
+  packages/ga4:
+    devDependencies:
+      '@types/node':
+        specifier: ^24
+        version: 24.13.3
       typescript:
         specifier: 'catalog:'
         version: 5.9.3

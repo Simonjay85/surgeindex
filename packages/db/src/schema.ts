@@ -95,6 +95,26 @@ export const paymentStatusEnum = pgEnum("payment_status", ["pending", "succeeded
 export const fraudDecisionEnum = pgEnum("fraud_decision", ["valid", "suspected", "invalid", "review_required"]);
 export const fraudSubjectEnum = pgEnum("fraud_subject", ["event", "click", "site"]);
 export const gaStatusEnum = pgEnum("ga_status", ["active", "disconnected", "error", "quota_exceeded"]);
+/** GA4 lifecycle is kept separate from the legacy traffic-verification status. */
+export const gaConnectionStateEnum = pgEnum("ga_connection_state", [
+  "initiated",
+  "authorizing",
+  "selecting_property",
+  "validating_property",
+  "backfilling",
+  "connected",
+  "degraded",
+  "reauthorization_required",
+  "revoked",
+  "disconnected",
+  "error",
+]);
+export const gaSyncTypeEnum = pgEnum("ga_sync_type", ["realtime", "core_recent", "historical_reconciliation", "initial_backfill", "token_health", "freshness_check"]);
+export const gaSyncRunStatusEnum = pgEnum("ga_sync_run_status", ["queued", "running", "completed", "partial", "failed", "cancelled"]);
+export const gaBackfillStatusEnum = pgEnum("ga_backfill_status", ["queued", "running", "partially_complete", "complete", "failed", "cancelled"]);
+export const gaReportWindowEnum = pgEnum("ga_report_window", ["yesterday", "7d", "28d", "30d", "90d", "realtime_5m", "realtime_30m"]);
+export const rankingSourceEnum = pgEnum("ranking_source", ["tracker", "ga4"]);
+export const gaQuotaApiEnum = pgEnum("ga_quota_api", ["core", "realtime"]);
 export const ownerRoleEnum = pgEnum("owner_role", ["owner", "editor"]);
 
 const timestamps = {
@@ -318,19 +338,316 @@ export const trackerKey = pgTable(
 
 export const gaConnection = pgTable("ga_connection", {
   id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
   siteId: uuid("site_id")
     .notNull()
     .references(() => site.id, { onDelete: "cascade" })
     .unique(),
   propertyId: text("property_id").notNull(),
   propertyName: text("property_name"),
-  /** Encrypted at rest with OAUTH_TOKEN_ENCRYPTION_KEY. */
+  streamId: text("stream_id"),
+  streamName: text("stream_name"),
+  streamDefaultUri: text("stream_default_uri"),
+  measurementId: text("measurement_id"),
+  domainMatchState: text("domain_match_state"),
+  propertyTimeZone: text("property_time_zone"),
+  currencyCode: text("currency_code"),
+  grantedScopes: text("granted_scopes").array().notNull().default(sql`ARRAY[]::text[]`),
+  googleSubject: text("google_subject"),
+  grantIdentity: text("grant_identity"),
+  /** Deprecated compatibility column. New credentials live in ga_credential. */
   refreshTokenEncrypted: text("refresh_token_encrypted"),
   status: gaStatusEnum("status").notNull().default("active"),
+  connectionState: gaConnectionStateEnum("connection_state").notNull().default("initiated"),
   lastSyncAt: timestamp("last_sync_at", { withTimezone: true, mode: "date" }),
+  lastSuccessfulReportAt: timestamp("last_successful_report_at", { withTimezone: true, mode: "date" }),
+  lastRefreshAt: timestamp("last_refresh_at", { withTimezone: true, mode: "date" }),
+  lastRefreshFailure: text("last_refresh_failure"),
+  revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+  connectedAt: timestamp("connected_at", { withTimezone: true, mode: "date" }),
+  rankingEligible: boolean("ranking_eligible").notNull().default(false),
+  providerSchemaVersion: text("provider_schema_version").notNull().default("unknown"),
   lastError: text("last_error"),
   ...timestamps,
+}, (t) => [index("ga_connection_state_idx").on(t.connectionState, t.updatedAt), index("ga_connection_grant_idx").on(t.grantIdentity)]);
+
+/** Short-lived server-side OAuth transaction. Raw state is never persisted. */
+export const gaOauthTransaction = pgTable(
+  "ga_oauth_transaction",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+    stateHash: text("state_hash").notNull().unique(),
+    pkceVerifierEncrypted: text("pkce_verifier_encrypted").notNull(),
+    pkceKeyVersion: text("pkce_key_version").notNull(),
+    returnPath: text("return_path").notNull().default("/dashboard"),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+    ...timestamps,
+  },
+  (t) => [index("ga_oauth_transaction_lookup_idx").on(t.siteId, t.userId, t.expiresAt), index("ga_oauth_transaction_open_idx").on(t.expiresAt, t.completedAt)],
+);
+
+/** Encrypted credential material is only accessed by the GA4 provider boundary. */
+export const gaCredential = pgTable(
+  "ga_credential",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    connectionId: uuid("connection_id").notNull().references(() => gaConnection.id, { onDelete: "cascade" }).unique(),
+    encryptedRefreshToken: text("encrypted_refresh_token"),
+    encryptionKeyVersion: text("encryption_key_version").notNull(),
+    grantedScopes: text("granted_scopes").array().notNull().default(sql`ARRAY[]::text[]`),
+    googleSubject: text("google_subject"),
+    grantIdentity: text("grant_identity"),
+    encryptedAccessToken: text("encrypted_access_token"),
+    accessTokenKeyVersion: text("access_token_key_version"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true, mode: "date" }),
+    tokenCreatedAt: timestamp("token_created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    lastSuccessfulRefresh: timestamp("last_successful_refresh", { withTimezone: true, mode: "date" }),
+    lastRefreshFailure: timestamp("last_refresh_failure", { withTimezone: true, mode: "date" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+    ...timestamps,
+  },
+  (t) => [index("ga_credential_grant_idx").on(t.grantIdentity), index("ga_credential_refresh_idx").on(t.lastRefreshFailure)],
+);
+
+export const gaAccount = pgTable(
+  "ga_account",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    connectionId: uuid("connection_id").notNull().references(() => gaConnection.id, { onDelete: "cascade" }),
+    resourceId: text("resource_id").notNull(),
+    displayName: text("display_name").notNull(),
+    ...timestamps,
+  },
+  (t) => [unique("ga_account_connection_resource_unique").on(t.connectionId, t.resourceId), index("ga_account_connection_idx").on(t.connectionId)],
+);
+
+export const gaProperty = pgTable(
+  "ga_property",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    connectionId: uuid("connection_id").notNull().references(() => gaConnection.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id").references(() => gaAccount.id, { onDelete: "set null" }),
+    resourceId: text("resource_id").notNull(),
+    displayName: text("display_name").notNull(),
+    propertyType: text("property_type"),
+    timeZone: text("time_zone"),
+    currencyCode: text("currency_code"),
+    ...timestamps,
+  },
+  (t) => [unique("ga_property_connection_resource_unique").on(t.connectionId, t.resourceId), index("ga_property_connection_idx").on(t.connectionId)],
+);
+
+export const gaDataStream = pgTable(
+  "ga_data_stream",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    propertyId: uuid("property_id").notNull().references(() => gaProperty.id, { onDelete: "cascade" }),
+    resourceId: text("resource_id").notNull(),
+    displayName: text("display_name").notNull(),
+    streamType: text("stream_type").notNull(),
+    defaultUri: text("default_uri"),
+    measurementId: text("measurement_id"),
+    timeZone: text("time_zone"),
+    domainMatchState: text("domain_match_state"),
+    ...timestamps,
+  },
+  (t) => [unique("ga_stream_property_resource_unique").on(t.propertyId, t.resourceId), index("ga_stream_property_idx").on(t.propertyId)],
+);
+
+export const gaPropertyCapability = pgTable(
+  "ga_property_capability",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    propertyId: uuid("property_id").notNull().references(() => gaProperty.id, { onDelete: "cascade" }).unique(),
+    checkedAt: timestamp("checked_at", { withTimezone: true, mode: "date" }).notNull(),
+    supportedMetrics: text("supported_metrics").array().notNull().default(sql`ARRAY[]::text[]`),
+    unsupportedMetrics: text("unsupported_metrics").array().notNull().default(sql`ARRAY[]::text[]`),
+    compatibilityErrors: text("compatibility_errors").array().notNull().default(sql`ARRAY[]::text[]`),
+    providerSchemaVersion: text("provider_schema_version").notNull(),
+    ...timestamps,
+  },
+);
+
+export const gaSyncJob = pgTable(
+  "ga_sync_job",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    connectionId: uuid("connection_id").notNull().references(() => gaConnection.id, { onDelete: "cascade" }),
+    syncType: gaSyncTypeEnum("sync_type").notNull(),
+    status: gaSyncRunStatusEnum("status").notNull().default("queued"),
+    priority: integer("priority").notNull().default(50),
+    nextRunAt: timestamp("next_run_at", { withTimezone: true, mode: "date" }),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true, mode: "date" }),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true, mode: "date" }),
+    lastErrorCode: text("last_error_code"),
+    pausedAt: timestamp("paused_at", { withTimezone: true, mode: "date" }),
+    ...timestamps,
+  },
+  (t) => [unique("ga_sync_job_connection_type_unique").on(t.connectionId, t.syncType), index("ga_sync_job_due_idx").on(t.status, t.nextRunAt)],
+);
+
+export const gaSyncRun = pgTable(
+  "ga_sync_run",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jobId: uuid("job_id").references(() => gaSyncJob.id, { onDelete: "set null" }),
+    connectionId: uuid("connection_id").notNull().references(() => gaConnection.id, { onDelete: "cascade" }),
+    syncType: gaSyncTypeEnum("sync_type").notNull(),
+    status: gaSyncRunStatusEnum("status").notNull().default("running"),
+    window: text("window"),
+    requestCount: integer("request_count").notNull().default(0),
+    quotaBefore: jsonb("quota_before").$type<Record<string, unknown>>(),
+    quotaAfter: jsonb("quota_after").$type<Record<string, unknown>>(),
+    rowsReceived: integer("rows_received").notNull().default(0),
+    rowsPersisted: integer("rows_persisted").notNull().default(0),
+    startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true, mode: "date" }),
+    durationMs: integer("duration_ms"),
+    errorCode: text("error_code"),
+    requestId: text("request_id"),
+    ...timestamps,
+  },
+  (t) => [index("ga_sync_run_connection_time_idx").on(t.connectionId, t.startedAt), index("ga_sync_run_status_idx").on(t.status, t.startedAt)],
+);
+
+export const gaBackfillJob = pgTable(
+  "ga_backfill_job",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    connectionId: uuid("connection_id").notNull().references(() => gaConnection.id, { onDelete: "cascade" }),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    totalDays: integer("total_days").notNull(),
+    processedDays: integer("processed_days").notNull().default(0),
+    checkpointDate: date("checkpoint_date"),
+    status: gaBackfillStatusEnum("status").notNull().default("queued"),
+    dryRun: boolean("dry_run").notNull().default(false),
+    lastErrorCode: text("last_error_code"),
+    startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+    ...timestamps,
+  },
+  (t) => [unique("ga_backfill_connection_window_unique").on(t.connectionId, t.startDate, t.endDate), index("ga_backfill_status_idx").on(t.status, t.updatedAt)],
+);
+
+export const gaQuotaSnapshot = pgTable(
+  "ga_quota_snapshot",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    connectionId: uuid("connection_id").notNull().references(() => gaConnection.id, { onDelete: "cascade" }),
+    api: gaQuotaApiEnum("api").notNull(),
+    state: text("state").notNull().default("unknown"),
+    remainingTokens: integer("remaining_tokens"),
+    concurrentRequests: integer("concurrent_requests"),
+    serverErrorQuota: integer("server_error_quota"),
+    last429At: timestamp("last_429_at", { withTimezone: true, mode: "date" }),
+    retryAfterSeconds: integer("retry_after_seconds"),
+    observedAt: timestamp("observed_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  },
+  (t) => [index("ga_quota_connection_api_time_idx").on(t.connectionId, t.api, t.observedAt)],
+);
+
+export const gaReportSnapshot = pgTable(
+  "ga_report_snapshot",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    connectionId: uuid("connection_id").notNull().references(() => gaConnection.id, { onDelete: "cascade" }),
+    propertyId: text("property_id").notNull(),
+    window: gaReportWindowEnum("window").notNull(),
+    requestedStartDate: date("requested_start_date").notNull(),
+    requestedEndDate: date("requested_end_date").notNull(),
+    propertyTimeZone: text("property_time_zone"),
+    metricDefinitions: text("metric_definitions").array().notNull().default(sql`ARRAY[]::text[]`),
+    providerResponseMetadata: jsonb("provider_response_metadata").$type<Record<string, unknown>>(),
+    importedAt: timestamp("imported_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    dataDate: date("data_date"),
+    partial: boolean("partial").notNull().default(false),
+    dataMayStillChange: boolean("data_may_still_change").notNull().default(false),
+    providerGeneratedAt: timestamp("provider_generated_at", { withTimezone: true, mode: "date" }),
+    providerSchemaVersion: text("provider_schema_version").notNull(),
+  },
+  (t) => [index("ga_report_connection_window_idx").on(t.connectionId, t.window, t.importedAt)],
+);
+
+export const gaRealtimeSnapshot = pgTable(
+  "ga_realtime_snapshot",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    connectionId: uuid("connection_id").notNull().references(() => gaConnection.id, { onDelete: "cascade" }),
+    siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+    propertyId: text("property_id").notNull(),
+    minuteRangeStart: timestamp("minute_range_start", { withTimezone: true, mode: "date" }).notNull(),
+    minuteRangeEnd: timestamp("minute_range_end", { withTimezone: true, mode: "date" }).notNull(),
+    activeUsers: integer("active_users").notNull().default(0),
+    screenPageViews: integer("screen_page_views").notNull().default(0),
+    eventCount: integer("event_count").notNull().default(0),
+    keyEvents: integer("key_events").notNull().default(0),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    providerGeneratedAt: timestamp("provider_generated_at", { withTimezone: true, mode: "date" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    providerSchemaVersion: text("provider_schema_version").notNull(),
+  },
+  (t) => [unique("ga_realtime_connection_window_unique").on(t.connectionId, t.minuteRangeStart, t.minuteRangeEnd), index("ga_realtime_site_time_idx").on(t.siteId, t.fetchedAt)],
+);
+
+export const gaMetricAggregate = pgTable(
+  "ga_metric_aggregate",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+    connectionId: uuid("connection_id").notNull().references(() => gaConnection.id, { onDelete: "cascade" }),
+    source: rankingSourceEnum("source").notNull().default("ga4"),
+    metricName: text("metric_name").notNull(),
+    window: text("window").notNull(),
+    bucketStart: timestamp("bucket_start", { withTimezone: true, mode: "date" }).notNull(),
+    bucketEnd: timestamp("bucket_end", { withTimezone: true, mode: "date" }).notNull(),
+    value: numeric("value", { precision: 20, scale: 6 }).notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    freshness: freshnessStateEnum("freshness").notNull().default("fresh"),
+    confidence: numeric("confidence", { precision: 5, scale: 4 }).notNull().default("1"),
+    providerDefinitionVersion: text("provider_definition_version").notNull(),
+    partial: boolean("partial").notNull().default(false),
+    dataMayStillChange: boolean("data_may_still_change").notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [unique("ga_metric_aggregate_bucket_unique").on(t.connectionId, t.source, t.metricName, t.window, t.bucketStart), index("ga_metric_site_metric_time_idx").on(t.siteId, t.metricName, t.bucketStart)],
+);
+
+/** One explicit primary ranking source per site. GA4 connection alone never mutates this row. */
+export const siteMetricSourcePolicy = pgTable("site_metric_source_policy", {
+  siteId: uuid("site_id").primaryKey().references(() => site.id, { onDelete: "cascade" }),
+  primarySource: rankingSourceEnum("primary_source").notNull().default("tracker"),
+  rankingSourceVersion: text("ranking_source_version").notNull().default("tracker-v1"),
+  rankingSourceStartedAt: timestamp("ranking_source_started_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  rankingSourceLockedUntil: timestamp("ranking_source_locked_until", { withTimezone: true, mode: "date" }),
+  previousRankingSource: rankingSourceEnum("previous_ranking_source"),
+  sourceSwitchReason: text("source_switch_reason"),
+  provisionalUntil: timestamp("provisional_until", { withTimezone: true, mode: "date" }),
+  baselineCompatible: boolean("baseline_compatible").notNull().default(true),
+  ...timestamps,
 });
+
+export const siteMetricSourceTransition = pgTable(
+  "site_metric_source_transition",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+    fromSource: rankingSourceEnum("from_source"),
+    toSource: rankingSourceEnum("to_source").notNull(),
+    reason: text("reason").notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, { onDelete: "set null" }),
+    requestId: text("request_id").notNull(),
+    baselineCompatibleBefore: boolean("baseline_compatible_before").notNull().default(true),
+    baselineCompatibleAfter: boolean("baseline_compatible_after").notNull().default(false),
+    provisionalUntil: timestamp("provisional_until", { withTimezone: true, mode: "date" }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("source_transition_site_time_idx").on(t.siteId, t.occurredAt)],
+);
 
 /* ─────────────────────────── Metrics ─────────────────────────── */
 
@@ -366,6 +683,8 @@ export const siteMetricCurrent = pgTable(
     freshness: freshnessStateEnum("freshness").notNull().default("offline"),
     dataConfidence: numeric("data_confidence", { precision: 5, scale: 4 }).notNull().default("0"),
     scoreVersion: text("score_version").notNull().default("v1"),
+    rankingSource: rankingSourceEnum("ranking_source").notNull().default("tracker"),
+    providerDefinitionVersion: text("provider_definition_version").notNull().default("tracker-v1"),
     fraudPenalty: numeric("fraud_penalty", { precision: 4, scale: 3 }).notNull().default("0"),
     acceptedEvents24h: integer("accepted_events_24h").notNull().default(0),
     suspectedEvents24h: integer("suspected_events_24h").notNull().default(0),
@@ -422,6 +741,8 @@ export const rankSnapshot = pgTable(
     rank: integer("rank").notNull(),
     previousRank: integer("previous_rank"),
     scoreVersion: text("score_version").notNull().default("heat-v1"),
+    rankingSource: rankingSourceEnum("ranking_source").notNull().default("tracker"),
+    providerDefinitionVersion: text("provider_definition_version").notNull().default("tracker-v1"),
     displayedScore: integer("displayed_score").notNull().default(0),
     smoothedScore: numeric("smoothed_score", { precision: 6, scale: 3 }).notNull().default("0"),
     rankingState: rankingStateEnum("ranking_state").notNull().default("eligible"),
@@ -479,6 +800,8 @@ export const siteBaseline = pgTable(
     lookbackDays: integer("lookback_days").notNull().default(0),
     confidence: numeric("confidence", { precision: 5, scale: 4 }).notNull().default("0"),
     dataCompleteness: numeric("data_completeness", { precision: 5, scale: 4 }).notNull().default("0"),
+    source: rankingSourceEnum("source").notNull().default("tracker"),
+    providerDefinitionVersion: text("provider_definition_version").notNull().default("tracker-v1"),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [index("site_baseline_status_idx").on(t.status, t.updatedAt)],
@@ -498,10 +821,10 @@ export const baselineBucket = pgTable(
     activeNow: integer("active_now").notNull().default(0),
     validEvents: integer("valid_events").notNull().default(0),
     dataCompleteness: numeric("data_completeness", { precision: 5, scale: 4 }).notNull().default("1"),
-    source: text("source").notNull().default("tracker"),
+    source: rankingSourceEnum("source").notNull().default("tracker"),
     createdAt: timestamps.createdAt,
   },
-  (t) => [unique("baseline_bucket_site_time_unique").on(t.siteId, t.bucketStart), index("baseline_bucket_site_time_idx").on(t.siteId, t.bucketStart)],
+  (t) => [unique("baseline_bucket_site_source_time_unique").on(t.siteId, t.source, t.bucketStart), index("baseline_bucket_site_time_idx").on(t.siteId, t.bucketStart)],
 );
 
 /** Immutable score calculation record. One row per site/version/window/slot. */
@@ -527,6 +850,8 @@ export const siteScore = pgTable(
     penalties: jsonb("penalties").$type<Array<{ code: string; amount: number; detail: string }>>().notNull(),
     reasonCodes: jsonb("reason_codes").$type<string[]>().notNull(),
     baselineSiteId: uuid("baseline_site_id").references(() => siteBaseline.siteId, { onDelete: "set null" }),
+    rankingSource: rankingSourceEnum("ranking_source").notNull().default("tracker"),
+    providerDefinitionVersion: text("provider_definition_version").notNull().default("tracker-v1"),
     createdAt: timestamps.createdAt,
   },
   (t) => [
@@ -564,6 +889,8 @@ export const currentRanking = pgTable(
     previousRank: integer("previous_rank"),
     scoreId: uuid("score_id").references(() => siteScore.id, { onDelete: "set null" }),
     scoreVersion: text("score_version").notNull(),
+    rankingSource: rankingSourceEnum("ranking_source").notNull().default("tracker"),
+    providerDefinitionVersion: text("provider_definition_version").notNull().default("tracker-v1"),
     displayedScore: integer("displayed_score").notNull(),
     smoothedScore: numeric("smoothed_score", { precision: 6, scale: 3 }).notNull(),
     rankingState: rankingStateEnum("ranking_state").notNull(),

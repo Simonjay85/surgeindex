@@ -20,6 +20,7 @@
     "@surge/anti-fraud": "workspace:*",
     "@surge/config": "workspace:*",
     "@surge/db": "workspace:*",
+    "@surge/ga4": "workspace:*",
     "@surge/scoring": "workspace:*",
     "@surge/shared": "workspace:*",
     "@tanstack/react-query": "catalog:",

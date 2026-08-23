@@ -38,4 +38,16 @@ describe("explicit application configuration", () => {
     process.env.BETTER_AUTH_SECRET = "a".repeat(32);
     expect(getServerEnv().APP_MODE).toBe("production");
   });
+
+  it("does not permit fixture GA4 or missing token keys in production", () => {
+    setMode("production", "postgres");
+    process.env.DATABASE_URL = "postgresql://example";
+    process.env.BETTER_AUTH_SECRET = "a".repeat(32);
+    process.env.GA4_ENABLED = "true";
+    process.env.GA4_PROVIDER_MODE = "fixture";
+    expect(() => getServerEnv()).toThrow(/GA4_PROVIDER_MODE/);
+
+    process.env.GA4_PROVIDER_MODE = "google";
+    expect(() => getServerEnv()).toThrow(/GA4_OAUTH_CLIENT_ID|GA4_TOKEN_ENCRYPTION_KEY/);
+  });
 });

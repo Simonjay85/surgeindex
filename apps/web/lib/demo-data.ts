@@ -16,6 +16,11 @@ export const DEMO_NOW = "2026-08-23T10:30:00.000Z";
 const DATA_UPDATED_AT = "2026-08-23T10:27:00.000Z";
 
 export interface DemoSite extends LeaderboardEntry {
+  /** Primary ranking source is distinct from the set of connected sources. */
+  primaryRankingSource?: "tracker" | "ga4";
+  providerDefinitionVersion?: string | null;
+  ga4RealtimeActiveUsers?: number | null;
+  ga4RealtimeMinuteRange?: number | null;
   baselineDailyVisitors: number | null;
   typicalActiveNow: number | null;
   engagementRate: number | null;
@@ -94,6 +99,7 @@ function seed(input: SiteSeed): DemoSite {
     heatScore: result.score,
     activeNow: input.activeNow ?? null,
     activeSource: input.verification === "unverified" ? null : input.verification,
+    primaryRankingSource: input.verification === "ga4" ? "ga4" : "tracker",
     visitors: input.visitors ?? null,
     sessions24h: input.visitors == null ? null : Math.round(input.visitors * 0.8),
     visitors7d: input.visitors == null ? null : Math.round(input.visitors * 1.9),

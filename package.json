@@ -37,11 +37,17 @@
     "ranking:backfill": "tsx --env-file=apps/web/.env scripts/backfill-scoring.ts",
     "tracker:build": "pnpm -F @surge/tracker build",
     "tracker:test": "pnpm -F @surge/tracker test",
-    "traffic:load": "tsx scripts/load-tracker-events.ts"
+    "traffic:load": "tsx scripts/load-tracker-events.ts",
+    "ga4:fixture": "tsx scripts/ga4-fixture.ts",
+    "ga4:sync": "tsx --env-file=apps/web/.env scripts/ga4-sync.ts",
+    "ga4:realtime": "tsx --env-file=apps/web/.env scripts/ga4-realtime.ts",
+    "ga4:backfill": "tsx --env-file=apps/web/.env scripts/ga4-backfill.ts",
+    "ga4:health": "tsx --env-file=apps/web/.env scripts/ga4-health.ts"
   },
   "devDependencies": {
     "@surge/config": "workspace:*",
     "@surge/db": "workspace:*",
+    "@surge/ga4": "workspace:*",
     "@surge/shared": "workspace:*",
     "tsx": "catalog:",
     "typescript": "catalog:"

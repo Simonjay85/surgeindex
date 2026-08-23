@@ -28,6 +28,11 @@ pnpm start           # serve the Next production build
 pnpm db:up           # optional local Postgres
 pnpm tracker:build   # rebuild apps/web/public/tracker.js
 pnpm traffic:load    # bounded local/staging collector correctness probe
+pnpm ga4:fixture     # deterministic read-only GA4 provider smoke test
+pnpm ga4:sync        # production Postgres Core sync; demo mode exits disabled
+pnpm ga4:realtime    # production Postgres Realtime sync; demo mode exits disabled
+pnpm ga4:backfill    # production Postgres bounded backfill; demo mode exits disabled
+pnpm ga4:health      # production Postgres GA4 operations view; demo mode exits disabled
 pnpm preview         # OpenNext Cloudflare preview; requires adapter setup
 pnpm deploy          # OpenNext Cloudflare deploy; requires Cloudflare auth
 ```
@@ -73,6 +78,7 @@ The package boundaries are:
 - `packages/scoring`: deterministic Heat Score v1, small-base protection, explainable breakdowns, and rank comparator.
 - `packages/anti-fraud`: tracker event and outbound click validation, replay/heartbeat checks, and fraud penalties.
 - `packages/analytics`: shared event-store/provider interfaces, deterministic demo provider, Postgres event store, and Tinybird adapter.
+- `packages/ga4`: normalized read-only Google Analytics 4 OAuth/provider contracts, deterministic fixture provider, domain matching, report normalization, and retry helpers.
 - `packages/db`: Drizzle schema covering identity, sites, claims, verification, current/snapshot traffic metrics, tracker keys/events, attribution, ingestion failures, active sessions, ranks, boosts, payments, fraud flags, and moderation.
 - `tracker`: consent-aware first-party tracker bundle with one-time initialization, SPA navigation, visibility/engagement, retry, attribution cleanup, and measured bundle output.
 - `workers/collector`, `workers/queue-consumer`, `workers/realtime`, `workers/aggregation`: Cloudflare Worker implementations for ingestion, asynchronous processing, site-level live fan-out, and scheduled aggregation.
@@ -94,6 +100,8 @@ Copy `.env.example` to `apps/web/.env`. `APP_MODE` and `DATA_PROVIDER` are alway
 The first administrator is promoted out-of-band after sign-up: `ADMIN_BOOTSTRAP_CONFIRM=<exact-email> pnpm admin:promote -- <exact-email>`. The command refuses to promote a second account unless `ADMIN_BOOTSTRAP_ALLOW_EXISTING=true` is set explicitly; there is no public role-changing endpoint.
 
 Auth, payment, GA4, Tinybird, Turnstile, and Cloudflare integrations are intentionally demo-safe until credentials and production policy are supplied. The UI labels those states instead of presenting simulated records as live business data.
+
+Batch 5 GA4 implementation details are documented in [BATCH_5_REPORT.md](BATCH_5_REPORT.md), [OAuth](docs/GA4_OAUTH.md), [property selection](docs/GA4_PROPERTY_SELECTION.md), [metric definitions](docs/GA4_METRIC_DEFINITIONS.md), [sync architecture](docs/GA4_SYNC_ARCHITECTURE.md), [quota management](docs/GA4_QUOTA_MANAGEMENT.md), [source reconciliation](docs/GA4_SOURCE_RECONCILIATION.md), [token security](docs/GA4_TOKEN_SECURITY.md), and [operations](docs/GA4_OPERATIONS.md). Real Google credential verification remains an explicit prerequisite for external launch claims. Register one exact `GA4_OAUTH_REDIRECT_URI` per environment at `/api/ga4/callback`; Google does not support wildcard redirect URIs.
 
 ## Batch 3 traffic pipeline
 

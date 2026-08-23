@@ -69,6 +69,8 @@ export interface RepositorySite {
     freshness: string;
     dataConfidence: number;
     scoreVersion: string;
+    rankingSource: "tracker" | "ga4";
+    providerDefinitionVersion: string;
     lastBaselineAt: Date | null;
     lastScoreAt: Date | null;
     breakoutState: string;
@@ -187,6 +189,8 @@ type SiteJoinRow = {
     freshness: string;
     dataConfidence: string;
     scoreVersion: string;
+    rankingSource: "tracker" | "ga4";
+    providerDefinitionVersion: string;
     lastBaselineAt: Date | null;
     lastScoreAt: Date | null;
     breakoutState: string;
@@ -235,6 +239,8 @@ function hydrateSite(row: SiteJoinRow): RepositorySite {
         freshness: row.current.freshness,
         dataConfidence: Number(row.current.dataConfidence),
         scoreVersion: row.current.scoreVersion,
+        rankingSource: row.current.rankingSource,
+        providerDefinitionVersion: row.current.providerDefinitionVersion,
         lastBaselineAt: row.current.lastBaselineAt,
         lastScoreAt: row.current.lastScoreAt,
         breakoutState: row.current.breakoutState,
