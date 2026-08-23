@@ -29,6 +29,20 @@
       "when": 1787436212405,
       "tag": "0003_brave_lily_hollister",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787485585841,
+      "tag": "0004_familiar_glorian",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787486057563,
+      "tag": "0005_sparkling_zemo",
+      "breakpoints": true
     }
   ]
 }

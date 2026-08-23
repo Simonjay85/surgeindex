@@ -14,10 +14,11 @@ export default async function SitePage({ params }: { params: Promise<{ slug: str
   const provider = getPublicDataProvider();
   const site = await provider.getSite(slug);
   if (!site) notFound();
-  const [related, history, points] = await Promise.all([
+  const [related, history, points, explanation] = await Promise.all([
     provider.getRelatedSites(slug),
     provider.getRankHistory(slug),
     provider.getTimeseries(slug, "visitors"),
+    provider.getScoreExplanation(slug),
   ]);
-  return <AppShell><SiteProfile site={site} related={related} history={history} points={points} /></AppShell>;
+  return <AppShell><SiteProfile site={site} related={related} history={history} points={points} explanation={explanation} /></AppShell>;
 }

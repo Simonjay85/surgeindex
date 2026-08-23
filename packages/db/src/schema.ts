@@ -38,6 +38,11 @@ export const dataSourceEnum = pgEnum("data_source", ["tracker", "ga4", "surgeind
 export const trackerKeyStatusEnum = pgEnum("tracker_key_status", ["pending", "active", "stale", "rotated", "revoked"]);
 export const snapshotGranularityEnum = pgEnum("snapshot_granularity", ["hour", "day"]);
 export const rankWindowEnum = pgEnum("rank_window", ["live", "24h", "7d"]);
+export const rankingStateEnum = pgEnum("ranking_state", ["unverified", "building_baseline", "provisional", "eligible", "stale", "suspended", "fraud_review", "ineligible"]);
+export const freshnessStateEnum = pgEnum("freshness_state", ["live", "fresh", "delayed", "stale", "offline"]);
+export const breakoutStateEnum = pgEnum("breakout_state", ["none", "watch", "breaking_out", "surging", "cooling", "resolved", "invalidated"]);
+export const breakoutStrengthEnum = pgEnum("breakout_strength", ["moderate", "strong", "exceptional"]);
+export const scoringJobStatusEnum = pgEnum("scoring_job_status", ["running", "completed", "failed"]);
 export const activityTypeEnum = pgEnum("activity_type", [
   "site_submitted",
   "site_approved",
@@ -62,6 +67,11 @@ export const activityTypeEnum = pgEnum("activity_type", [
   "tracker_key_rotated",
   "tracker_key_revoked",
   "surgeindex_attributed_visit",
+  "breakout_entered",
+  "breakout_cooling",
+  "breakout_resolved",
+  "league_changed",
+  "score_recomputed",
 ]);
 export const boostStatusEnum = pgEnum("boost_status", [
   "draft",
@@ -349,7 +359,12 @@ export const siteMetricCurrent = pgTable(
     growth7dPct: numeric("growth_7d_pct", { precision: 8, scale: 2 }),
     surgeReferrals24h: integer("surge_referrals_24h").notNull().default(0),
     heatScore: integer("heat_score").notNull().default(0),
+    rawScore: numeric("raw_score", { precision: 6, scale: 3 }).notNull().default("0"),
+    smoothedScore: numeric("smoothed_score", { precision: 6, scale: 3 }).notNull().default("0"),
     heatLeague: text("heat_league").notNull().default("new"),
+    rankingState: rankingStateEnum("ranking_state").notNull().default("unverified"),
+    freshness: freshnessStateEnum("freshness").notNull().default("offline"),
+    dataConfidence: numeric("data_confidence", { precision: 5, scale: 4 }).notNull().default("0"),
     scoreVersion: text("score_version").notNull().default("v1"),
     fraudPenalty: numeric("fraud_penalty", { precision: 4, scale: 3 }).notNull().default("0"),
     acceptedEvents24h: integer("accepted_events_24h").notNull().default(0),
@@ -358,6 +373,10 @@ export const siteMetricCurrent = pgTable(
     lastAcceptedEventAt: timestamp("last_accepted_event_at", { withTimezone: true, mode: "date" }),
     lastDetectedOrigin: text("last_detected_origin"),
     trackerVersion: text("tracker_version"),
+    lastBaselineAt: timestamp("last_baseline_at", { withTimezone: true, mode: "date" }),
+    lastScoreAt: timestamp("last_score_at", { withTimezone: true, mode: "date" }),
+    breakoutState: breakoutStateEnum("breakout_state").notNull().default("none"),
+    breakoutStrength: breakoutStrengthEnum("breakout_strength"),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     isDemo: boolean("is_demo").notNull().default(false),
   },
@@ -379,6 +398,8 @@ export const siteMetricSnapshot = pgTable(
     engagedSessions: integer("engaged_sessions").notNull().default(0),
     attributedVisits: integer("attributed_visits").notNull().default(0),
     activeNow: integer("active_now").notNull().default(0),
+    validEvents: integer("valid_events").notNull().default(0),
+    dataCompleteness: numeric("data_completeness", { precision: 5, scale: 4 }).notNull().default("0"),
     growthPct: numeric("growth_pct", { precision: 8, scale: 2 }),
     heatScore: integer("heat_score").notNull().default(0),
     capturedAt: timestamp("captured_at", { withTimezone: true, mode: "date" }).notNull(),
@@ -400,6 +421,11 @@ export const rankSnapshot = pgTable(
     window: rankWindowEnum("window").notNull(),
     rank: integer("rank").notNull(),
     previousRank: integer("previous_rank"),
+    scoreVersion: text("score_version").notNull().default("heat-v1"),
+    displayedScore: integer("displayed_score").notNull().default(0),
+    smoothedScore: numeric("smoothed_score", { precision: 6, scale: 3 }).notNull().default("0"),
+    rankingState: rankingStateEnum("ranking_state").notNull().default("eligible"),
+    league: text("league").notNull().default("new"),
     capturedAt: timestamp("captured_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [
@@ -416,6 +442,205 @@ export const scoreVersion = pgTable("score_version", {
   releasedAt: timestamp("released_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   isActive: boolean("is_active").notNull().default(false),
 });
+
+/** One typed, queryable configuration record per scoring release. */
+export const scoringConfig = pgTable(
+  "scoring_config",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    version: text("version").notNull().unique(),
+    description: text("description").notNull().default(""),
+    weights: jsonb("weights").$type<Record<string, unknown>>().notNull(),
+    baselineConfig: jsonb("baseline_config").$type<Record<string, unknown>>().notNull(),
+    eligibilityConfig: jsonb("eligibility_config").$type<Record<string, unknown>>().notNull(),
+    leagueConfig: jsonb("league_config").$type<Record<string, unknown>>().notNull(),
+    smoothingConfig: jsonb("smoothing_config").$type<Record<string, unknown>>().notNull(),
+    breakoutConfig: jsonb("breakout_config").$type<Record<string, unknown>>().notNull(),
+    releasedAt: timestamp("released_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    isActive: boolean("is_active").notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [index("scoring_config_active_idx").on(t.isActive, t.releasedAt)],
+);
+
+/** Per-site historical baseline summary used by score jobs and explanations. */
+export const siteBaseline = pgTable(
+  "site_baseline",
+  {
+    siteId: uuid("site_id").primaryKey().references(() => site.id, { onDelete: "cascade" }),
+    version: text("version").notNull(),
+    method: text("method").notNull(),
+    status: text("status").notNull().default("building_baseline"),
+    expectedVisitors: bigint("expected_visitors", { mode: "number" }),
+    lowerBound: bigint("lower_bound", { mode: "number" }),
+    upperBound: bigint("upper_bound", { mode: "number" }),
+    typicalActiveNow: integer("typical_active_now"),
+    sampleCount: integer("sample_count").notNull().default(0),
+    lookbackDays: integer("lookback_days").notNull().default(0),
+    confidence: numeric("confidence", { precision: 5, scale: 4 }).notNull().default("0"),
+    dataCompleteness: numeric("data_completeness", { precision: 5, scale: 4 }).notNull().default("0"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("site_baseline_status_idx").on(t.status, t.updatedAt)],
+);
+
+/** Normalized hourly observations retained for baseline audit/backfill. */
+export const baselineBucket = pgTable(
+  "baseline_bucket",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity(),
+    siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+    bucketStart: timestamp("bucket_start", { withTimezone: true, mode: "date" }).notNull(),
+    visitors: integer("visitors").notNull().default(0),
+    sessions: integer("sessions").notNull().default(0),
+    pageviews: integer("pageviews").notNull().default(0),
+    engagedSessions: integer("engaged_sessions").notNull().default(0),
+    activeNow: integer("active_now").notNull().default(0),
+    validEvents: integer("valid_events").notNull().default(0),
+    dataCompleteness: numeric("data_completeness", { precision: 5, scale: 4 }).notNull().default("1"),
+    source: text("source").notNull().default("tracker"),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [unique("baseline_bucket_site_time_unique").on(t.siteId, t.bucketStart), index("baseline_bucket_site_time_idx").on(t.siteId, t.bucketStart)],
+);
+
+/** Immutable score calculation record. One row per site/version/window/slot. */
+export const siteScore = pgTable(
+  "site_score",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+    scoreVersion: text("score_version").notNull(),
+    calculationWindow: text("calculation_window").notNull().default("live"),
+    calculationSlot: timestamp("calculation_slot", { withTimezone: true, mode: "date" }).notNull(),
+    inputWindowStart: timestamp("input_window_start", { withTimezone: true, mode: "date" }),
+    inputWindowEnd: timestamp("input_window_end", { withTimezone: true, mode: "date" }),
+    rankingState: rankingStateEnum("ranking_state").notNull(),
+    freshness: freshnessStateEnum("freshness").notNull(),
+    league: text("league").notNull(),
+    rawScore: numeric("raw_score", { precision: 6, scale: 3 }).notNull(),
+    smoothedScore: numeric("smoothed_score", { precision: 6, scale: 3 }).notNull(),
+    displayedScore: integer("displayed_score").notNull(),
+    confidence: numeric("confidence", { precision: 5, scale: 4 }).notNull(),
+    relativeLift: numeric("relative_lift", { precision: 10, scale: 4 }),
+    absoluteLift: bigint("absolute_lift", { mode: "number" }),
+    penalties: jsonb("penalties").$type<Array<{ code: string; amount: number; detail: string }>>().notNull(),
+    reasonCodes: jsonb("reason_codes").$type<string[]>().notNull(),
+    baselineSiteId: uuid("baseline_site_id").references(() => siteBaseline.siteId, { onDelete: "set null" }),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [
+    unique("site_score_slot_unique").on(t.siteId, t.scoreVersion, t.calculationWindow, t.calculationSlot),
+    index("site_score_site_time_idx").on(t.siteId, t.createdAt),
+    index("site_score_state_idx").on(t.rankingState, t.league, t.displayedScore),
+  ],
+);
+
+export const siteScoreComponent = pgTable(
+  "site_score_component",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    scoreId: uuid("score_id").notNull().references(() => siteScore.id, { onDelete: "cascade" }),
+    component: text("component").notNull(),
+    normalizedValue: numeric("normalized_value", { precision: 6, scale: 3 }).notNull(),
+    weight: numeric("weight", { precision: 5, scale: 4 }).notNull(),
+    contribution: numeric("contribution", { precision: 6, scale: 3 }).notNull(),
+    available: boolean("available").notNull().default(true),
+    detail: text("detail").notNull().default(""),
+    inputValues: jsonb("input_values").$type<Record<string, unknown>>(),
+  },
+  (t) => [unique("site_score_component_unique").on(t.scoreId, t.component), index("site_score_component_score_idx").on(t.scoreId)],
+);
+
+/** Transactionally published current leaderboard rows. */
+export const currentRanking = pgTable(
+  "current_ranking",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull(),
+    window: rankWindowEnum("window").notNull().default("live"),
+    rank: integer("rank").notNull(),
+    previousRank: integer("previous_rank"),
+    scoreId: uuid("score_id").references(() => siteScore.id, { onDelete: "set null" }),
+    scoreVersion: text("score_version").notNull(),
+    displayedScore: integer("displayed_score").notNull(),
+    smoothedScore: numeric("smoothed_score", { precision: 6, scale: 3 }).notNull(),
+    rankingState: rankingStateEnum("ranking_state").notNull(),
+    league: text("league").notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [
+    unique("current_ranking_site_scope_unique").on(t.siteId, t.scope, t.window),
+    index("current_ranking_scope_rank_idx").on(t.scope, t.window, t.rank),
+  ],
+);
+
+export const breakoutEvent = pgTable(
+  "breakout_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id").notNull().references(() => site.id, { onDelete: "cascade" }),
+    state: breakoutStateEnum("state").notNull().default("none"),
+    strength: breakoutStrengthEnum("strength"),
+    ruleVersion: text("rule_version").notNull(),
+    detectedAt: timestamp("detected_at", { withTimezone: true, mode: "date" }),
+    activeSince: timestamp("active_since", { withTimezone: true, mode: "date" }),
+    lastEvaluatedAt: timestamp("last_evaluated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+    cooldownUntil: timestamp("cooldown_until", { withTimezone: true, mode: "date" }),
+    durationSeconds: integer("duration_seconds").notNull().default(0),
+    baselineVisitors: bigint("baseline_visitors", { mode: "number" }),
+    currentVisitors: bigint("current_visitors", { mode: "number" }),
+    absoluteLift: bigint("absolute_lift", { mode: "number" }),
+    relativeLift: numeric("relative_lift", { precision: 10, scale: 4 }),
+    liveRatio: numeric("live_ratio", { precision: 10, scale: 4 }),
+    confidence: numeric("confidence", { precision: 5, scale: 4 }).notNull().default("0"),
+    explanation: text("explanation").notNull().default(""),
+    reasonCodes: jsonb("reason_codes").$type<string[]>().notNull(),
+    peakMetrics: jsonb("peak_metrics").$type<Record<string, unknown>>(),
+    createdAt: timestamps.createdAt,
+    updatedAt: timestamps.updatedAt,
+  },
+  (t) => [index("breakout_site_state_idx").on(t.siteId, t.state, t.lastEvaluatedAt), index("breakout_public_idx").on(t.state, t.strength, t.detectedAt)],
+);
+
+export const breakoutStateTransition = pgTable(
+  "breakout_state_transition",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    breakoutEventId: uuid("breakout_event_id").notNull().references(() => breakoutEvent.id, { onDelete: "cascade" }),
+    fromState: breakoutStateEnum("from_state"),
+    toState: breakoutStateEnum("to_state").notNull(),
+    reason: text("reason").notNull().default(""),
+    metrics: jsonb("metrics").$type<Record<string, unknown>>(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("breakout_transition_event_time_idx").on(t.breakoutEventId, t.occurredAt)],
+);
+
+export const scoringJobRun = pgTable(
+  "scoring_job_run",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    jobType: text("job_type").notNull(),
+    version: text("version").notNull(),
+    runKey: text("run_key").notNull(),
+    status: scoringJobStatusEnum("status").notNull().default("running"),
+    startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true, mode: "date" }),
+    durationMs: integer("duration_ms"),
+    sitesAttempted: integer("sites_attempted").notNull().default(0),
+    sitesCompleted: integer("sites_completed").notNull().default(0),
+    sitesSkipped: integer("sites_skipped").notNull().default(0),
+    sitesFailed: integer("sites_failed").notNull().default(0),
+    cursor: text("cursor"),
+    error: text("error"),
+    createdAt: timestamps.createdAt,
+    updatedAt: timestamps.updatedAt,
+  },
+  (t) => [unique("scoring_job_run_key_unique").on(t.jobType, t.version, t.runKey), index("scoring_job_run_status_idx").on(t.jobType, t.status, t.startedAt)],
+);
 
 /* ──────────────────────── Platform activity ──────────────────────── */
 

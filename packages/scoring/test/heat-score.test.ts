@@ -136,6 +136,26 @@ describe("computeHeatScore", () => {
     const b = computeHeatScore(input({ visitors24h: 12_345 }));
     expect(a).toEqual(b);
   });
+
+  it("does not publish a score while the baseline is being built", () => {
+    const r = computeHeatScore(input({ baselineDailyVisitors: null, baselineSampleCount: 1, baselineConfidence: 0, dataCompleteness: 0, completedDataDays: 1 }));
+    expect(r.state).toBe("building_baseline");
+    expect(r.displayedScore).toBe(0);
+    expect(r.reasonCodes).toContain("baseline_insufficient");
+  });
+
+  it("requires enough history and volume for eligible ranking", () => {
+    const provisional = computeHeatScore(input({ visitors7d: 300, completedDataDays: 14, baselineSampleCount: 14, baselineConfidence: 0.9, dataCompleteness: 0.9 }));
+    const eligible = computeHeatScore(input({ visitors7d: 900, completedDataDays: 14, baselineSampleCount: 14, baselineConfidence: 0.9, dataCompleteness: 0.9 }));
+    expect(provisional.state).toBe("provisional");
+    expect(eligible.state).toBe("eligible");
+  });
+
+  it("moves a suspected source into fraud review instead of ranking it", () => {
+    const r = computeHeatScore(input({ suspectedEvents24h: 30, acceptedEvents24h: 70, visitors7d: 900, completedDataDays: 14, baselineSampleCount: 14, baselineConfidence: 0.9, dataCompleteness: 0.9 }));
+    expect(r.state).toBe("fraud_review");
+    expect(r.displayedScore).toBeLessThanOrEqual(45);
+  });
 });
 
 describe("compareForRanking tie-breaking", () => {

@@ -14,6 +14,7 @@ import {
   adminAuditLog,
   category,
   moderationAction,
+  currentRanking,
   rankSnapshot,
   site,
   siteCategory,
@@ -61,8 +62,17 @@ export interface RepositorySite {
     growth7dPct: number | null;
     surgeReferrals24h: number;
     heatScore: number;
+    rawScore: number;
+    smoothedScore: number;
     heatLeague: string;
+    rankingState: string;
+    freshness: string;
+    dataConfidence: number;
     scoreVersion: string;
+    lastBaselineAt: Date | null;
+    lastScoreAt: Date | null;
+    breakoutState: string;
+    breakoutStrength: string | null;
     updatedAt: Date;
     lastAcceptedEventAt: Date | null;
     lastDetectedOrigin: string | null;
@@ -129,6 +139,7 @@ const siteSelection = {
   isDemo: site.isDemo,
   createdAt: site.createdAt,
   current: siteMetricCurrent,
+  currentRank: currentRanking,
   rank: rankSnapshot,
 };
 
@@ -169,8 +180,17 @@ type SiteJoinRow = {
     growth7dPct: string | null;
     surgeReferrals24h: number;
     heatScore: number;
+    rawScore: string;
+    smoothedScore: string;
     heatLeague: string;
+    rankingState: string;
+    freshness: string;
+    dataConfidence: string;
     scoreVersion: string;
+    lastBaselineAt: Date | null;
+    lastScoreAt: Date | null;
+    breakoutState: string;
+    breakoutStrength: string | null;
     updatedAt: Date;
     lastAcceptedEventAt: Date | null;
     lastDetectedOrigin: string | null;
@@ -178,6 +198,12 @@ type SiteJoinRow = {
     acceptedEvents24h: number;
     suspectedEvents24h: number;
     invalidEvents24h: number;
+  } | null;
+  currentRank: {
+    siteId: string;
+    rank: number;
+    previousRank: number | null;
+    generatedAt: Date;
   } | null;
   rank: { siteId: string; rank: number; previousRank: number | null; capturedAt: Date } | null;
 };
@@ -202,8 +228,17 @@ function hydrateSite(row: SiteJoinRow): RepositorySite {
         growth7dPct: row.current.growth7dPct == null ? null : Number(row.current.growth7dPct),
         surgeReferrals24h: row.current.surgeReferrals24h,
         heatScore: row.current.heatScore,
+        rawScore: Number(row.current.rawScore),
+        smoothedScore: Number(row.current.smoothedScore),
         heatLeague: row.current.heatLeague,
+        rankingState: row.current.rankingState,
+        freshness: row.current.freshness,
+        dataConfidence: Number(row.current.dataConfidence),
         scoreVersion: row.current.scoreVersion,
+        lastBaselineAt: row.current.lastBaselineAt,
+        lastScoreAt: row.current.lastScoreAt,
+        breakoutState: row.current.breakoutState,
+        breakoutStrength: row.current.breakoutStrength,
         updatedAt: row.current.updatedAt,
         lastAcceptedEventAt: row.current.lastAcceptedEventAt,
         lastDetectedOrigin: row.current.lastDetectedOrigin,
@@ -213,8 +248,10 @@ function hydrateSite(row: SiteJoinRow): RepositorySite {
         invalidEvents24h: row.current.invalidEvents24h,
       }
     : null;
-  const rank = row.rank?.siteId
-    ? { rank: row.rank.rank, previousRank: row.rank.previousRank, capturedAt: row.rank.capturedAt }
+  const rank = row.currentRank?.siteId
+    ? { rank: row.currentRank.rank, previousRank: row.currentRank.previousRank, capturedAt: row.currentRank.generatedAt }
+    : row.rank?.siteId
+      ? { rank: row.rank.rank, previousRank: row.rank.previousRank, capturedAt: row.rank.capturedAt }
     : null;
   return {
     ...row,
@@ -235,6 +272,14 @@ async function selectSites(db: Repository, where: ReturnType<typeof and>) {
     .from(site)
     .leftJoin(category, eq(site.categoryId, category.id))
     .leftJoin(siteMetricCurrent, eq(siteMetricCurrent.siteId, site.id))
+    .leftJoin(
+      currentRanking,
+      and(
+        eq(currentRanking.siteId, site.id),
+        eq(currentRanking.scope, "global"),
+        eq(currentRanking.window, "live"),
+      ),
+    )
     .leftJoin(
       rankSnapshot,
       and(
@@ -265,31 +310,41 @@ export async function findSiteByDomain(db: Repository, domain: string): Promise<
 
 export async function listPublicSites(
   db: Repository,
-  input: { categorySlug?: string; query?: string; status?: "active" | "pending" | "suspended"; limit?: number },
+  input: { categorySlug?: string; league?: "new" | "emerging" | "established"; query?: string; status?: "active" | "pending" | "suspended"; limit?: number },
 ): Promise<RepositorySite[]> {
   const conditions = [
     input.status ? eq(site.status, input.status) : publicSitePredicate(),
     input.categorySlug && input.categorySlug !== "all" ? eq(category.slug, input.categorySlug) : undefined,
+    input.league ? eq(siteMetricCurrent.heatLeague, input.league) : undefined,
     input.query
       ? or(ilike(site.name, `%${input.query}%`), ilike(site.domain, `%${input.query}%`), ilike(site.description, `%${input.query}%`))
       : undefined,
   ].filter(Boolean) as Array<ReturnType<typeof eq>>;
   const rows = await selectSites(db, and(...conditions));
   return rows
-    .sort((a, b) => (b.current?.heatScore ?? 0) - (a.current?.heatScore ?? 0) || a.createdAt.getTime() - b.createdAt.getTime())
+    .sort((a, b) =>
+      (a.rank?.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank?.rank ?? Number.MAX_SAFE_INTEGER)
+      || (b.current?.smoothedScore ?? b.current?.heatScore ?? 0) - (a.current?.smoothedScore ?? a.current?.heatScore ?? 0)
+      || a.createdAt.getTime() - b.createdAt.getTime()
+      || a.id.localeCompare(b.id),
+    )
     .slice(0, input.limit ?? 50);
 }
 
-export async function listNewPublicSites(db: Repository, limit = 50, categorySlug?: string, query?: string): Promise<RepositorySite[]> {
-  const rows = await listPublicSites(db, { limit, categorySlug, query });
+export async function listNewPublicSites(db: Repository, limit = 50, categorySlug?: string, query?: string, league?: "new" | "emerging" | "established"): Promise<RepositorySite[]> {
+  const rows = await listPublicSites(db, { limit, categorySlug, query, league });
   return rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
 }
 
-export async function listBreakoutSites(db: Repository, limit = 50, categorySlug?: string, query?: string): Promise<RepositorySite[]> {
-  const rows = await listPublicSites(db, { limit: Math.max(limit, 100), categorySlug, query });
+export async function listBreakoutSites(db: Repository, limit = 50, categorySlug?: string, query?: string, league?: "new" | "emerging" | "established"): Promise<RepositorySite[]> {
+  const rows = await listPublicSites(db, { limit: Math.max(limit, 100), categorySlug, query, league });
   return rows
-    .filter((row) => row.current?.growth24hPct != null && row.current.visitors24h != null)
-    .sort((a, b) => (b.current?.growth24hPct ?? -Infinity) - (a.current?.growth24hPct ?? -Infinity))
+    .filter((row) => row.current?.breakoutState === "active" || row.current?.breakoutState === "cooling")
+    .sort((a, b) =>
+      (b.current?.dataConfidence ?? 0) - (a.current?.dataConfidence ?? 0)
+      || (b.current?.smoothedScore ?? 0) - (a.current?.smoothedScore ?? 0)
+      || a.id.localeCompare(b.id),
+    )
     .slice(0, limit);
 }
 

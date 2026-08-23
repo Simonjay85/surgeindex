@@ -120,6 +120,13 @@ h3 { font-size: 18px; line-height: 1.12; letter-spacing: -.04em; }
 .breadcrumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 24px; color: var(--foreground-muted); font-size: 11px; }.breadcrumb-slash { padding: 0 5px; color: var(--border-strong); }.breadcrumbs a:hover { color: var(--foreground); }.empty-state { display: grid; justify-items: center; padding: 50px 20px; border: 1px dashed var(--border-strong); border-radius: 18px; text-align: center; }.empty-icon { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 13px; background: var(--surface-accent); color: var(--accent); }.empty-state h3 { margin: 14px 0 4px; }.empty-state p { max-width: 390px; margin-bottom: 17px; color: var(--foreground-muted); font-size: 12px; }
 .dashboard-signout { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px; border: 0; border-radius: 9px; background: transparent; color: var(--foreground-muted); font-size: 12px; font-weight: 650; text-align: left; cursor: pointer; }.dashboard-signout:hover { background: var(--surface-accent); color: var(--foreground); }.claim-method { width: 100%; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }.claim-method-active { color: var(--foreground); }.claim-method-active strong { color: var(--accent-hover); }
 
+.breakout-section + .breakout-section { margin-top: 42px; }
+.breakout-page-status { display: flex; justify-content: space-between; gap: 14px; margin: 15px 0 30px; }
+.breakout-detail-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; padding: 12px 0 14px; }
+.breakout-detail-grid small, .breakout-detail-grid strong { display: block; }
+.breakout-detail-grid small { color: var(--foreground-muted); font-size: 10px; }
+.breakout-detail-grid strong { margin-top: 4px; font-size: 14px; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 1120px) {
   .desktop-nav { gap: 13px; }.header-inner { gap: 18px; }.header-submit { display: none; }.hero-grid { gap: 32px; }.ranking-table-head, .ranking-row { grid-template-columns: 50px 40px minmax(180px, 1.2fr) 100px 60px 82px 90px 74px 32px; }.ranking-table-head > :nth-child(5), .ranking-row > :nth-child(5) { display: none; }.ranking-table-head > :nth-child(9), .ranking-row > :nth-child(9) { display: none; }.category-grid { grid-template-columns: repeat(2, 1fr); }
 }

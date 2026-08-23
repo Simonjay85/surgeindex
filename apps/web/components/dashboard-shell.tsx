@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CreditCard, Gauge, LayoutDashboard, Settings, Sparkles, Target, Wrench } from "lucide-react";
+import { Activity, CreditCard, Gauge, LayoutDashboard, Settings, Sparkles, Target, Wrench } from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 
 const nav = [
@@ -11,7 +11,7 @@ const nav = [
 ] as const;
 
 export function DashboardShell({ children, active = "/dashboard" }: { children: React.ReactNode; active?: string }) {
-  return <div className="container page-hero"><div className="dashboard-layout"><aside className="dashboard-sidebar"><span className="dashboard-sidebar-label">Workspace</span>{nav.map(([label, href, Icon]) => <Link className={active === href ? "active" : ""} key={href} href={href}><Icon size={15} />{label}</Link>)}<span className="dashboard-sidebar-label">Operations</span><Link href="/admin"><Wrench size={15} />Admin panel</Link><SignOutButton /></aside><section className="dashboard-main">{children}</section></div></div>;
+  return <div className="container page-hero"><div className="dashboard-layout"><aside className="dashboard-sidebar"><span className="dashboard-sidebar-label">Workspace</span>{nav.map(([label, href, Icon]) => <Link className={active === href ? "active" : ""} key={href} href={href}><Icon size={15} />{label}</Link>)}<span className="dashboard-sidebar-label">Operations</span><Link className={active === "/admin" ? "active" : ""} href="/admin"><Wrench size={15} />Admin panel</Link><Link className={active === "/admin/scoring" ? "active" : ""} href="/admin/scoring"><Activity size={15} />Scoring health</Link><SignOutButton /></aside><section className="dashboard-main">{children}</section></div></div>;
 }
 
 export function DashboardTopline({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
