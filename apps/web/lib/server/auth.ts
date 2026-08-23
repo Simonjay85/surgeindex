@@ -25,6 +25,7 @@ const DEMO_USER: CurrentUser = {
 };
 
 function createAuth(env: ReturnType<typeof getServerEnv>) {
+  const secureCookies = new URL(env.NEXT_PUBLIC_APP_URL).protocol === "https:";
   const google = env.GOOGLE_AUTH_CLIENT_ID && env.GOOGLE_AUTH_CLIENT_SECRET
     ? { google: { clientId: env.GOOGLE_AUTH_CLIENT_ID, clientSecret: env.GOOGLE_AUTH_CLIENT_SECRET } }
     : {};
@@ -44,11 +45,11 @@ function createAuth(env: ReturnType<typeof getServerEnv>) {
     },
     socialProviders: google,
     advanced: {
-      useSecureCookies: true,
+      useSecureCookies: secureCookies,
       defaultCookieAttributes: {
         httpOnly: true,
         sameSite: "lax",
-        secure: true,
+        secure: secureCookies,
       },
     },
     plugins: [nextCookies()],

@@ -65,7 +65,7 @@ export function AppShell({ children, className = "" }: { children: React.ReactNo
 }
 
 export function SectionHeading({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: React.ReactNode }) {
-  return <div className="section-heading"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2>{description ? <p>{description}</p> : null}</div>{action ? <div className="section-heading-action">{action}</div> : null}</div>;
+  return <div className="section-heading"><div>{eyebrow ? <div className="eyebrow">{eyebrow}</div> : null}<h2>{title}</h2>{description ? <p>{description}</p> : null}</div>{action ? <div className="section-heading-action">{action}</div> : null}</div>;
 }
 
 export function Breadcrumbs({ items }: { items: Array<{ label: string; href?: string }> }) {

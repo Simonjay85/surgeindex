@@ -7,10 +7,11 @@ import { DataModeBadge, SourceBadge } from "./app-shell";
 import { Sparkline } from "./sparkline";
 
 function RankMove({ movement }: { movement: number }) {
-  if (!movement) return <span className="rank-move rank-flat"><Minus size={12} /> flat</span>;
+  if (!movement) return <span aria-label="Rank unchanged" className="rank-move rank-flat"><Minus aria-hidden size={12} /> flat</span>;
   const up = movement > 0;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
-  return <span className={`rank-move ${up ? "rank-up" : "rank-down"}`}><Icon size={13} />{Math.abs(movement)}</span>;
+  const amount = Math.abs(movement);
+  return <span aria-label={`Rank ${up ? "up" : "down"} ${amount} places`} className={`rank-move ${up ? "rank-up" : "rank-down"}${amount >= 5 ? " rank-move-major" : ""}`}><Icon aria-hidden size={13} />{amount}</span>;
 }
 
 function scoreStateLabel(site: DemoSite): string {
