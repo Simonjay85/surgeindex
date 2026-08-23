@@ -21,7 +21,6 @@
     "db:migrate": "pnpm -F @surge/db migrate",
     "db:studio": "pnpm -F @surge/db studio",
     "db:seed": "tsx --env-file=apps/web/.env scripts/seed.ts",
-    "db:reset-demo": "tsx --env-file=apps/web/.env scripts/seed.ts --reset-demo",
     "admin:promote": "tsx --env-file=apps/web/.env scripts/promote-admin.ts",
     "demo:events": "tsx --env-file=apps/web/.env scripts/generate-demo-events.ts",
     "ranks:recompute": "tsx --env-file=apps/web/.env scripts/recompute-ranks.ts",

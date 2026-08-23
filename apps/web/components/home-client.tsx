@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ChevronRight, Gavel, HeartHandshake, Radio, Search, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { CategoryInfo } from "@surge/shared";
+import type { CategoryInfo, TimeseriesPoint } from "@surge/shared";
 import type { DemoSite } from "../lib/demo-data";
-import { getLeaderboard } from "../lib/demo-data";
+import { getLeaderboard, getTimeseries } from "../lib/demo-data";
 import { LeaderboardCard } from "./leaderboard-card";
 import { RankMomentumShowcase } from "./rank-momentum-showcase";
-import { DataModeBadge, SectionHeading } from "./app-shell";
+import { DataModeBadge, SectionHeading, SourceBadge } from "./app-shell";
 import { SubmitForm } from "./submit-form";
 import { SponsoredBoostCard } from "./sponsored-boost-card";
 
@@ -21,13 +21,52 @@ const windows = [
   { value: "new", label: "New" },
 ];
 
-function SignalChart() {
-  return <div className="signal-chart" aria-label="Illustrative attention trend in demo mode">
-    <svg viewBox="0 0 520 170" preserveAspectRatio="none" role="img">
-      <defs><linearGradient id="signal-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#ef7359" stopOpacity=".28" /><stop offset="1" stopColor="#ef7359" stopOpacity="0" /></linearGradient></defs>
-      <path d="M0 148 C37 144, 46 126, 76 132 S110 103, 137 119 S177 90, 201 106 S230 73, 254 87 S282 62, 310 71 S337 92, 358 67 S389 54, 410 61 S432 31, 455 44 S480 22, 520 13 L520 170 L0 170Z" fill="url(#signal-fill)" />
-      <path d="M0 148 C37 144, 46 126, 76 132 S110 103, 137 119 S177 90, 201 106 S230 73, 254 87 S282 62, 310 71 S337 92, 358 67 S389 54, 410 61 S432 31, 455 44 S480 22, 520 13" fill="none" stroke="#df6249" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="455" cy="44" r="5" fill="#fffdfb" stroke="#df6249" strokeWidth="3" />
+function formatPulseTime(value: string) {
+  if (!value.includes("T")) return value;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return value;
+  const date = new Date(timestamp);
+  return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
+}
+
+function getSignalChartGeometry(points: TimeseriesPoint[]) {
+  const usable = points.filter((point) => Number.isFinite(point.value));
+  if (usable.length < 2) return null;
+
+  const width = 520;
+  const height = 170;
+  const padding = 13;
+  const values = usable.map((point) => point.value);
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const range = maximum - minimum || 1;
+  const coordinates = usable.map((point, index) => ({
+    x: (index / (usable.length - 1)) * width,
+    y: padding + (1 - (point.value - minimum) / range) * (height - padding * 2),
+  }));
+  const line = coordinates
+    .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+    .join(" ");
+  return {
+    line,
+    area: `${line} L${width} ${height} L0 ${height} Z`,
+    last: coordinates[coordinates.length - 1],
+  };
+}
+
+function SignalChart({ points, isDemo }: { points: TimeseriesPoint[]; isDemo: boolean }) {
+  const geometry = getSignalChartGeometry(points);
+  if (!geometry) {
+    return <div className="signal-chart signal-chart-empty" role="status">No measured attention series yet.</div>;
+  }
+
+  const gradientId = `signal-fill-${isDemo ? "demo" : "production"}`;
+  return <div className="signal-chart" aria-label={`${isDemo ? "Demo" : "Persisted"} attention trend from the index`}>
+    <svg viewBox="0 0 520 170" preserveAspectRatio="none" role="img" aria-label={`${isDemo ? "Demo" : "Persisted"} attention pulse`}>
+      <defs><linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#ef7359" stopOpacity=".28" /><stop offset="1" stopColor="#ef7359" stopOpacity="0" /></linearGradient></defs>
+      <path d={geometry.area} fill={`url(#${gradientId})`} />
+      <path d={geometry.line} fill="none" stroke="#df6249" strokeWidth="3" strokeLinecap="round" />
+      <circle cx={geometry.last.x} cy={geometry.last.y} r="5" fill="#fffdfb" stroke="#df6249" strokeWidth="3" />
     </svg>
   </div>;
 }
@@ -61,32 +100,64 @@ function ProductLanes() {
   </div></section>;
 }
 
-export function HomeClient({ initialSites, categories, isDemo, initialWindow = "live", initialCategory = "all", initialQuery = "" }: { initialSites: DemoSite[]; categories: CategoryInfo[]; isDemo: boolean; initialWindow?: string; initialCategory?: string; initialQuery?: string }) {
+export function HomeClient({ initialSites, heroPulse, categories, isDemo, initialWindow = "live", initialCategory = "all", initialQuery = "" }: { initialSites: DemoSite[]; heroPulse: TimeseriesPoint[]; categories: CategoryInfo[]; isDemo: boolean; initialWindow?: string; initialCategory?: string; initialQuery?: string }) {
   const router = useRouter();
   const [activeWindow, setActiveWindow] = useState(initialWindow);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const query = initialQuery;
   const [productionSites, setProductionSites] = useState<DemoSite[]>(initialSites);
+  const [pulse, setPulse] = useState<TimeseriesPoint[]>(heroPulse);
   useEffect(() => {
     if (isDemo) return;
+    const controller = new AbortController();
     const params = new URLSearchParams({ window: activeWindow, category: activeCategory, q: query });
-    fetch(`/api/leaderboard?${params.toString()}`, { headers: { accept: "application/json" } })
+    fetch(`/api/leaderboard?${params.toString()}`, { headers: { accept: "application/json" }, cache: "no-store", signal: controller.signal })
       .then((response) => response.ok ? response.json() as Promise<{ data: DemoSite[] }> : Promise.reject(new Error("leaderboard_request_failed")))
       .then((payload) => setProductionSites(payload.data))
-      .catch(() => setProductionSites([]));
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) setProductionSites([]);
+      });
+    return () => controller.abort();
   }, [activeCategory, activeWindow, isDemo, query]);
   const sites = useMemo(() => isDemo ? (activeWindow === "live" && activeCategory === "all" && !query ? initialSites : getLeaderboard(activeWindow, activeCategory, query)) : productionSites, [activeCategory, activeWindow, initialSites, isDemo, productionSites, query]);
   const topSites = sites.slice(0, 3);
+  const pulseSiteSlug = topSites[0]?.slug;
+  const displayedPulse = isDemo
+    ? (pulseSiteSlug ? getTimeseries(pulseSiteSlug, "visitors") : [])
+    : (pulseSiteSlug ? pulse : []);
+
+  useEffect(() => {
+    if (isDemo || !pulseSiteSlug) return;
+    const controller = new AbortController();
+    fetch(`/api/sites/${encodeURIComponent(pulseSiteSlug)}/timeseries?metric=visitors`, {
+      headers: { accept: "application/json" },
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then((response) => response.ok ? response.json() as Promise<{ data: TimeseriesPoint[] }> : Promise.reject(new Error("timeseries_request_failed")))
+      .then((payload) => setPulse(payload.data))
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) setPulse([]);
+      });
+    return () => controller.abort();
+  }, [isDemo, pulseSiteSlug]);
 
   function setFilter(nextWindow: string, nextCategory = activeCategory) {
     setActiveWindow(nextWindow); setActiveCategory(nextCategory);
     const params = new URLSearchParams(); if (nextWindow !== "live") params.set("window", nextWindow); if (nextCategory !== "all") params.set("category", nextCategory); if (query) params.set("q", query); router.replace(`/?${params.toString()}`, { scroll: false });
   }
 
+  const initials = topSites.map((site) => site.name.trim().slice(0, 2).toUpperCase() || "?");
+  const heroSites = topSites.slice(0, 2);
+  const activitySite = sites.find((site) => site.rankMovement !== 0) ?? topSites[0];
+  const activityDetail = activitySite
+    ? `${activitySite.rankMovement > 0 ? "rank rise" : activitySite.rankMovement < 0 ? "rank drop" : "rank update"} recorded from the index`
+    : "updates from persisted site events";
+
   return <>
     <section className="hero hero-cinematic"><div className="container hero-grid hero-grid-cinematic">
-      <div className="hero-copy"><h1>Watch websites go viral in real time.</h1><p className="hero-lede">Discover fast-growing websites through verified traffic, live activity, and transparent attention metrics.</p><div className="hero-actions"><Link className="button button-coral" href="#rankings">Explore live rankings <ArrowRight size={16} /></Link><Link className="button button-quiet" href="/submit">Submit your site</Link></div><div className="hero-proof"><div className="proof-avatars"><span className="proof-avatar">LP</span><span className="proof-avatar">PF</span><span className="proof-avatar">QN</span><span className="proof-avatar">+</span></div><span>Signals from <strong>{isDemo ? "24 demo sites" : "persisted public sites"}</strong> · refreshed from the index</span></div></div>
-      <div className="hero-live-panel"><div className="live-panel-label"><span>Attention pulse</span><span className="live-panel-status"><span className="live-dot" /> updating now</span></div><SignalChart /><div className="signal-chart-caption"><span>08:00</span><span>09:00</span><span>10:30</span></div><div className="live-panel-sites"><div className="live-mini-site"><div><strong>LaunchPilot</strong><span className="mini-rise">+218%</span></div><small>842 online · AI Tools</small></div><div className="live-mini-site"><div><strong>QueryNest</strong><span className="mini-rise">+188%</span></div><small>377 online · Dev Tools</small></div></div></div>
+      <div className="hero-copy"><h1>Watch websites go viral in real time.</h1><p className="hero-lede">Discover fast-growing websites through verified traffic, live activity, and transparent attention metrics.</p><div className="hero-actions"><Link className="button button-coral" href="#rankings">Explore live rankings <ArrowRight size={16} /></Link><Link className="button button-quiet" href="/submit">Submit your site</Link></div><div className="hero-proof"><div className="proof-avatars" aria-hidden="true">{initials.length ? initials.map((initial, index) => <span className="proof-avatar" key={`${initial}-${index}`}>{initial}</span>) : null}<span className="proof-avatar">{initials.length ? `+${Math.max(0, sites.length - initials.length)}` : "—"}</span></div><span>{isDemo ? "Demo signals from fixture sites" : "Signals from persisted public sites"} · refreshed from the index</span></div></div>
+      <div className="hero-live-panel"><div className="live-panel-label"><span>{topSites[0] ? `${topSites[0].name} attention pulse` : "Attention pulse"}</span><span className="live-panel-status"><span className="live-dot" /> {topSites[0] ? <SourceBadge source={topSites[0].verification === "unverified" ? "unverified" : topSites[0].verification} compact /> : <DataModeBadge isDemo={isDemo} compact />}</span></div><SignalChart points={displayedPulse} isDemo={isDemo} /><div className="signal-chart-caption">{displayedPulse.length ? [displayedPulse[0], displayedPulse[Math.floor((displayedPulse.length - 1) / 2)], displayedPulse[displayedPulse.length - 1]].filter((point, index, points) => points.findIndex((candidate) => candidate.t === point.t) === index).map((point) => <span key={point.t}>{formatPulseTime(point.t)}</span>) : <span>No measured timestamps</span>}</div><div className="live-panel-sites">{heroSites.length ? heroSites.map((site) => <div className="live-mini-site" key={site.siteId}><div><strong>{site.name}</strong><span className={`mini-rise ${site.rankMovement < 0 ? "is-down" : ""}`}>{site.growthPct == null ? "—" : `${site.growthPct > 0 ? "+" : ""}${site.growthPct.toFixed(1)}%`}</span></div><small>{site.activeNow == null ? "No live count" : `${new Intl.NumberFormat("en-US").format(site.activeNow)} active now`} · {site.categoryName} · {site.verification === "unverified" ? "unverified source" : site.verification.toUpperCase()}</small></div>) : <div className="live-mini-site"><div><strong>No sites in the public index yet.</strong></div><small>Measured attention will appear here when available.</small></div>}</div></div>
     </div><div className="container"><HomeSearch categoryOptions={categories} /><div className="demo-ribbon">{isDemo ? <><Sparkles size={13} /> Numbers in this preview are clearly marked <DataModeBadge isDemo compact /> <span>Production data will only appear with a connected source.</span></> : <><DataModeBadge isDemo={false} compact /> <span>Only persisted production records are shown.</span></>}</div></div></section>
 
     <section className="section" id="rankings"><div className="container"><div className="eyebrow">THE LIVE BOARD</div><SectionHeading title="What is gaining attention right now?" description="Organic rank is earned from verified traffic and growth. Use the controls to change the lens, not the rules." action={<Link className="text-link" href="/rankings">View full rankings <ChevronRight size={15} /></Link>} />
@@ -94,10 +165,10 @@ export function HomeClient({ initialSites, categories, isDemo, initialWindow = "
       <div className="category-scroll" aria-label="Filter by category"><button className={`category-pill ${activeCategory === "all" ? "category-pill-active" : ""}`} onClick={() => setFilter(activeWindow, "all")}>All</button>{categories.map((category) => <button className={`category-pill ${activeCategory === category.slug ? "category-pill-active" : ""}`} key={category.slug} onClick={() => setFilter(activeWindow, category.slug)}>{category.name}</button>)}</div>
       {query ? <div className="search-result-note"><Search size={14} /> Showing results for <strong>{query}</strong> <button onClick={() => router.push("/")}>Clear</button></div> : null}
       {topSites.length ? <div className="featured-grid">{topSites.map((site) => <LeaderboardCard key={site.siteId} site={site} featured />)}</div> : <div className="empty-state"><span className="empty-icon"><Search size={18} /></span><h3>No sites match that search.</h3><p>Try a domain, site name, or another category. New websites can be submitted even before traffic is connected.</p><Link className="button button-quiet" href="/submit">Submit a site</Link></div>}
-      <div className="activity-strip"><div className="activity-strip-label"><Radio size={15} /> Activity feed</div><div className="activity-strip-copy"><strong>{isDemo ? "LaunchPilot" : "Public index"}</strong> <span>{isDemo ? "is surging 5.4× above its usual baseline" : "updates from persisted site events"}</span></div><div className="activity-strip-time">{isDemo ? "2 min ago · " : "now · "}<DataModeBadge isDemo={isDemo} compact /></div></div>
+      <div className="activity-strip"><div className="activity-strip-label"><Radio size={15} /> Activity feed</div><div className="activity-strip-copy"><strong>{activitySite?.name ?? "Public index"}</strong> <span>{activityDetail}</span></div><div className="activity-strip-time"><DataModeBadge isDemo={isDemo} compact /></div></div>
     </div></section>
 
-    <RankMomentumShowcase />
+    <RankMomentumShowcase sites={sites} isDemo={isDemo} />
 
     <section className="section section-tight" aria-label="Sponsored distribution"><div className="container"><SectionHeading title="Sponsored distribution" description="A separate paid lane. Qualified delivery is reported independently from the organic board." /><SponsoredBoostCard placement="homepage_boosted" /></div></section>
 

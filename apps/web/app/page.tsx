@@ -9,8 +9,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const query = params.q ?? "";
   const provider = getPublicDataProvider();
   const [sites, categories] = await Promise.all([
-    provider.getLeaderboard({ window: activeWindow, category: activeCategory, query, limit: 3 }),
+    provider.getLeaderboard({ window: activeWindow, category: activeCategory, query, limit: 12 }),
     provider.getCategories(),
   ]);
-  return <AppShell><HomeClient initialSites={sites} categories={categories} isDemo={provider.source === "demo"} initialWindow={activeWindow} initialCategory={activeCategory} initialQuery={query} /></AppShell>;
+  const heroPulse = sites[0] ? await provider.getTimeseries(sites[0].slug, "visitors") : [];
+  return <AppShell><HomeClient key={`${activeWindow}:${activeCategory}:${query}`} initialSites={sites} heroPulse={heroPulse} categories={categories} isDemo={provider.source === "demo"} initialWindow={activeWindow} initialCategory={activeCategory} initialQuery={query} /></AppShell>;
 }

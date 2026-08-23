@@ -10,6 +10,7 @@ export default defineConfig([
     ".next-*/**",
     ".next-e2e/**",
     ".open-next/**",
+    "private/**",
     "out/**",
     "build/**",
     "public/tracker.js",

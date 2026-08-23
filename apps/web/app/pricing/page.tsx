@@ -1,10 +1,26 @@
 import Link from "next/link";
-import { ArrowRight, Check, Sparkles } from "lucide-react";
-import { AppShell, SectionHeading, SourceBadge } from "../../components/app-shell";
-import { demoPricing } from "../../lib/demo-data";
+import { ArrowRight, Check, CreditCard } from "lucide-react";
+import { getServerEnv } from "@surge/config";
+import { AppShell, SectionHeading } from "../../components/app-shell";
+import { listBoostPackages } from "../../lib/server/boost-config";
+import { stripeTestModeStatus } from "../../lib/server/stripe-service";
 
 export const metadata = { title: "Pricing" };
+export const dynamic = "force-dynamic";
 
 export default function PricingPage() {
-  return <AppShell><div className="container page-hero"><div className="page-hero-grid"><div><div className="eyebrow">SIMPLE WAYS TO SHOW UP</div><h1>Free to be found. Clear when you pay.</h1><p>Listing and organic ranking stay open. Boost packages buy transparent distribution, with sample delivery in demo mode until billing is connected.</p></div><div className="page-hero-aside"><span>pricing status</span><strong>Sample</strong><SourceBadge source="demo" compact /></div></div><div className="section-tight"><SectionHeading title="Boost packages" description="These demo packages are configuration-driven examples, not live offers. Stripe activates production campaigns only after a signed webhook confirms payment." /><div className="pricing-grid">{demoPricing.map((plan) => <article className={`price-card ${plan.popular ? "price-card-popular" : ""}`} key={plan.name}><h2>{plan.name}</h2><p>{plan.detail} for clearly labeled exposure.</p><div className="price">{plan.price}<small> / campaign</small></div><ul className="price-list"><li><Check size={15} /> {plan.impressions} qualified impressions target</li><li><Check size={15} /> Organic rank and Heat Score unchanged</li><li><Check size={15} /> Valid click and tracker-attribution reporting</li><li><Check size={15} /> Availability is forecast, not guaranteed</li></ul><Link className={`button ${plan.popular ? "button-coral" : "button-quiet"}`} href="/boost">Review a demo boost <ArrowRight size={15} /></Link></article>)}</div><p className="pricing-note"><Sparkles size={13} /> Production pricing, taxes, currency, refunds, inventory, and availability require Stripe configuration, legal review, and business approval.</p></div><div className="section-tight"><div className="signal-principle"><div><div className="eyebrow">FREE, ALWAYS</div><h2>Organic visibility is not a paid tier.</h2></div><div className="signal-principle-copy"><p>Submit a site, connect a source, and let its attention signals do the work. A Boost buys reach, not rank, verification, breakout status, clicks, leads, sales, or conversions.</p><Link className="button button-coral" href="/submit">List your site <ArrowRight size={15} /></Link></div></div></div></div></AppShell>;
+  const env = getServerEnv();
+  const payment = stripeTestModeStatus();
+  const checkoutReady = Boolean(
+    payment.configured &&
+    env.BOOST_ENABLED &&
+    env.STRIPE_ENABLED &&
+    env.STRIPE_CHECKOUT_SUCCESS_URL &&
+    env.STRIPE_CHECKOUT_CANCEL_URL &&
+    env.BOOST_STARTER_PRICE_ID &&
+    env.BOOST_GROWTH_PRICE_ID &&
+    env.BOOST_LAUNCH_PRICE_ID,
+  );
+  const packages = listBoostPackages().filter((plan) => plan.active && plan.amountCents != null && plan.targetQualifiedImpressions != null);
+  return <AppShell><div className="container page-hero"><div className="page-hero-grid"><div><div className="eyebrow">SIMPLE WAYS TO SHOW UP</div><h1>Free to be found. Clear when you pay.</h1><p>Listing and organic ranking stay open. Boost packages buy transparent distribution and never change organic rank.</p></div><div className="page-hero-aside"><span>campaign status</span><strong>{checkoutReady ? "Checkout configured" : "Drafts live"}</strong><span className={`status-chip ${checkoutReady ? "status-active" : "status-scheduled"}`}>{checkoutReady ? `Stripe ${payment.environment} mode` : "Payment gate off"}</span></div></div><div className="section-tight"><SectionHeading title="Boost packages" description="Package prices and qualified-impression targets come from the production campaign configuration. Activation still requires server-confirmed payment and creative approval." /><div className="pricing-grid">{packages.map((plan) => <article className={`price-card ${plan.id === "growth" ? "price-card-popular" : ""}`} key={plan.id}><h2>{plan.name}</h2><p>{plan.description}</p><div className="price">{new Intl.NumberFormat("en-US", { style: "currency", currency: plan.currency, maximumFractionDigits: 0 }).format(plan.amountCents! / 100)}<small> / campaign</small></div><ul className="price-list"><li><Check size={15} /> {plan.targetQualifiedImpressions!.toLocaleString()} qualified impressions target</li><li><Check size={15} /> Organic rank and Heat Score unchanged</li><li><Check size={15} /> Valid click and tracker-attribution reporting</li><li><Check size={15} /> Availability is forecast, not guaranteed</li></ul><Link className={`button ${plan.id === "growth" ? "button-coral" : "button-quiet"}`} href="/dashboard/boosts">Create a campaign draft <ArrowRight size={15} /></Link></article>)}</div><p className="pricing-note"><CreditCard size={13} /> {checkoutReady ? `Checkout uses the configured Stripe ${payment.environment} environment; campaign activation requires a verified webhook.` : "Campaign drafts and inventory reservations are persistent. Checkout remains closed until Stripe credentials, price IDs, tax, refund, and legal policy are approved."}</p></div><div className="section-tight"><div className="signal-principle"><div><div className="eyebrow">FREE, ALWAYS</div><h2>Organic visibility is not a paid tier.</h2></div><div className="signal-principle-copy"><p>Submit a site, connect a source, and let its attention signals do the work. A Boost buys reach, not rank, verification, breakout status, clicks, leads, sales, or conversions.</p><Link className="button button-coral" href="/submit">List your site <ArrowRight size={15} /></Link></div></div></div></div></AppShell>;
 }

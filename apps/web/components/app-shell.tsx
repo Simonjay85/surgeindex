@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Menu, Search, Signal, Sparkles } from "lucide-react";
+import { ArrowUpRight, Menu, Search, Signal } from "lucide-react";
 
 export function SourceBadge({ source, compact = false }: { source: "tracker" | "ga4" | "surgeindex" | "sponsored" | "demo" | "unverified"; compact?: boolean }) {
   const labels = { tracker: "Tracker Verified", ga4: "GA4 Verified", surgeindex: "SurgeIndex Referral", sponsored: "Sponsored", demo: "Demo Data", unverified: "Unverified" } as const;
@@ -55,7 +55,7 @@ export function Footer() {
           <div><span className="footer-label">Learn</span><Link href="/methodology">Methodology</Link><Link href="/pricing">Pricing</Link><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div>
         </div>
       </div>
-      <div className="footer-bottom"><span>© 2026 SurgeIndex</span><span className="footer-demo-note"><Sparkles size={13} /> Demo environment · simulated metrics are labeled</span><span>Built for attention, not vanity</span></div>
+      <div className="footer-bottom"><span>© 2026 SurgeIndex</span><span className="footer-demo-note"><Signal size={13} /> Every metric identifies its source</span><span>Built for attention, not vanity</span></div>
     </footer>
   );
 }

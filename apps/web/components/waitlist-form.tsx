@@ -1,11 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, LoaderCircle } from "lucide-react";
 
-export function WaitlistForm({ topic }: { topic: string }) {
+type WaitlistTopic = "fanward" | "brand campaigns";
+
+export function WaitlistForm({ topic }: { topic: WaitlistTopic }) {
   const [email, setEmail] = useState("");
   const [joined, setJoined] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function join(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ topic, email: email.trim(), consent: true }),
+      });
+      const payload = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+      if (!response.ok) {
+        setError(payload?.error?.message ?? "The waitlist request could not be saved.");
+        return;
+      }
+      setJoined(true);
+    } catch {
+      setError("The waitlist request failed. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (joined) return <div className="waitlist-success"><span><Check size={16} /></span><div><strong>You’re on the list.</strong><p>We’ll send one useful note when {topic} opens up.</p></div></div>;
-  return <form className="waitlist-form" onSubmit={(event) => { event.preventDefault(); if (email.includes("@")) setJoined(true); }}><label className="sr-only" htmlFor={`waitlist-${topic}`}>Email address</label><input id={`waitlist-${topic}`} value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="you@company.com" required /><button className="button button-dark" type="submit">Join waitlist <ArrowRight size={15} /></button></form>;
+  const inputId = `waitlist-${topic.replaceAll(" ", "-")}`;
+  return <><form className="waitlist-form" onSubmit={join}><label className="sr-only" htmlFor={inputId}>Email address</label><input id={inputId} value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="you@company.com" required /><button className="button button-dark" disabled={busy} type="submit">{busy ? <>Saving <LoaderCircle className="spin" size={15} /></> : <>Join waitlist <ArrowRight size={15} /></>}</button></form>{error ? <p className="form-message form-error" role="alert">{error}</p> : null}</>;
 }

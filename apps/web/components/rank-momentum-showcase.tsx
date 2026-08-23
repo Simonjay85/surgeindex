@@ -5,59 +5,132 @@ import { Pause, Play, TrendingDown, TrendingUp, Zap } from "lucide-react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
+import type { DemoSite } from "../lib/demo-data";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
-const movingSites = [
-  { name: "QueryNest", signal: "+4", direction: "up" },
-  { name: "StackBeacon", signal: "+2", direction: "up" },
-  { name: "OrbitNotes", signal: "+7", direction: "up" },
-  { name: "ShopSignal", signal: "-2", direction: "down" },
-  { name: "Nimbus", signal: "+1", direction: "up" },
-] as const;
+const MAX_PASSING_ROWS = 5;
+const BOARD_ROW_COUNT = 7;
 
-const tapeEvents = [
-  "LaunchPilot +5",
-  "OrbitNotes +7",
-  "QueryNest +4",
-  "StackBeacon +2",
-  "ShopSignal -2",
-];
+export interface RankMomentumModel {
+  mover: DemoSite;
+  anchor: DemoSite;
+  passers: DemoSite[];
+  fromRank: number;
+  toRank: number;
+  jump: number;
+  slotRanks: number[];
+}
 
-const signalModes = [
-  {
-    title: "Rank rise",
-    value: "+5",
-    description: "A verified traffic surge moves a website through five occupied positions.",
-    icon: TrendingUp,
-  },
-  {
-    title: "Rank drop",
-    value: "-2",
-    description: "A cooling signal pushes the website down while nearby positions close the gap.",
-    icon: TrendingDown,
-  },
-  {
-    title: "Breakout signal",
-    value: "3.1x",
-    description: "Momentum crosses its recent baseline and becomes a visible breakout event.",
-    icon: Zap,
-  },
-] as const;
+export interface RankMomentumShowcaseProps {
+  sites: DemoSite[];
+  isDemo: boolean;
+}
 
-function EventTape() {
+function getRankedSites(sites: DemoSite[]) {
+  return sites
+    .filter((site) => Number.isInteger(site.rank) && site.rank > 0)
+    .sort((a, b) => a.rank - b.rank || b.heatScore - a.heatScore);
+}
+
+function rankDelta(site: DemoSite) {
+  return site.previousRank != null && site.rank > 0 ? site.previousRank - site.rank : site.rankMovement;
+}
+
+/**
+ * Selects a movement only when the public payload includes every occupied row
+ * needed to tell the story. A partial payload is not animated as if it were a
+ * complete ranking event.
+ */
+export function buildRankMomentumModel(sites: DemoSite[]): RankMomentumModel | null {
+  const rankedSites = getRankedSites(sites);
+  const sitesByRank = new Map(rankedSites.map((site) => [site.rank, site]));
+  const candidates = rankedSites
+    .filter(
+      (site) =>
+        rankDelta(site) > 0 &&
+        site.previousRank != null &&
+        site.previousRank > site.rank &&
+        site.rank > 1,
+    )
+    .sort(
+      (a, b) =>
+        rankDelta(b) - rankDelta(a) ||
+        (b.previousRank ?? 0) - (a.previousRank ?? 0) ||
+        a.rank - b.rank,
+    );
+
+  for (const mover of candidates) {
+    const fromRank = mover.previousRank;
+    if (fromRank == null) continue;
+
+    const jump = fromRank - mover.rank;
+    if (jump < 1 || jump > MAX_PASSING_ROWS) continue;
+
+    const anchor = sitesByRank.get(mover.rank - 1);
+    const passers = Array.from({ length: jump }, (_, index) => sitesByRank.get(mover.rank + index + 1)).filter(
+      (site): site is DemoSite => Boolean(site && site.siteId !== mover.siteId),
+    );
+
+    if (!anchor || passers.length !== jump) continue;
+
+    return {
+      mover,
+      anchor,
+      passers,
+      fromRank,
+      toRank: mover.rank,
+      jump,
+      slotRanks: Array.from({ length: BOARD_ROW_COUNT }, (_, index) => mover.rank - 1 + index),
+    };
+  }
+
+  return null;
+}
+
+function formatRank(rank: number) {
+  return rank > 0 ? `#${rank}` : "—";
+}
+
+function formatMovement(site: DemoSite) {
+  const movement = rankDelta(site);
+  if (movement > 0) return `+${movement}`;
+  if (movement < 0) return `${movement}`;
+  return "flat";
+}
+
+function movementDirection(site: DemoSite) {
+  const movement = rankDelta(site);
+  if (movement > 0) return "up";
+  if (movement < 0) return "down";
+  return "flat";
+}
+
+function formatVolume(site: DemoSite) {
+  const formatter = new Intl.NumberFormat("en-US");
+  if (site.activeNow != null) return `${formatter.format(site.activeNow)} active now`;
+  if (site.visitors != null) return `${formatter.format(site.visitors)} visitors / 24h`;
+  return "No verified volume";
+}
+
+function siteInitial(site: DemoSite) {
+  return site.name.trim().slice(0, 1).toUpperCase() || "?";
+}
+
+function EventTape({ events, isDemo }: { events: DemoSite[]; isDemo: boolean }) {
   const [paused, setPaused] = useState(false);
+  const tapeEvents = events.filter((site) => rankDelta(site) !== 0);
 
   return (
     <div className="event-tape" data-paused={paused ? "true" : "false"}>
-      <div className="event-tape-viewport" aria-label="Demo ranking events">
+      <div className="event-tape-viewport" aria-label={isDemo ? "Demo ranking events" : "Recorded ranking events"}>
         <div className="event-tape-track">
           {[0, 1].map((copy) => (
             <div className="event-tape-copy" aria-hidden={copy === 1} key={copy}>
-              {tapeEvents.map((event) => (
-                <span className="event-tape-item" key={`${copy}-${event}`}>
+              {tapeEvents.map((site) => (
+                <span className="event-tape-item" key={`${copy}-${site.siteId}`}>
                   <span className="event-tape-dot" />
-                  {event}
+                  {site.name} {formatMovement(site)}
                 </span>
               ))}
             </div>
@@ -78,11 +151,41 @@ function EventTape() {
   );
 }
 
-function SignalAccordion() {
+function SignalAccordion({ sites, model }: { sites: DemoSite[]; model: RankMomentumModel }) {
   const [active, setActive] = useState(0);
+  const drop = sites
+    .filter((site) => rankDelta(site) < 0 && site.previousRank != null && site.rank > 0)
+    .sort((a, b) => rankDelta(a) - rankDelta(b))[0];
+  const breakout = sites
+    .filter((site) => site.breakoutMultiple > 0)
+    .sort((a, b) => b.breakoutMultiple - a.breakoutMultiple)[0];
+  const signalModes = [
+    {
+      title: "Rank rise",
+      value: `+${model.jump}`,
+      description: `${model.mover.name} moved from ${formatRank(model.fromRank)} to ${formatRank(model.toRank)} in the public index.`,
+      icon: TrendingUp,
+    },
+    {
+      title: "Rank drop",
+      value: drop ? formatMovement(drop) : "—",
+      description: drop
+        ? `${drop.name} moved from ${formatRank(drop.previousRank ?? 0)} to ${formatRank(drop.rank)}.`
+        : "No verified rank drop is available in this update.",
+      icon: TrendingDown,
+    },
+    {
+      title: "Breakout signal",
+      value: breakout ? `${breakout.breakoutMultiple.toFixed(1)}×` : "—",
+      description: breakout
+        ? `${breakout.name} is showing a ${breakout.breakoutMultiple.toFixed(1)}× attention multiple against its measured baseline.`
+        : "No measured breakout signal is available in this update.",
+      icon: Zap,
+    },
+  ] as const;
 
   return (
-    <div className="rank-signal-accordion" aria-label="Ranking signal examples">
+    <div className="rank-signal-accordion" aria-label="Ranking signals from the public index">
       {signalModes.map((mode, index) => {
         const Icon = mode.icon;
         const isActive = active === index;
@@ -108,8 +211,9 @@ function SignalAccordion() {
   );
 }
 
-export function RankMomentumShowcase() {
+export function RankMomentumShowcase({ sites, isDemo }: RankMomentumShowcaseProps) {
   const container = useRef<HTMLElement>(null);
+  const model = buildRankMomentumModel(sites);
 
   useGSAP(
     () => {
@@ -132,7 +236,7 @@ export function RankMomentumShowcase() {
           const ripples = gsap.utils.toArray<HTMLElement>(".rank-event-ripple", container.current);
           const streaks = gsap.utils.toArray<HTMLElement>(".rank-event-streak", container.current);
 
-          if (!stage || !jumper || !badge) return;
+          if (!stage || !jumper || !badge || !model) return;
 
           const rowStep = () => {
             const value = getComputedStyle(stage).getPropertyValue("--rank-row-step");
@@ -145,7 +249,7 @@ export function RankMomentumShowcase() {
           gsap.set([...ripples, ...streaks], { autoAlpha: 0 });
 
           if (!desktop || reducedMotion) {
-            gsap.set(jumper, { y: () => -5 * rowStep() });
+            gsap.set(jumper, { y: () => -model.jump * rowStep() });
             gsap.set(passedRows, { y: () => rowStep() });
             gsap.set(badge, { autoAlpha: 1, scale: 1 });
             return;
@@ -169,7 +273,7 @@ export function RankMomentumShowcase() {
               { autoAlpha: 0.45, scale: 0.84 },
               { autoAlpha: 1, scale: 1, duration: 0.23, ease: "power3.out" },
             )
-            .to(jumper, { y: () => -5 * rowStep(), duration: 0.48 }, 0.24)
+            .to(jumper, { y: () => -model.jump * rowStep(), duration: 0.48 }, 0.24)
             .to(passedRows, { y: () => rowStep(), duration: 0.42 }, 0.28)
             .fromTo(
               badge,
@@ -196,70 +300,106 @@ export function RankMomentumShowcase() {
 
       return () => media.revert();
     },
-    { scope: container },
+    {
+      scope: container,
+      dependencies: [model?.mover.siteId, model?.fromRank, model?.toRank],
+      revertOnUpdate: true,
+    },
   );
+
+  if (!model) {
+    return (
+      <section className="rank-momentum-section" ref={container}>
+        <div className="container rank-momentum-empty empty-state">
+          <p className="rank-momentum-kicker">{isDemo ? "Demo ranking event" : "Recorded ranking event"}</p>
+          <h2>Rank movement will appear when the index has enough history.</h2>
+          <p>
+            We need a current rank, a previous rank, and the occupied positions between them before we animate a
+            movement. No fixture or inferred position is shown here.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  const eventSites = [model.mover, ...model.passers].filter(
+    (site, index, all) =>
+      rankDelta(site) !== 0 && all.findIndex((candidate) => candidate.siteId === site.siteId) === index,
+  );
+  const placeholderCount = BOARD_ROW_COUNT - (model.jump + 2);
 
   return (
     <section className="rank-momentum-section" ref={container}>
-      <EventTape />
+      <EventTape events={eventSites.length ? eventSites : [model.mover]} isDemo={isDemo} />
       <div className="rank-momentum-pin">
         <div className="container rank-momentum-grid">
           <div className="rank-momentum-copy">
-            <p className="rank-momentum-kicker">Demo ranking event</p>
+            <p className="rank-momentum-kicker">{isDemo ? "Demo ranking event" : "Verified ranking event"}</p>
             <h2>
               One jump.
-              <span className="inline-signal-window" aria-hidden="true">
-                <svg viewBox="0 0 92 34" role="presentation">
-                  <path d="M3 27 C15 27 18 22 28 23 S41 18 49 19 S60 12 67 13 S77 5 89 6" />
-                </svg>
-              </span>
-              Five positions.
+              <span className="inline-signal-window" aria-hidden="true" />
+              {model.jump} {model.jump === 1 ? "position." : "positions."}
             </h2>
             <p>
-              LaunchPilot moves from #8 to #3 after a verified traffic surge. Scroll to follow how
-              every occupied position responds.
+              {model.mover.name} moved from {formatRank(model.fromRank)} to {formatRank(model.toRank)} after a recorded
+              ranking update. Scroll to follow how the occupied positions respond.
             </p>
-            <div className="rank-momentum-readout" aria-label="LaunchPilot ranking change from 8 to 3">
-              <span>#8</span>
+            <div
+              className="rank-momentum-readout"
+              aria-label={`${model.mover.name} ranking change from ${formatRank(model.fromRank)} to ${formatRank(model.toRank)}`}
+            >
+              <span>{formatRank(model.fromRank)}</span>
               <span className="rank-momentum-readout-line" />
-              <strong>#3</strong>
+              <strong>{formatRank(model.toRank)}</strong>
             </div>
           </div>
 
-          <div className="rank-event-stage" aria-label="Animated demo of LaunchPilot rising five ranking positions">
+          <div className="rank-event-stage" aria-label={`Animated ranking update for ${model.mover.name}`}>
             <div className="rank-event-stage-topline">
               <div>
-                <span>Momentum simulator</span>
-                <strong>Verified traffic event</strong>
+                <span>{isDemo ? "Demo momentum simulator" : "Momentum index"}</span>
+                <strong>Recorded ranking update</strong>
               </div>
-              <span className="rank-jump-badge">+5 places</span>
+              <span className="rank-jump-badge">+{model.jump} places</span>
             </div>
 
             <div className="rank-event-board">
               <div className="rank-event-slots" aria-hidden="true">
-                {[2, 3, 4, 5, 6, 7, 8].map((rank) => (
+                {model.slotRanks.map((rank) => (
                   <span key={rank}>#{rank}</span>
                 ))}
               </div>
 
               <div className="rank-event-list">
                 <div className="rank-event-row rank-event-anchor">
-                  <span className="rank-event-mark rank-event-mark-plum">P</span>
-                  <span><strong>PixelForge</strong><small>516 online</small></span>
-                  <span className="rank-event-change is-flat">flat</span>
+                  <span className="rank-event-mark rank-event-mark-plum">{siteInitial(model.anchor)}</span>
+                  <span>
+                    <strong>{model.anchor.name}</strong>
+                    <small>{formatVolume(model.anchor)}</small>
+                  </span>
+                  <span className={`rank-event-change is-${movementDirection(model.anchor)}`}>{formatMovement(model.anchor)}</span>
                 </div>
-                {movingSites.map((site, index) => (
-                  <div className="rank-event-row rank-event-pass" key={site.name}>
-                    <span className={`rank-event-mark rank-event-mark-${index + 1}`}>{site.name[0]}</span>
-                    <span><strong>{site.name}</strong><small>{377 - index * 39} online</small></span>
-                    <span className={`rank-event-change is-${site.direction}`}>{site.signal}</span>
+                {model.passers.map((site, index) => (
+                  <div className="rank-event-row rank-event-pass" key={site.siteId}>
+                    <span className={`rank-event-mark rank-event-mark-${(index % 5) + 1}`}>{siteInitial(site)}</span>
+                    <span>
+                      <strong>{site.name}</strong>
+                      <small>{formatVolume(site)}</small>
+                    </span>
+                    <span className={`rank-event-change is-${movementDirection(site)}`}>{formatMovement(site)}</span>
                   </div>
                 ))}
                 <div className="rank-event-row rank-event-jumper">
-                  <span className="rank-event-mark rank-event-mark-coral">L</span>
-                  <span><strong>LaunchPilot</strong><small>842 online</small></span>
-                  <span className="rank-event-change is-up">+265%</span>
+                  <span className="rank-event-mark rank-event-mark-coral">{siteInitial(model.mover)}</span>
+                  <span>
+                    <strong>{model.mover.name}</strong>
+                    <small>{formatVolume(model.mover)}</small>
+                  </span>
+                  <span className={`rank-event-change is-${movementDirection(model.mover)}`}>{formatMovement(model.mover)}</span>
                 </div>
+                {Array.from({ length: Math.max(0, placeholderCount) }).map((_, index) => (
+                  <div className="rank-event-row rank-event-placeholder" aria-hidden="true" key={`placeholder-${index}`} />
+                ))}
               </div>
 
               <div className="rank-event-impact" aria-hidden="true">
@@ -273,7 +413,7 @@ export function RankMomentumShowcase() {
           </div>
         </div>
         <div className="container">
-          <SignalAccordion />
+          <SignalAccordion sites={sites} model={model} />
         </div>
       </div>
     </section>
