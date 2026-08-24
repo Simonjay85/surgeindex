@@ -1,6 +1,17 @@
+import type { Metadata } from "next";
 import { AppShell } from "../components/app-shell";
 import { HomeClient } from "../components/home-client";
 import { getPublicDataProvider } from "../lib/server/public-provider";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "SurgeIndex — the live leaderboard of internet attention",
+    description: "Earn the rank. Buy the reach.",
+    type: "website",
+    url: "/",
+  },
+};
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ window?: string; category?: string; q?: string }> }) {
   const params = await searchParams;

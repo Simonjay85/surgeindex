@@ -39,7 +39,10 @@ export async function verifyOwnershipClaim(input: { claimId: string; userId: str
     throw new ClaimServiceError("claim_expired", "This verification challenge has expired.");
   }
   if (claim.attempts >= MAX_ATTEMPTS) {
-    await recordClaimAttempt(db, claim.id, "failed", "attempt_limit");
+    // Close any legacy/racing pending row that already reached the cap. The
+    // repository clamps the counter so this cannot inflate attempts past the
+    // configured limit.
+    await recordClaimAttempt(db, claim.id, "pending", "attempt_limit", MAX_ATTEMPTS);
     throw new ClaimServiceError("attempt_limit", "This verification challenge has reached its attempt limit.");
   }
   let verified = false;
@@ -59,7 +62,10 @@ export async function verifyOwnershipClaim(input: { claimId: string; userId: str
     }
   }
   if (!verified) {
-    await recordClaimAttempt(db, claim.id, "failed", "verification_proof_not_found");
+    const attempt = await recordClaimAttempt(db, claim.id, "pending", "verification_proof_not_found", MAX_ATTEMPTS);
+    if (attempt?.status === "failed") {
+      throw new ClaimServiceError("attempt_limit", "This verification challenge has reached its attempt limit.");
+    }
     throw new ClaimServiceError("verification_failed", "The verification proof was not found yet. Check the site and try again.");
   }
   const result = await completeClaim(db, claim.id, input.userId);

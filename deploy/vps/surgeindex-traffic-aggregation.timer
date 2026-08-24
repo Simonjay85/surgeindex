@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh SurgeIndex live traffic every minute
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=1min
+AccuracySec=5s
+RandomizedDelaySec=5s
+Persistent=true
+Unit=surgeindex-traffic-aggregation.service
+
+[Install]
+WantedBy=timers.target

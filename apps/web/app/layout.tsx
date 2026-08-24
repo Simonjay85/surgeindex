@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   description: "Watch websites go viral in real time through verified traffic, live activity, and transparent attention metrics.",
   openGraph: { title: "SurgeIndex — the live leaderboard of internet attention", description: "Earn the rank. Buy the reach.", type: "website" },
   twitter: { card: "summary_large_image", title: "SurgeIndex — the live leaderboard of internet attention", description: "Watch websites go viral in real time." },
+  icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }], shortcut: "/icon.svg" },
   robots: { index: true, follow: true },
 };
 

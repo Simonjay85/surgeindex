@@ -93,7 +93,7 @@ function ProductLanes() {
       </Link>
       <Link className="product-lane-card" href="/fanward">
         <div className="product-lane-top"><span className="product-lane-icon product-lane-icon-muted"><HeartHandshake size={20} /></span><span className="status-chip status-completed">Coming soon</span></div>
-        <div><h3>Fanward</h3><p>A future fan and creator layer for measurable attention. The current local build keeps this surface in waitlist mode until the product rules are ready.</p></div>
+        <div><h3>Fanward</h3><p>A future fan and creator layer for measurable attention. This surface stays in waitlist mode while the product rules are being finalized.</p></div>
         <div className="product-lane-footer"><span>See the preview</span><ArrowRight size={16} /></div>
       </Link>
     </div>
@@ -164,7 +164,7 @@ export function HomeClient({ initialSites, heroPulse, categories, isDemo, initia
       <div className="window-tabs" role="tablist" aria-label="Ranking windows">{windows.map((item) => <button className={`window-tab ${activeWindow === item.value ? "window-tab-active" : ""}`} key={item.value} onClick={() => setFilter(item.value)} role="tab" aria-selected={activeWindow === item.value}>{item.label}</button>)}</div>
       <div className="category-scroll" aria-label="Filter by category"><button className={`category-pill ${activeCategory === "all" ? "category-pill-active" : ""}`} onClick={() => setFilter(activeWindow, "all")}>All</button>{categories.map((category) => <button className={`category-pill ${activeCategory === category.slug ? "category-pill-active" : ""}`} key={category.slug} onClick={() => setFilter(activeWindow, category.slug)}>{category.name}</button>)}</div>
       {query ? <div className="search-result-note"><Search size={14} /> Showing results for <strong>{query}</strong> <button onClick={() => router.push("/")}>Clear</button></div> : null}
-      {topSites.length ? <div className="featured-grid">{topSites.map((site) => <LeaderboardCard key={site.siteId} site={site} featured />)}</div> : <div className="empty-state"><span className="empty-icon"><Search size={18} /></span><h3>No sites match that search.</h3><p>Try a domain, site name, or another category. New websites can be submitted even before traffic is connected.</p><Link className="button button-quiet" href="/submit">Submit a site</Link></div>}
+      {topSites.length ? <div className="featured-grid">{topSites.map((site) => <LeaderboardCard key={site.siteId} site={site} featured />)}</div> : <div className="empty-state"><span className="empty-icon"><Search size={18} /></span>{query || activeCategory !== "all" ? <><h3>No sites match that search.</h3><p>Try a domain, site name, or another category. New websites can be submitted even before traffic is connected.</p></> : <><h3>The public board is getting started.</h3><p>{isDemo ? "This preview has no sites in the selected view yet. Try another ranking window, or submit a site to explore the workflow." : "No persisted sites are available yet. Submit a site to start the board; verified traffic can be connected after review."}</p></>}<Link className="button button-quiet" href="/submit">Submit a site</Link></div>}
       <div className="activity-strip"><div className="activity-strip-label"><Radio size={15} /> Activity feed</div><div className="activity-strip-copy"><strong>{activitySite?.name ?? "Public index"}</strong> <span>{activityDetail}</span></div><div className="activity-strip-time"><DataModeBadge isDemo={isDemo} compact /></div></div>
     </div></section>
 

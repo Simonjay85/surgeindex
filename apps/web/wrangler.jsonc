@@ -9,31 +9,21 @@
     "directory": ".open-next/assets"
   },
   "vars": {
-    "APP_MODE": "demo",
-    "DATA_PROVIDER": "demo",
+    "APP_MODE": "production",
+    "DATA_PROVIDER": "postgres",
     "ANALYTICS_PROVIDER": "postgres",
     "REALTIME_PROVIDER": "local",
-    "REALTIME_SERVICE_URL": "https://realtime-staging.example.com",
     "QUEUE_PROVIDER": "local",
     "TRACKER_ENABLED": "false",
-    "TRACKER_PUBLIC_URL": "https://cdn-staging.example.com/tracker.js",
-    "TRACKER_COLLECTOR_URL": "https://events-staging.example.com/v1/events"
-  },
-  "kv_namespaces": [
-    {
-      "binding": "LEADERBOARD_CACHE",
-      "id": "REPLACE_WITH_CLOUDFLARE_KV_NAMESPACE_ID"
-    }
-  ],
-  "queues": {
-    "producers": [
-      {
-        "queue": "surgeindex-events",
-        "binding": "EVENTS_QUEUE"
-      }
-    ]
-  },
-  "triggers": {
-    "crons": ["*/5 * * * *"]
+    "NEXT_PUBLIC_APP_NAME": "SurgeIndex",
+    "NEXT_PUBLIC_APP_URL": "https://surgeindex.lol",
+    "BETTER_AUTH_URL": "https://surgeindex.lol",
+    "GA4_ENABLED": "false",
+    "GA4_OAUTH_REDIRECT_URI": "https://surgeindex.lol/api/ga4/callback",
+    "TRACKER_PUBLIC_URL": "https://surgeindex.lol/tracker.js",
+    "TRACKER_COLLECTOR_URL": "https://surgeindex.lol/api/collect/v1/events",
+    "STRIPE_ENABLED": "false",
+    "STRIPE_CHECKOUT_SUCCESS_URL": "https://surgeindex.lol/dashboard/boosts/{CAMPAIGN_ID}?checkout=success",
+    "STRIPE_CHECKOUT_CANCEL_URL": "https://surgeindex.lol/dashboard/boosts/{CAMPAIGN_ID}?checkout=cancel"
   }
 }

@@ -21,11 +21,13 @@ build/
 .env
 .env.*
 !.env.example
+!apps/web/.env.production.example
 
 # testing
 coverage/
 playwright-report/
 test-results/
+output/playwright/
 
 # wrangler
 .wrangler/

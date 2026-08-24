@@ -78,6 +78,13 @@
       "when": 1787500990438,
       "tag": "0010_windy_ultragirl",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787512294263,
+      "tag": "0011_lame_celestials",
+      "breakpoints": true
     }
   ]
 }

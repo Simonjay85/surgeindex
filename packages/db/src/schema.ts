@@ -299,7 +299,10 @@ export const siteOwner = pgTable(
     role: ownerRoleEnum("role").notNull().default("owner"),
     createdAt: timestamps.createdAt,
   },
-  (t) => [unique("site_owner_unique").on(t.siteId, t.userId)],
+  (t) => [
+    unique("site_owner_unique").on(t.siteId, t.userId),
+    uniqueIndex("site_owner_single_owner_idx").on(t.siteId).where(sql`${t.role} = 'owner'`),
+  ],
 );
 
 /** Ownership verification attempts (separate from traffic verification). */

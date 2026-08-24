@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { ArrowUpRight, Radar, Sparkles } from "lucide-react";
 import type { BreakoutItem } from "@surge/shared";
 import { AppShell, DataModeBadge, SectionHeading } from "../../components/app-shell";
@@ -19,6 +20,7 @@ function BreakoutSection({ title, description, sites }: { title: string; descrip
 }
 
 export default async function BreakoutsPage() {
+  await connection();
   const provider = getPublicDataProvider();
   const breakouts = await provider.getBreakouts();
   const surging = breakouts.filter((site) => site.state === "surging" || site.state === "breaking_out");

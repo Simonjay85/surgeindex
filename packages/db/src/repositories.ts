@@ -579,13 +579,41 @@ export async function getClaimForUser(db: Repository, claimId: string, userId: s
   return claim ?? null;
 }
 
-export async function recordClaimAttempt(db: Repository, claimId: string, status: "failed" | "expired", error: string) {
-  await db.update(siteClaim).set({ status, lastError: error, attempts: sql`${siteClaim.attempts} + 1` }).where(eq(siteClaim.id, claimId));
+/**
+ * Record a failed proof lookup without making the challenge terminal too early.
+ *
+ * The status decision is made inside the UPDATE so concurrent verification
+ * requests cannot both observe the same attempt count and leave a challenge
+ * pending after it has crossed the cap. Expired challenges always remain
+ * expired; failed proof lookups stay pending until the final allowed attempt.
+ */
+export async function recordClaimAttempt(
+  db: Repository,
+  claimId: string,
+  status: "pending" | "expired",
+  error: string,
+  maxAttempts = 5,
+) {
+  const nextStatus = status === "expired"
+    ? sql`'expired'::claim_status`
+    : sql`CASE WHEN ${siteClaim.attempts} + 1 >= ${maxAttempts} THEN 'failed'::claim_status ELSE 'pending'::claim_status END`;
+  const nextAttempts = sql`CASE WHEN ${siteClaim.attempts} < ${maxAttempts} THEN ${siteClaim.attempts} + 1 ELSE ${siteClaim.attempts} END`;
+  const [updated] = await db
+    .update(siteClaim)
+    .set({ status: nextStatus, lastError: error, attempts: nextAttempts })
+    .where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")))
+    .returning({ status: siteClaim.status, attempts: siteClaim.attempts });
+  return updated ?? null;
 }
 
 export async function completeClaim(db: Repository, claimId: string, userId: string) {
   return db.transaction(async (tx) => {
-    const [claim] = await tx.select({ id: siteClaim.id, siteId: siteClaim.siteId, status: siteClaim.status, expiresAt: siteClaim.expiresAt }).from(siteClaim).where(and(eq(siteClaim.id, claimId), eq(siteClaim.userId, userId))).limit(1);
+    const [claim] = await tx
+      .select({ id: siteClaim.id, siteId: siteClaim.siteId, status: siteClaim.status, expiresAt: siteClaim.expiresAt })
+      .from(siteClaim)
+      .where(and(eq(siteClaim.id, claimId), eq(siteClaim.userId, userId)))
+      .limit(1)
+      .for("update");
     if (!claim) return { ok: false as const, reason: "not_found" as const };
     if (claim.status !== "pending") return { ok: false as const, reason: "not_pending" as const };
     const now = new Date();
@@ -593,11 +621,30 @@ export async function completeClaim(db: Repository, claimId: string, userId: str
       await tx.update(siteClaim).set({ status: "expired", lastError: "challenge_expired", attempts: sql`${siteClaim.attempts} + 1` }).where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")));
       return { ok: false as const, reason: "expired" as const };
     }
+    // Serialize all claim completions for one site, including different claim
+    // rows, before checking or creating its single owner.
+    await tx.select({ id: site.id }).from(site).where(eq(site.id, claim.siteId)).limit(1).for("update");
     const [existingOwner] = await tx.select({ userId: siteOwner.userId, role: siteOwner.role }).from(siteOwner).where(and(eq(siteOwner.siteId, claim.siteId), eq(siteOwner.role, "owner"))).limit(1);
-    if (existingOwner && existingOwner.userId !== userId) return { ok: false as const, reason: "ownership_conflict" as const };
-    await tx.update(siteClaim).set({ status: "verified", verifiedAt: now, usedAt: now, lastError: null, attempts: sql`${siteClaim.attempts} + 1` }).where(eq(siteClaim.id, claimId));
+    if (existingOwner && existingOwner.userId !== userId) {
+      await tx
+        .update(siteClaim)
+        .set({ status: "failed", usedAt: now, lastError: "ownership_conflict", attempts: sql`${siteClaim.attempts} + 1` })
+        .where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")));
+      return { ok: false as const, reason: "ownership_conflict" as const };
+    }
+    const [transitioned] = await tx
+      .update(siteClaim)
+      .set({ status: "verified", verifiedAt: now, usedAt: now, lastError: null, attempts: sql`${siteClaim.attempts} + 1` })
+      .where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")))
+      .returning({ siteId: siteClaim.siteId });
+    if (!transitioned) return { ok: false as const, reason: "not_pending" as const };
     await tx.update(site).set({ ownership: "claimed", updatedAt: now }).where(eq(site.id, claim.siteId));
-    await tx.insert(siteOwner).values({ siteId: claim.siteId, userId, role: "owner" }).onConflictDoNothing();
+    const [membership] = await tx.select({ id: siteOwner.id, role: siteOwner.role }).from(siteOwner).where(and(eq(siteOwner.siteId, claim.siteId), eq(siteOwner.userId, userId))).limit(1);
+    if (membership && membership.role !== "owner") {
+      await tx.update(siteOwner).set({ role: "owner" }).where(eq(siteOwner.id, membership.id));
+    } else if (!membership) {
+      await tx.insert(siteOwner).values({ siteId: claim.siteId, userId, role: "owner" });
+    }
     await tx.insert(activityEvent).values({ type: "ownership_verified", siteId: claim.siteId, detail: "Ownership verification succeeded.", isDemo: false });
     return { ok: true as const, siteId: claim.siteId };
   });

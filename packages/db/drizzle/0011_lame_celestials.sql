@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "site_owner_single_owner_idx" ON "site_owner" USING btree ("site_id") WHERE "site_owner"."role" = 'owner';

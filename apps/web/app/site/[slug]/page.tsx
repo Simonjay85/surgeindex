@@ -6,7 +6,14 @@ import { getPublicDataProvider } from "../../../lib/server/public-provider";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const site = await getPublicDataProvider().getSite(slug);
-  return { title: site ? `${site.name} — ${site.domain}` : "Site profile", description: site?.description };
+  const title = site ? `${site.name} — ${site.domain}` : "Site profile";
+  const canonicalPath = `/site/${encodeURIComponent(slug)}`;
+  return {
+    title,
+    description: site?.description,
+    alternates: { canonical: canonicalPath },
+    openGraph: { title, description: site?.description, type: "website", url: canonicalPath },
+  };
 }
 
 export default async function SitePage({ params }: { params: Promise<{ slug: string }> }) {

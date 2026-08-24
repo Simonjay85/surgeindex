@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerEnv } from "@surge/config";
 import { getPublicDataProvider } from "../../../../lib/server/public-provider";
+import { isValidSiteId } from "../../../../lib/server/identifiers";
 import { getRealtimeSnapshot } from "../../../../lib/server/realtime";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = await params;
+  if (!isValidSiteId(siteId)) {
+    return NextResponse.json({ error: "Site not found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
+  }
   const site = await getPublicDataProvider().getSiteById(siteId);
   if (!site || site.status !== "active") return NextResponse.json({ error: "Site not found" }, { status: 404 });
   try {

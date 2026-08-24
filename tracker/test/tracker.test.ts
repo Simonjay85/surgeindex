@@ -105,6 +105,23 @@ describe("SurgeIndex tracker", () => {
     expect(h.sent.length).toBe(count);
   });
 
+  it("resumes the same page after grant, deny, and grant", () => {
+    const h = setup();
+    h.tracker.start();
+    const beforeOptOut = h.sent.length;
+
+    h.tracker.optOut();
+    expect(h.tracker.forceHeartbeat()).toBeNull();
+    vi.advanceTimersByTime(60_000);
+    expect(h.sent.length).toBe(beforeOptOut);
+
+    h.tracker.grantConsent();
+    const resumed = h.sent.slice(beforeOptOut).map((item) => (JSON.parse(item.body) as { eventType: string }).eventType);
+    expect(resumed.slice(0, 2)).toEqual(["session_start", "pageview"]);
+    vi.advanceTimersByTime(30_000);
+    expect(h.sent.map((item) => (JSON.parse(item.body) as { eventType: string }).eventType)).toContain("heartbeat");
+  });
+
   it("queues and retries failed sends with backoff", async () => {
     const h = setup({ failTimes: 1 });
     h.tracker.start();
@@ -113,6 +130,18 @@ describe("SurgeIndex tracker", () => {
     await vi.advanceTimersByTimeAsync(3_000);
     expect(h.sent.length).toBeGreaterThanOrEqual(1);
     expect(h.tracker.pendingRetryCount).toBe(0);
+  });
+
+  it("cancels pending retry timers and queued events on opt-out", async () => {
+    const h = setup({ failTimes: 1 });
+    h.tracker.start();
+    expect(h.sent.length).toBe(0);
+    expect(h.tracker.pendingRetryCount).toBeGreaterThan(0);
+
+    h.tracker.optOut();
+    expect(h.tracker.pendingRetryCount).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.sent.length).toBe(0);
   });
 
   it("rotates the anonymous visitor id after 24h", async () => {
@@ -164,5 +193,15 @@ describe("SurgeIndex tracker", () => {
     expect(window.location.search).toContain("utm_source=surge");
     expect(window.location.search).not.toContain("_si_at");
     expect(pageview?.pathname).toBe("/landing");
+  });
+
+  it("redacts identifier-like pathname segments before sending", () => {
+    window.history.replaceState({}, "", "/orders/12345/550e8400-e29b-41d4-a716-446655440000");
+    const h = setup();
+    h.tracker.start();
+    const event = JSON.parse(h.sent[0]!.body) as { pathname: string };
+    expect(event.pathname).toBe("/orders/:id/:id");
+    expect(event.pathname).not.toContain("12345");
+    expect(event.pathname).not.toContain("550e8400");
   });
 });

@@ -102,7 +102,7 @@ Outbound links pass through `/go/[siteSlug]`, which only redirects to an allowli
 
 Copy `.env.example` to `apps/web/.env`. `APP_MODE` and `DATA_PROVIDER` are always required. The public local demo uses `APP_MODE=demo` and `DATA_PROVIDER=demo`. Production requires `APP_MODE=production`, `DATA_PROVIDER=postgres`, a database URL, a Better Auth secret, tracker signing/hash/rotation secrets when enabled, and the credentials/bindings for the explicitly selected analytics, queue, and realtime providers. See [docs/OPERATIONS_TRACKER_PIPELINE.md](docs/OPERATIONS_TRACKER_PIPELINE.md) for the provider matrix.
 
-`apps/web/wrangler.jsonc` is the OpenNext deployment skeleton. Replace the KV namespace placeholder and create the `surgeindex-events` queue before using `pnpm preview` or `pnpm deploy`. The collector, queue consumer, and realtime worker each have their own Wrangler config under `workers/`.
+`apps/web/wrangler.jsonc` is the fail-closed OpenNext production configuration for the canonical host `https://surgeindex.lol`; `apps/web/.env.production.example` lists the matching build/runtime values and required secrets. The web Worker defaults to the local queue and realtime adapters until their dedicated Cloudflare services are provisioned. The collector, queue consumer, and realtime worker each retain their own Wrangler config under `workers/`.
 
 The first administrator is promoted out-of-band after sign-up: `ADMIN_BOOTSTRAP_CONFIRM=<exact-email> pnpm admin:promote -- <exact-email>`. The command refuses to promote a second account unless `ADMIN_BOOTSTRAP_ALLOW_EXISTING=true` is set explicitly; there is no public role-changing endpoint.
 
