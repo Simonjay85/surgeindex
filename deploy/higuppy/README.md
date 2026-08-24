@@ -23,3 +23,10 @@ tracker also replaces identifier-like pathname segments with `:id` before an
 event is serialized. It sends only anonymous traffic metadata documented in the
 plugin header, never WooCommerce cart, order, account, form, or page-content
 data.
+
+`surgeindex-revenue-sync.php` is a WP-CLI-only bridge for the owner-approved
+public stats board. It reads only WooCommerce orders in `processing` or
+`completed`, subtracts confirmed refunds, and posts a currency-normalized
+aggregate to SurgeIndex. Cancelled and on-hold orders are deliberately
+excluded. The bridge sends no order IDs, customer information, or credentials;
+the VPS systemd timer supplies the private `INTERNAL_SERVICE_TOKEN`.

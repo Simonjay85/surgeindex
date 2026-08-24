@@ -28,6 +28,72 @@ export async function runTrafficAggregation() {
       active_last_30m = coalesce((select count(distinct recent.visitor_hash)::int from active_session recent where recent.site_id = current.site_id and recent.hidden = false and recent.last_heartbeat_at >= now() - interval '30 minutes'), 0),
       updated_at = now()
   `);
+  await db.execute(sql`
+    with page_stats as (
+      select
+        site_id,
+        pathname,
+        count(distinct visitor_hash) filter (where occurred_at >= now() - interval '24 hours' and event_type in ('pageview', 'session_start'))::int as visitors_24h,
+        count(distinct visitor_hash) filter (where event_type in ('pageview', 'session_start'))::int as visitors_7d,
+        count(*) filter (where occurred_at >= now() - interval '24 hours' and event_type = 'pageview')::int as pageviews_24h,
+        count(distinct session_id) filter (where occurred_at >= now() - interval '24 hours' and event_type in ('pageview', 'session_start'))::int as sessions_24h,
+        count(distinct session_id) filter (where occurred_at >= now() - interval '24 hours' and event_type = 'engaged')::int as engaged_sessions_24h,
+        coalesce(avg(engaged_seconds) filter (where occurred_at >= now() - interval '24 hours' and event_type = 'engaged'), 0)::int as avg_engagement_seconds,
+        max(occurred_at) as last_accepted_event_at
+      from tracker_event
+      where decision = 'valid'
+        and traffic_origin <> 'paid_surgedindex_referral'
+        and occurred_at >= now() - interval '7 days'
+      group by site_id, pathname
+    ),
+    live_pages as (
+      select
+        site_id,
+        last_pathname as pathname,
+        count(*)::int as active_sessions,
+        count(distinct visitor_hash)::int as active_now
+      from active_session
+      where hidden = false
+        and last_heartbeat_at >= now() - (${env.ACTIVE_SESSION_TTL_SECONDS} || ' seconds')::interval
+      group by site_id, last_pathname
+    )
+    insert into site_page_metric_current (
+      site_id, pathname, active_now, active_sessions, visitors_24h, visitors_7d,
+      pageviews_24h, sessions_24h, engaged_sessions_24h, engagement_rate,
+      avg_engagement_seconds, last_accepted_event_at, updated_at, is_demo
+    )
+    select
+      stats.site_id,
+      stats.pathname,
+      coalesce(live.active_now, 0),
+      coalesce(live.active_sessions, 0),
+      stats.visitors_24h,
+      stats.visitors_7d,
+      stats.pageviews_24h,
+      stats.sessions_24h,
+      stats.engaged_sessions_24h,
+      case when stats.sessions_24h > 0 then stats.engaged_sessions_24h::numeric / stats.sessions_24h else null end,
+      stats.avg_engagement_seconds,
+      stats.last_accepted_event_at,
+      now(),
+      false
+    from page_stats stats
+    left join live_pages live on live.site_id = stats.site_id and live.pathname = stats.pathname
+    on conflict (site_id, pathname) do update set
+      active_now = excluded.active_now,
+      active_sessions = excluded.active_sessions,
+      visitors_24h = excluded.visitors_24h,
+      visitors_7d = excluded.visitors_7d,
+      pageviews_24h = excluded.pageviews_24h,
+      sessions_24h = excluded.sessions_24h,
+      engaged_sessions_24h = excluded.engaged_sessions_24h,
+      engagement_rate = excluded.engagement_rate,
+      avg_engagement_seconds = excluded.avg_engagement_seconds,
+      last_accepted_event_at = excluded.last_accepted_event_at,
+      updated_at = now(),
+      is_demo = false
+  `);
+  await db.execute(sql`delete from site_page_metric_current where updated_at < now() - interval '8 days'`);
   await db.update(aggregationJobState).set({ lastCompletedAt: now, updatedAt: now }).where(eq(aggregationJobState.jobKey, "traffic"));
     return { staleTrackers: staleKeys.length, completedAt: now.toISOString() };
   } catch (error) {

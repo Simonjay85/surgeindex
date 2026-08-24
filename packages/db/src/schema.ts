@@ -148,6 +148,8 @@ export const stripeEnvironmentEnum = pgEnum("stripe_environment", ["test", "live
 export const boostPaymentStatusEnum = pgEnum("boost_payment_status", ["pending", "processing", "succeeded", "failed", "expired", "partially_refunded", "refunded", "disputed"]);
 export const boostRefundStatusEnum = pgEnum("boost_refund_status", ["requested", "processing", "succeeded", "failed", "cancelled"]);
 export const boostDisputeStatusEnum = pgEnum("boost_dispute_status", ["open", "won", "lost", "closed"]);
+export const revenueSourceEnum = pgEnum("revenue_source", ["woocommerce", "stripe_boost", "ga4_ecommerce", "manual"]);
+export const revenueStatusEnum = pgEnum("revenue_status", ["connected", "stale", "unavailable", "error"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
@@ -735,6 +737,65 @@ export const siteMetricCurrent = pgTable(
     isDemo: boolean("is_demo").notNull().default(false),
   },
   (t) => [index("site_metric_heat_idx").on(t.heatScore)],
+);
+
+/** Current privacy-safe metrics by page path. Raw tracker rows never leave the server. */
+export const sitePageMetricCurrent = pgTable(
+  "site_page_metric_current",
+  {
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => site.id, { onDelete: "cascade" }),
+    pathname: text("pathname").notNull(),
+    activeNow: integer("active_now").notNull().default(0),
+    activeSessions: integer("active_sessions").notNull().default(0),
+    visitors24h: bigint("visitors_24h", { mode: "number" }).notNull().default(0),
+    visitors7d: bigint("visitors_7d", { mode: "number" }).notNull().default(0),
+    pageviews24h: bigint("pageviews_24h", { mode: "number" }).notNull().default(0),
+    sessions24h: bigint("sessions_24h", { mode: "number" }).notNull().default(0),
+    engagedSessions24h: bigint("engaged_sessions_24h", { mode: "number" }).notNull().default(0),
+    engagementRate: numeric("engagement_rate", { precision: 5, scale: 4 }),
+    avgEngagementSeconds: integer("avg_engagement_seconds"),
+    lastAcceptedEventAt: timestamp("last_accepted_event_at", { withTimezone: true, mode: "date" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    isDemo: boolean("is_demo").notNull().default(false),
+  },
+  (t) => [
+    primaryKey({ columns: [t.siteId, t.pathname], name: "site_page_metric_current_pk" }),
+    index("site_page_metric_site_pageviews_idx").on(t.siteId, t.pageviews24h),
+    index("site_page_metric_site_active_idx").on(t.siteId, t.activeNow),
+  ],
+);
+
+/** Aggregate revenue ledger. Amounts are provider-reported, never inferred from traffic. */
+export const siteRevenueCurrent = pgTable(
+  "site_revenue_current",
+  {
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => site.id, { onDelete: "cascade" }),
+    source: revenueSourceEnum("source").notNull(),
+    currency: text("currency").notNull().default("USD"),
+    grossAmountCents: bigint("gross_amount_cents", { mode: "number" }).notNull().default(0),
+    refundedAmountCents: bigint("refunded_amount_cents", { mode: "number" }).notNull().default(0),
+    netAmountCents: bigint("net_amount_cents", { mode: "number" }).notNull().default(0),
+    orderCount: integer("order_count").notNull().default(0),
+    lastOrderAt: timestamp("last_order_at", { withTimezone: true, mode: "date" }),
+    periodStart: timestamp("period_start", { withTimezone: true, mode: "date" }),
+    periodEnd: timestamp("period_end", { withTimezone: true, mode: "date" }),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true, mode: "date" }),
+    status: revenueStatusEnum("status").notNull().default("unavailable"),
+    publicVisible: boolean("public_visible").notNull().default(false),
+    providerDefinitionVersion: text("provider_definition_version").notNull().default("revenue-v1"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    isDemo: boolean("is_demo").notNull().default(false),
+  },
+  (t) => [
+    primaryKey({ columns: [t.siteId, t.source, t.currency], name: "site_revenue_current_pk" }),
+    index("site_revenue_site_source_idx").on(t.siteId, t.source),
+    index("site_revenue_public_idx").on(t.publicVisible, t.status),
+  ],
 );
 
 /** Historical metric snapshots for charts and baseline computation. */
@@ -1732,6 +1793,7 @@ export const activeSession = pgTable(
     lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     hidden: boolean("hidden").notNull().default(false),
     lastEventAt: timestamp("last_event_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    lastPathname: text("last_pathname").notNull().default("/"),
   },
   (t) => [index("active_session_site_idx").on(t.siteId, t.lastHeartbeatAt)],
 );

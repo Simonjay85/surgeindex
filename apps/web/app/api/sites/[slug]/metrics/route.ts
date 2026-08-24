@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPublicDataProvider } from "../../../../../lib/server/public-provider";
+import { getSiteRevenueSummary } from "../../../../../lib/server/site-stats";
 
 /** Server-side aggregate metrics for a public site profile. Raw events never leave the server. */
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
@@ -7,6 +8,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   const provider = getPublicDataProvider();
   const site = await provider.getSite(slug);
   if (!site) return NextResponse.json({ error: "Site not found" }, { status: 404 });
+  const revenue = site.isDemo ? null : await getSiteRevenueSummary(site.siteId, true);
   return NextResponse.json({
     data: {
       siteId: site.siteId,
@@ -26,6 +28,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
       lastUpdatedAt: site.lastUpdatedAt,
       source: provider.source,
       isDemo: site.isDemo,
+      revenue,
+      revenueScope: "site_level_only",
     },
     source: provider.source,
   }, { headers: { "Cache-Control": "no-store" } });

@@ -133,6 +133,7 @@ async function updateActiveSession(tx: Parameters<Parameters<ReturnType<typeof g
       lastHeartbeatAt: timestamp,
       hidden: event.visible === false,
       lastEventAt: timestamp,
+      lastPathname: event.pathname || "/",
     })
     .onConflictDoUpdate({
       target: activeSession.sessionId,
@@ -141,6 +142,7 @@ async function updateActiveSession(tx: Parameters<Parameters<ReturnType<typeof g
         lastEventAt: timestamp,
         hidden: event.visible === false,
         visitorHash: event.visitorHash,
+        lastPathname: event.pathname || "/",
       },
     });
 }

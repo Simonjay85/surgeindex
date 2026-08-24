@@ -16,6 +16,7 @@ Runtime boundaries:
 - systemd service: `surgeindex.service`
 - live traffic timer: `surgeindex-traffic-aggregation.timer`
 - scoring and ranking timer: `surgeindex-scoring.timer`
+- HiGuppy WooCommerce revenue timer: `surgeindex-higuppy-revenue.timer`
 - database backup timer: `surgeindex-postgres-backup.timer`
 - local backup retention: 14 days under `/var/backups/surgeindex/postgres`
 - panel Nginx vhost: `/www/server/panel/vhost/nginx/surgeindex.lol.conf`
@@ -42,3 +43,9 @@ both timers, run each service once, and check its journal before accepting live
 tracker traffic. The traffic job expires inactive sessions and refreshes live
 counts every minute. The scoring job uses its database-backed idempotency slots
 to refresh baselines, scores, breakouts, and rankings every five minutes.
+
+The HiGuppy revenue timer runs the WP-CLI-only aggregate bridge every five
+minutes. It posts only confirmed WooCommerce totals to
+`/api/internal/revenue`; cancelled and on-hold orders are excluded. Stripe
+Boost revenue is read from settled live orders in the SurgeIndex ledger and is
+never mixed into organic Heat Score or rank.
