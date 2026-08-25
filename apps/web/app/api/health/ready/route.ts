@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     database = true;
     const result = await db.execute(sql`
       select count(*)::int as count
-      from __drizzle_migrations
+      from drizzle.__drizzle_migrations
     `);
     const count = Number((result.rows[0] as { count?: unknown } | undefined)?.count ?? 0);
     migrations = count === env.EXPECTED_MIGRATION_COUNT;

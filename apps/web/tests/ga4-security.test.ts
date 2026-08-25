@@ -14,7 +14,11 @@ describe("GA4 token encryption", () => {
   it("decrypts a previous key version for rotation and rejects tampering", () => {
     const oldEnvelope = encryptToken("old-token", previous, "ga4:credential:connection:refresh");
     expect(decryptToken(oldEnvelope, [current, previous], "ga4:credential:connection:refresh")).toBe("old-token");
-    const tampered = `${oldEnvelope.slice(0, -1)}x`;
+    const parts = oldEnvelope.split(".");
+    const ciphertext = Buffer.from(parts[3] ?? "", "base64url");
+    ciphertext[0] = (ciphertext[0] ?? 0) ^ 1;
+    parts[3] = ciphertext.toString("base64url");
+    const tampered = parts.join(".");
     expect(() => decryptToken(tampered, [current, previous], "ga4:credential:connection:refresh")).toThrow(TokenDecryptionError);
   });
 });

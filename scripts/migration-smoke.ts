@@ -75,7 +75,7 @@ function isLoopbackHost(hostname: string): boolean {
 }
 
 function isPrivateServiceAddress(address: string): boolean {
-  const normalized = address.replace(/^\[|\]$/g, "").toLowerCase();
+  const normalized = address.replace(/^\[|\]$/g, "").split("/")[0]?.toLowerCase() ?? "";
   if (normalized.startsWith("::ffff:")) return isPrivateServiceAddress(normalized.slice("::ffff:".length));
   if (isIP(normalized) === 4) {
     const octets = normalized.split(".").map(Number);
@@ -150,6 +150,7 @@ async function resetSchema(connectionString: string, expectedDatabaseName: strin
     const row = identity.rows[0];
     if (!row || row.database_name !== expectedDatabaseName) throw new Error("Connected database did not match the explicitly named disposable target.");
     if (row.server_address && !isAllowedServerAddress(row.server_address)) throw new Error("Connected PostgreSQL server address was not an allowed loopback or CI-private service address; refusing schema reset.");
+    await client.query("drop schema if exists drizzle cascade");
     await client.query("drop schema if exists public cascade");
     await client.query("create schema public");
   } finally {
@@ -158,7 +159,7 @@ async function resetSchema(connectionString: string, expectedDatabaseName: strin
 }
 
 async function appliedCount(pool: Pool): Promise<number> {
-  const result = await pool.query<{ count: string }>("select count(*)::text as count from __drizzle_migrations");
+  const result = await pool.query<{ count: string }>("select count(*)::text as count from drizzle.__drizzle_migrations");
   return Number(result.rows[0]?.count ?? 0);
 }
 
