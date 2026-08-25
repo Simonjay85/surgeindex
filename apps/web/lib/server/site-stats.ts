@@ -1,7 +1,8 @@
 import "server-only";
 
 import { desc, eq, inArray, sql } from "drizzle-orm";
-import { getPostgresDb, sitePageMetricCurrent, siteRevenueCurrent } from "@surge/db";
+import { getPostgresDb, site, sitePageMetricCurrent, siteRevenueCurrent } from "@surge/db";
+import { getServerEnv } from "@surge/config";
 
 export type PageMetric = {
   pathname: string;
@@ -57,8 +58,13 @@ function asNumber(value: unknown): number {
 }
 
 /** Page-level aggregates, intentionally limited to a safe server-side projection. */
-export async function getSitePageMetrics(siteId: string, limit = 100): Promise<PageMetric[]> {
+export async function getSitePageMetrics(siteId: string, limit = 100, publicOnly = false): Promise<PageMetric[]> {
+  if (publicOnly && !getServerEnv().PUBLIC_PAGE_METRICS_ENABLED) return [];
   const db = getPostgresDb();
+  if (publicOnly) {
+    const [disclosure] = await db.select({ visible: site.publicPageMetricsVisible }).from(site).where(eq(site.id, siteId)).limit(1);
+    if (!disclosure?.visible) return [];
+  }
   const rows = await db
     .select()
     .from(sitePageMetricCurrent)
@@ -88,6 +94,7 @@ async function getBoostRevenue(siteIds: string[]): Promise<Map<string, RevenueMe
   const rows = await db.execute(sql`
     select
       c.site_id,
+      s.public_revenue_visible,
       o.currency,
       coalesce(sum(greatest(o.paid_amount_cents - o.refunded_amount_cents, 0)), 0)::int as net_amount_cents,
       coalesce(sum(o.paid_amount_cents), 0)::int as gross_amount_cents,
@@ -96,11 +103,12 @@ async function getBoostRevenue(siteIds: string[]): Promise<Map<string, RevenueMe
       max(o.paid_at) as last_order_at
     from boost_order o
     inner join boost_campaign c on c.id = o.campaign_id
+    inner join site s on s.id = c.site_id
     where c.site_id in (${sql.join(siteIds.map((siteId) => sql`${siteId}::uuid`), sql`, `)})
       and c.is_demo = false
       and o.stripe_environment = 'live'
       and o.payment_status in ('succeeded', 'partially_refunded', 'refunded')
-    group by c.site_id, o.currency
+    group by c.site_id, s.public_revenue_visible, o.currency
   `);
   for (const row of rows.rows as Array<Record<string, unknown>>) {
     const siteId = String(row.site_id);
@@ -114,7 +122,7 @@ async function getBoostRevenue(siteIds: string[]): Promise<Map<string, RevenueMe
       lastOrderAt: row.last_order_at ? new Date(String(row.last_order_at)).toISOString() : null,
       lastSyncedAt: new Date().toISOString(),
       status: "connected",
-      publicVisible: false,
+      publicVisible: Boolean(row.public_revenue_visible),
     });
   }
   return result;
@@ -124,14 +132,20 @@ export async function getSiteRevenueSummaries(siteIds: string[], publicOnly = fa
   const uniqueSiteIds = Array.from(new Set(siteIds));
   const summaries = new Map<string, SiteRevenueSummary>();
   if (!uniqueSiteIds.length) return summaries;
+  if (publicOnly && !getServerEnv().PUBLIC_REVENUE_BOARD_ENABLED) {
+    for (const siteId of uniqueSiteIds) summaries.set(siteId, { sales: unavailable("woocommerce"), boost: unavailable("stripe_boost") });
+    return summaries;
+  }
   const db = getPostgresDb();
   const rows = await db
-    .select()
+    .select({ metric: siteRevenueCurrent, publicRevenueVisible: site.publicRevenueVisible })
     .from(siteRevenueCurrent)
+    .innerJoin(site, eq(site.id, siteRevenueCurrent.siteId))
     .where(inArray(siteRevenueCurrent.siteId, uniqueSiteIds));
+  const disclosureBySite = new Map(rows.map((row) => [row.metric.siteId, row.publicRevenueVisible]));
   const boost = await getBoostRevenue(uniqueSiteIds);
   for (const siteId of uniqueSiteIds) {
-    const salesRow = rows.find((row) => row.siteId === siteId && row.source === "woocommerce");
+    const salesRow = rows.find((row) => row.metric.siteId === siteId && row.metric.source === "woocommerce")?.metric;
     const sales: RevenueMetric = salesRow
       ? {
           source: "woocommerce",
@@ -143,7 +157,7 @@ export async function getSiteRevenueSummaries(siteIds: string[], publicOnly = fa
           lastOrderAt: salesRow.lastOrderAt?.toISOString() ?? null,
           lastSyncedAt: salesRow.lastSyncedAt?.toISOString() ?? null,
           status: salesRow.status,
-          publicVisible: salesRow.publicVisible,
+          publicVisible: disclosureBySite.get(siteId) === true,
         }
       : unavailable("woocommerce");
     const boostMetric = boost.get(siteId) ?? unavailable("stripe_boost");

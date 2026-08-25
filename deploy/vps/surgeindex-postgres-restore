@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+
+umask 077
+: "${BACKUP_FILE:?BACKUP_FILE must point to an encrypted .dump.age file}"
+: "${BACKUP_AGE_IDENTITY_FILE:?BACKUP_AGE_IDENTITY_FILE is required}"
+: "${RESTORE_DATABASE_URL:?RESTORE_DATABASE_URL must name the disposable restore target}"
+: "${CONFIRM_RESTORE:?Set CONFIRM_RESTORE=YES to run a destructive restore}"
+test "$CONFIRM_RESTORE" = YES
+case "$BACKUP_FILE" in *.dump.age) ;; *) echo "BACKUP_FILE must be an age-encrypted custom-format dump" >&2; exit 1 ;; esac
+
+temporary=$(mktemp "${TMPDIR:-/tmp}/surgeindex-restore.XXXXXX.dump")
+cleanup() { rm -f "$temporary"; }
+trap cleanup EXIT HUP INT TERM
+age --decrypt --identity "$BACKUP_AGE_IDENTITY_FILE" --output "$temporary" "$BACKUP_FILE"
+test -s "$temporary"
+pg_restore --clean --if-exists --no-owner --no-privileges --dbname "$RESTORE_DATABASE_URL" "$temporary"
+echo "Restore completed against the explicitly supplied restore target. Run application migration/readiness and report checks before promotion."

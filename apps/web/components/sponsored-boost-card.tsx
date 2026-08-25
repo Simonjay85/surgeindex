@@ -15,9 +15,11 @@ type ServedBoost = {
   ctaLabel: string;
   clickToken: string;
   impressionToken: string;
+  minimumVisiblePercent: number;
+  minimumVisibleMilliseconds: number;
 };
 
-export function SponsoredBoostCard({ placement = "homepage_boosted" }: { placement?: BoostPlacementKey }) {
+export function SponsoredBoostCard({ placement = "homepage_boosted", categoryId, siteId, routeContext }: { placement?: BoostPlacementKey; categoryId?: string; siteId?: string; routeContext?: string }) {
   const [served, setServed] = useState<ServedBoost | null>(null);
   const cardRef = useRef<HTMLElement | null>(null);
   const startedAt = useRef<number | null>(null);
@@ -26,31 +28,38 @@ export function SponsoredBoostCard({ placement = "homepage_boosted" }: { placeme
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/boost/serve?placement=${encodeURIComponent(placement)}`, { headers: { accept: "application/json" }, cache: "no-store" })
+    const route = routeContext ?? (typeof window === "undefined" ? "/" : window.location.pathname);
+    const params = new URLSearchParams({ placement, route });
+    if (categoryId) params.set("categoryId", categoryId);
+    if (siteId) params.set("siteId", siteId);
+    fetch(`/api/boost/serve?${params.toString()}`, { headers: { accept: "application/json" }, cache: "no-store" })
       .then((response) => response.ok ? response.json() as Promise<{ data: ServedBoost | null }> : Promise.reject(new Error("boost_serve_failed")))
       .then((payload) => { if (!cancelled) setServed(payload.data); })
       .catch(() => { if (!cancelled) setServed(null); });
     return () => { cancelled = true; };
-  }, [placement]);
+  }, [categoryId, placement, routeContext, siteId]);
 
   useEffect(() => {
     if (!served || !cardRef.current) return;
     const node = cardRef.current;
+    recorded.current = false;
+    const minimumPercent = served.minimumVisiblePercent;
+    const minimumMilliseconds = served.minimumVisibleMilliseconds;
     const qualify = () => {
       if (recorded.current) return;
       recorded.current = true;
-      void fetch("/api/boost/impressions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: served.impressionToken, eventId: crypto.randomUUID(), visiblePercent: 50, visibleMilliseconds: 1_000 }) });
+      void fetch("/api/boost/impressions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: served.impressionToken, eventId: crypto.randomUUID(), visiblePercent: minimumPercent, visibleMilliseconds: minimumMilliseconds }) });
     };
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+      if (entry.isIntersecting && entry.intersectionRatio >= minimumPercent / 100) {
         startedAt.current = Date.now();
-        timer.current = setTimeout(() => { if ((startedAt.current ?? 0) > 0) qualify(); }, 1_000);
+        timer.current = setTimeout(() => { if ((startedAt.current ?? 0) > 0) qualify(); }, minimumMilliseconds);
       } else if (timer.current) {
         clearTimeout(timer.current);
         timer.current = null;
         startedAt.current = null;
       }
-    }, { threshold: [0, 0.5, 1] });
+    }, { threshold: [0, minimumPercent / 100, 1] });
     observer.observe(node);
     return () => { observer.disconnect(); if (timer.current) clearTimeout(timer.current); };
   }, [served]);

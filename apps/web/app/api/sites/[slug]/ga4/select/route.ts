@@ -19,7 +19,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   const parsedParams = paramsSchema.safeParse(await params);
   const body = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsedParams.success || !body.success) return jsonError(request, 422, "invalid_selection", "Choose a valid GA4 property and web data stream.");
-  const rate = checkRateLimit("ga4-property-select", `${auth.user.id}:${parsedParams.data.slug}`, 20, 60 * 60 * 1000);
+  const rate = await checkRateLimit("ga4-property-select", `${auth.user.id}:${parsedParams.data.slug}`, 20, 60 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", "GA4 property validation is temporarily rate-limited.");
   try { return jsonOk(request, await selectGa4Property({ userId: auth.user.id, siteId: parsedParams.data.slug, ...body.data }), 201); }
   catch (error) { return handleError(request, error); }

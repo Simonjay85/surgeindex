@@ -213,7 +213,7 @@ async function handleDispute(dispute: Stripe.Dispute, environment: "test" | "liv
   });
 }
 
-export async function processStripeWebhook(input: { rawBody: string; signature: string | null; requestId: string }) {
+export async function processStripeWebhook(input: { rawBody: string; signature: string | null; requestId: string; replay?: boolean }) {
   const { client, environment } = stripeContext();
   if (!input.signature) throw new StripeServiceError("webhook_invalid", "Stripe signature is required.", 400);
   const webhookSecret = getServerEnv().STRIPE_WEBHOOK_SECRET;
@@ -224,9 +224,18 @@ export async function processStripeWebhook(input: { rawBody: string; signature: 
   } catch {
     throw new StripeServiceError("webhook_invalid", "Stripe webhook signature is invalid.", 400);
   }
+  if (Boolean(event.livemode) !== (environment === "live")) throw new StripeServiceError("stripe_mode_mismatch", "The webhook event environment does not match the configured Stripe secret.", 409);
   const db = getPostgresDb();
   const [inserted] = await db.insert(processedWebhookEvent).values({ provider: "stripe", eventId: event.id, stripeEnvironment: environment, eventType: event.type, requestId: input.requestId, processingResult: "received" }).onConflictDoNothing({ target: [processedWebhookEvent.provider, processedWebhookEvent.stripeEnvironment, processedWebhookEvent.eventId] }).returning({ id: processedWebhookEvent.id });
-  if (!inserted) return { eventId: event.id, type: event.type, duplicate: true };
+  let processingRow = inserted;
+  if (!processingRow) {
+    if (!input.replay) return { eventId: event.id, type: event.type, duplicate: true };
+    const [failed] = await db.select({ id: processedWebhookEvent.id, processingResult: processedWebhookEvent.processingResult }).from(processedWebhookEvent).where(and(eq(processedWebhookEvent.provider, "stripe"), eq(processedWebhookEvent.stripeEnvironment, environment), eq(processedWebhookEvent.eventId, event.id))).limit(1);
+    if (!failed || failed.processingResult !== "failed") return { eventId: event.id, type: event.type, duplicate: true };
+    const [claimed] = await db.update(processedWebhookEvent).set({ processingResult: "replaying", errorCode: null, requestId: input.requestId }).where(and(eq(processedWebhookEvent.id, failed.id), eq(processedWebhookEvent.processingResult, "failed"))).returning({ id: processedWebhookEvent.id });
+    if (!claimed) return { eventId: event.id, type: event.type, duplicate: true };
+    processingRow = claimed;
+  }
   try {
     switch (event.type) {
       case "checkout.session.completed":
@@ -262,10 +271,10 @@ export async function processStripeWebhook(input: { rawBody: string; signature: 
       default:
         break;
     }
-    await db.update(processedWebhookEvent).set({ processingResult: "processed" }).where(eq(processedWebhookEvent.id, inserted.id));
+    await db.update(processedWebhookEvent).set({ processingResult: "processed" }).where(eq(processedWebhookEvent.id, processingRow.id));
     return { eventId: event.id, type: event.type, duplicate: false };
   } catch (error) {
-    await db.update(processedWebhookEvent).set({ processingResult: "failed", errorCode: error instanceof StripeServiceError ? error.code : "internal_error" }).where(eq(processedWebhookEvent.id, inserted.id));
+    await db.update(processedWebhookEvent).set({ processingResult: "failed", errorCode: error instanceof StripeServiceError ? error.code : "internal_error" }).where(eq(processedWebhookEvent.id, processingRow.id));
     throw error;
   }
 }

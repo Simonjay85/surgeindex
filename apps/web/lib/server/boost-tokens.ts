@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { getServerEnv } from "@surge/config";
+import { getTrustedClientIp } from "./client-ip";
 
 type TokenKind = "impression" | "click";
 
@@ -96,10 +97,10 @@ export function anonymousVisitorHash(request: Request, siteId: string): string {
   const visitorId = request.headers.get("x-surgeindex-visitor")?.trim().slice(0, 128)
     ?? request.headers.get("cookie")?.match(/(?:^|;\s*)si_vid=([^;]+)/)?.[1]?.slice(0, 128)
     ?? "anonymous";
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim() ?? request.headers.get("cf-connecting-ip") ?? "unknown";
+  const trustedClientIp = getTrustedClientIp(request);
   const userAgent = request.headers.get("user-agent")?.slice(0, 256) ?? "unknown";
   const day = new Date().toISOString().slice(0, 10);
-  return createHmac("sha256", `${secret}:${day}`).update(`${siteId}:${visitorId}:${forwarded}:${userAgent}`).digest("hex");
+  return createHmac("sha256", `${secret}:${day}`).update(`${siteId}:${visitorId}:${trustedClientIp}:${userAgent}`).digest("hex");
 }
 
 export function routeContext(request: Request): string {

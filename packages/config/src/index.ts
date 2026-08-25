@@ -56,7 +56,7 @@ const serverEnvSchema = z.object({
   BOOST_MAX_OVERDELIVERY_PERCENT: z.coerce.number().int().min(0).max(100).default(10),
   BOOST_UNDERDELIVERY_GRACE_DAYS: z.coerce.number().int().min(0).max(30).default(2),
   NEXT_PUBLIC_APP_NAME: z.string().default("SurgeIndex"),
-  NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
+  NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   DATABASE_URL: z.string().optional(),
   DATABASE_URL_UNPOOLED: z.string().optional(),
   DB_DRIVER: z.enum(["pg", "neon"]).default("pg"),
@@ -111,6 +111,39 @@ const serverEnvSchema = z.object({
   TRACKER_EVENT_MAX_BODY_BYTES: z.coerce.number().int().min(4096).max(1_048_576).default(64 * 1024),
   EVENT_RETENTION_DAYS: z.coerce.number().int().min(1).max(730).default(90),
   SCORE_VERSION: z.string().default("v1"),
+  EXPECTED_MIGRATION_COUNT: z.coerce.number().int().min(1).max(10_000).default(14),
+  TRUSTED_PROXY_MODE: z.enum(["none", "direct_nginx", "cloudflare_nginx"]).default("none"),
+  TURNSTILE_REQUIRED: z
+    .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())
+    .default(false),
+  TURNSTILE_EXPECTED_HOSTNAME: z.string().optional(),
+  EMAIL_PROVIDER: z.enum(["disabled", "console", "http"]).default("disabled"),
+  EMAIL_FROM: z.string().email().optional(),
+  EMAIL_REPLY_TO: z.string().email().optional(),
+  EMAIL_HTTP_URL: z.string().url().optional(),
+  EMAIL_HTTP_API_KEY: z.string().optional(),
+  EMAIL_HTTP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30_000).default(8000),
+  BOOST_PLACEMENT_HOMEPAGE_ENABLED: z
+    .preprocess((value) => value === undefined || value === true || value === "true" || value === "1", z.boolean())
+    .default(true),
+  BOOST_PLACEMENT_CATEGORY_ENABLED: z
+    .preprocess((value) => value === undefined || value === true || value === "true" || value === "1", z.boolean())
+    .default(true),
+  BOOST_PLACEMENT_RANKING_ENABLED: z
+    .preprocess((value) => value === undefined || value === true || value === "true" || value === "1", z.boolean())
+    .default(true),
+  BOOST_PLACEMENT_PROFILE_ENABLED: z
+    .preprocess((value) => value === undefined || value === true || value === "true" || value === "1", z.boolean())
+    .default(true),
+  BOOST_PLACEMENT_BREAKOUT_ENABLED: z
+    .preprocess((value) => value === undefined || value === true || value === "true" || value === "1", z.boolean())
+    .default(true),
+  PUBLIC_REVENUE_BOARD_ENABLED: z
+    .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())
+    .default(false),
+  PUBLIC_PAGE_METRICS_ENABLED: z
+    .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())
+    .default(false),
   FEATURE_CREATORS: z
     .string()
     .optional()
@@ -155,6 +188,30 @@ export function getServerEnv(): ServerEnv {
   if (values.APP_MODE === "production" && (!values.BETTER_AUTH_SECRET || values.BETTER_AUTH_SECRET.length < 32)) {
     configurationIssues.push("  - BETTER_AUTH_SECRET: production requires at least 32 characters");
   }
+  if (values.APP_MODE === "production" && new URL(values.NEXT_PUBLIC_APP_URL).protocol !== "https:") {
+    configurationIssues.push("  - NEXT_PUBLIC_APP_URL: production requires an HTTPS origin");
+  }
+  if (values.APP_MODE === "production" && values.TRUSTED_PROXY_MODE === "none") {
+    configurationIssues.push("  - TRUSTED_PROXY_MODE: production must explicitly select direct_nginx or cloudflare_nginx");
+  }
+  if (values.APP_MODE === "production" && values.TURNSTILE_REQUIRED && (!values.TURNSTILE_SITE_KEY || !values.TURNSTILE_SECRET_KEY)) {
+    configurationIssues.push("  - TURNSTILE_SITE_KEY/TURNSTILE_SECRET_KEY: required when TURNSTILE_REQUIRED=true");
+  }
+  if (values.APP_MODE === "production" && values.TURNSTILE_REQUIRED && !values.TURNSTILE_EXPECTED_HOSTNAME) {
+    configurationIssues.push("  - TURNSTILE_EXPECTED_HOSTNAME: required when TURNSTILE_REQUIRED=true");
+  }
+  if (values.APP_MODE === "production" && values.EMAIL_PROVIDER === "disabled") {
+    configurationIssues.push("  - EMAIL_PROVIDER: production authentication requires a configured transactional email provider");
+  }
+  if (values.EMAIL_PROVIDER === "http" && (!values.EMAIL_FROM || !values.EMAIL_HTTP_URL || !values.EMAIL_HTTP_API_KEY)) {
+    configurationIssues.push("  - EMAIL_FROM/EMAIL_HTTP_URL/EMAIL_HTTP_API_KEY: required when EMAIL_PROVIDER=http");
+  }
+  if (values.APP_MODE === "production" && values.EMAIL_PROVIDER === "console") {
+    configurationIssues.push("  - EMAIL_PROVIDER: console email delivery is not allowed in production");
+  }
+  if (values.APP_MODE === "production" && values.EMAIL_PROVIDER === "http" && values.EMAIL_HTTP_URL && new URL(values.EMAIL_HTTP_URL).protocol !== "https:") {
+    configurationIssues.push("  - EMAIL_HTTP_URL: production email delivery requires an HTTPS endpoint");
+  }
   if (values.GA4_ENABLED && values.APP_MODE === "production") {
     if (values.GA4_PROVIDER_MODE !== "google") configurationIssues.push("  - GA4_PROVIDER_MODE: production GA4 requires GA4_PROVIDER_MODE=google");
     if (!values.GA4_OAUTH_CLIENT_ID) configurationIssues.push("  - GA4_OAUTH_CLIENT_ID: required when GA4_ENABLED=true in production");
@@ -173,6 +230,9 @@ export function getServerEnv(): ServerEnv {
   }
   if (values.STRIPE_TEST_MODE_REQUIRED && values.STRIPE_SECRET_KEY?.startsWith("sk_live_")) {
     configurationIssues.push("  - STRIPE_TEST_MODE_REQUIRED: live Stripe keys are not allowed while test mode is required");
+  }
+  if ((values.STRIPE_ENABLED || values.BOOST_LIVE_MODE_ENABLED) && values.STRIPE_TEST_MODE_REQUIRED && values.STRIPE_SECRET_KEY && !values.STRIPE_SECRET_KEY.startsWith("sk_test_")) {
+    configurationIssues.push("  - STRIPE_SECRET_KEY: test-mode release gates require a sk_test_ key");
   }
   if (values.BOOST_LIVE_MODE_ENABLED && values.APP_MODE !== "production") {
     configurationIssues.push("  - BOOST_LIVE_MODE_ENABLED: live Boost mode requires APP_MODE=production");

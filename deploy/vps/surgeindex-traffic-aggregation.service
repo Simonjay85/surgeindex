@@ -11,10 +11,17 @@ WorkingDirectory=/opt/surgeindex/current
 EnvironmentFile=/etc/surgeindex/surgeindex.env
 Environment=NODE_ENV=production
 Environment=NODE_OPTIONS=--conditions=react-server
-ExecStart=/opt/surgeindex/current/node_modules/.bin/tsx scripts/run-traffic-aggregation.ts
+ExecStart=/usr/bin/node /opt/surgeindex/current/dist/jobs/run-traffic-aggregation.mjs
+TimeoutStartSec=240
+RuntimeMaxSec=300
+MemoryMax=512M
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
-ProtectSystem=full
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 StandardOutput=journal
 StandardError=journal

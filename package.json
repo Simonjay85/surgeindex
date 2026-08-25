@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "pnpm -F web dev",
-    "build": "pnpm tracker:build && pnpm -F web build",
+    "build": "pnpm tracker:build && pnpm -F web build && pnpm jobs:build",
     "start": "pnpm -F web start",
     "preview": "pnpm -F web preview",
     "deploy": "pnpm -F web deploy",
@@ -52,7 +52,18 @@
     "boost:reconcile-payments": "tsx --env-file=apps/web/.env scripts/boost-reconcile-payments.ts",
     "boost:release-reservations": "tsx --env-file=apps/web/.env scripts/boost-release-reservations.ts",
     "stripe:test-webhook": "tsx scripts/stripe-test-webhook.ts",
-    "stripe:replay-event": "tsx --env-file=apps/web/.env scripts/stripe-replay-event.ts"
+    "stripe:replay-event": "tsx --env-file=apps/web/.env scripts/stripe-replay-event.ts",
+    "boost:placement-check": "node scripts/boost-placement-check.mjs",
+    "security:scan": "node scripts/secret-scan.mjs",
+    "db:smoke": "tsx scripts/migration-smoke.ts",
+    "production:import": "tsx scripts/import-production-sites.ts",
+    "launch:gates": "node scripts/launch-gates.mjs",
+    "launch:check": "node scripts/launch-check.mjs",
+    "jobs:build": "node scripts/build-production-jobs.mjs",
+    "jobs:smoke": "node scripts/job-artifact-smoke.mjs"
+  },
+  "dependencies": {
+    "pg": "8.23.0"
   },
   "devDependencies": {
     "@surge/boost": "workspace:*",
@@ -60,6 +71,8 @@
     "@surge/db": "workspace:*",
     "@surge/ga4": "workspace:*",
     "@surge/shared": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "esbuild": "0.28.2",
     "tsx": "catalog:",
     "typescript": "catalog:"
   }

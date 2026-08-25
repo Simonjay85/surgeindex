@@ -1,4 +1,5 @@
 import { getServerEnv } from "@surge/config";
+import { withJobStatus } from "../apps/web/lib/server/job-status";
 
 async function main() {
   const env = getServerEnv();
@@ -8,7 +9,7 @@ async function main() {
   }
   const { runGa4Backfill } = await import("../apps/web/lib/server/ga4-service");
   const args = new Map(process.argv.slice(2).map((value) => { const [key, val] = value.split("=", 2); return [key, val ?? "true"]; }));
-  const result = await runGa4Backfill({ siteId: args.get("--site-id"), connectionId: args.get("--connection-id"), requestId: args.get("--request-id") });
+  const result = await withJobStatus("ga4-backfill", (requestId) => runGa4Backfill({ siteId: args.get("--site-id"), connectionId: args.get("--connection-id"), requestId }));
   console.log(JSON.stringify(result, null, 2));
 }
 

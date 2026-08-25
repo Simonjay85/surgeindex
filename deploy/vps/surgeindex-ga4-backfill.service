@@ -1,0 +1,26 @@
+[Unit]
+Description=Process a bounded SurgeIndex GA4 backfill batch
+Wants=network-online.target
+After=network-online.target surgeindex.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/surgeindex/current
+EnvironmentFile=/etc/surgeindex/surgeindex.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /opt/surgeindex/current/dist/jobs/ga4-backfill.mjs
+TimeoutStartSec=240
+RuntimeMaxSec=300
+MemoryMax=512M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+StandardOutput=journal
+StandardError=journal

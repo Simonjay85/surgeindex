@@ -43,6 +43,9 @@ export interface RepositorySite {
   submittedByUserId: string | null;
   featured: boolean;
   isDemo: boolean;
+  permittedAliases: string[];
+  publicRevenueVisible: boolean;
+  publicPageMetricsVisible: boolean;
   createdAt: Date;
   current: {
     activeNow: number | null;
@@ -113,7 +116,7 @@ export interface RepositoryClaimReview {
   siteName: string;
   domain: string;
   userId: string;
-  method: "meta_tag" | "html_file" | "dns_txt" | "tracker" | "ga4";
+  method: "meta_tag" | "dns_txt";
   status: "pending" | "verified" | "failed" | "expired";
   attempts: number;
   lastError: string | null;
@@ -139,6 +142,9 @@ const siteSelection = {
   submittedByUserId: site.submittedByUserId,
   featured: site.featured,
   isDemo: site.isDemo,
+  permittedAliases: site.permittedAliases,
+  publicRevenueVisible: site.publicRevenueVisible,
+  publicPageMetricsVisible: site.publicPageMetricsVisible,
   createdAt: site.createdAt,
   current: siteMetricCurrent,
   currentRank: currentRanking,
@@ -162,6 +168,9 @@ type SiteJoinRow = {
   submittedByUserId: string | null;
   featured: boolean;
   isDemo: boolean;
+  permittedAliases: string[];
+  publicRevenueVisible: boolean;
+  publicPageMetricsVisible: boolean;
   createdAt: Date;
   current: {
     siteId: string;
@@ -447,6 +456,43 @@ export async function listClaimReviews(db: Repository, limit = 100): Promise<Rep
     .where(or(eq(siteClaim.status, "failed"), eq(siteClaim.status, "expired")))
     .orderBy(desc(siteClaim.requestedAt))
     .limit(limit);
+}
+
+/** Record an explicit admin decision on a failed or expired ownership proof. */
+export async function reviewClaim(
+  db: Repository,
+  input: { claimId: string; adminUserId: string; action: "reject" | "expire"; reason: string; requestId: string },
+) {
+  return db.transaction(async (tx) => {
+      const [before] = await tx
+        .select({ id: siteClaim.id, status: siteClaim.status, lastError: siteClaim.lastError })
+        .from(siteClaim)
+      .where(and(eq(siteClaim.id, input.claimId), or(eq(siteClaim.status, "failed"), eq(siteClaim.status, "expired"))))
+        .limit(1)
+        .for("update");
+    if (!before) return null;
+    const nextStatus = input.action === "expire" ? "expired" : "failed";
+    const [updated] = await tx
+      .update(siteClaim)
+        .set({ status: nextStatus, lastError: `admin_${input.action}:${input.reason}`.slice(0, 2_000), usedAt: new Date() })
+      .where(and(eq(siteClaim.id, input.claimId), or(eq(siteClaim.status, "failed"), eq(siteClaim.status, "expired"))))
+        .returning({ id: siteClaim.id, status: siteClaim.status });
+    const [audit] = await tx
+      .insert(adminAuditLog)
+      .values({
+        actorUserId: input.adminUserId,
+        action: `claim_${input.action}`,
+        targetType: "site_claim",
+        targetId: input.claimId,
+        previousState: { status: before.status, lastError: before.lastError },
+        newState: { status: nextStatus },
+        details: { reviewed: true },
+        reason: input.reason,
+        requestId: input.requestId,
+      })
+      .returning({ id: adminAuditLog.id });
+    return { claim: updated, auditId: audit?.id ?? null };
+  });
 }
 
 export async function getSnapshots(db: Repository, siteId: string, limit = 24) {

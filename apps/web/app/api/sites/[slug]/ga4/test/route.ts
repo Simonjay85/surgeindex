@@ -18,7 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   const parsedParams = paramsSchema.safeParse(await params);
   const body = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsedParams.success || !body.success) return jsonError(request, 422, "invalid_selection", "Choose a valid GA4 property and web data stream.");
-  const rate = checkRateLimit("ga4-property-test", `${auth.user.id}:${parsedParams.data.slug}`, 20, 60 * 60 * 1000);
+  const rate = await checkRateLimit("ga4-property-test", `${auth.user.id}:${parsedParams.data.slug}`, 20, 60 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", "GA4 validation is temporarily rate-limited.");
   try { return jsonOk(request, await testGa4Property({ userId: auth.user.id, siteId: parsedParams.data.slug, ...body.data })); }
   catch (error) { if (error instanceof Ga4ServiceError) return jsonError(request, error.status, error.code, error.message); return jsonError(request, 502, "ga4_test_failed", "The Google Analytics test report could not be completed."); }

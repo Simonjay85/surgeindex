@@ -7,6 +7,7 @@ import { nextCookies } from "better-auth/next-js";
 import { and, eq } from "drizzle-orm";
 import { account, getPostgresDb, session, user, verificationToken } from "@surge/db";
 import { getServerEnv } from "@surge/config";
+import { sendTransactionalEmail } from "./email";
 
 export interface CurrentUser {
   id: string;
@@ -23,6 +24,11 @@ const DEMO_USER: CurrentUser = {
   role: "admin",
   isDemo: true,
 };
+
+function escapeEmailHtml(value: string): string {
+  const entities: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" };
+  return value.replace(/[&<>\"']/g, (character) => entities[character] ?? character);
+}
 
 function createAuth(env: ReturnType<typeof getServerEnv>) {
   const secureCookies = new URL(env.NEXT_PUBLIC_APP_URL).protocol === "https:";
@@ -41,7 +47,27 @@ function createAuth(env: ReturnType<typeof getServerEnv>) {
     trustedOrigins: [env.NEXT_PUBLIC_APP_URL],
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: false,
+      requireEmailVerification: env.APP_MODE === "production",
+      autoSignIn: env.APP_MODE !== "production",
+      async sendResetPassword({ user, url }: { user: { email: string }; url: string }) {
+        await sendTransactionalEmail({
+          to: user.email,
+          subject: "Reset your SurgeIndex password",
+          text: `Use this link to reset your SurgeIndex password: ${url}`,
+          html: `<p>Use this link to reset your SurgeIndex password:</p><p><a href="${escapeEmailHtml(url)}">Reset password</a></p>`,
+        });
+      },
+    },
+    emailVerification: {
+      sendOnSignUp: env.APP_MODE === "production",
+      async sendVerificationEmail({ user, url }: { user: { email: string }; url: string }) {
+        await sendTransactionalEmail({
+          to: user.email,
+          subject: "Verify your SurgeIndex email",
+          text: `Verify your SurgeIndex account: ${url}`,
+          html: `<p>Verify your SurgeIndex account:</p><p><a href="${escapeEmailHtml(url)}">Verify email</a></p>`,
+        });
+      },
     },
     socialProviders: google,
     advanced: {

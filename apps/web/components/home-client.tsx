@@ -100,7 +100,7 @@ function ProductLanes() {
   </div></section>;
 }
 
-export function HomeClient({ initialSites, heroPulse, categories, isDemo, initialWindow = "live", initialCategory = "all", initialQuery = "" }: { initialSites: DemoSite[]; heroPulse: TimeseriesPoint[]; categories: CategoryInfo[]; isDemo: boolean; initialWindow?: string; initialCategory?: string; initialQuery?: string }) {
+export function HomeClient({ initialSites, heroPulse, categories, isDemo, initialWindow = "live", initialCategory = "all", initialQuery = "", turnstileSiteKey }: { initialSites: DemoSite[]; heroPulse: TimeseriesPoint[]; categories: CategoryInfo[]; isDemo: boolean; initialWindow?: string; initialCategory?: string; initialQuery?: string; turnstileSiteKey?: string }) {
   const router = useRouter();
   const [activeWindow, setActiveWindow] = useState(initialWindow);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
@@ -176,6 +176,6 @@ export function HomeClient({ initialSites, heroPulse, categories, isDemo, initia
 
     <section className="section section-tight"><div className="container"><SectionHeading title="Earn the rank. Buy the reach." description="SurgeIndex keeps organic attention and paid distribution in separate lanes, so a spotlight can never masquerade as momentum." /><div className="signal-principle"><h2>People should be able to tell what they’re looking at.</h2><div className="signal-principle-copy"><p>Every metric has a source. Every sponsored placement says so. Every Heat Score is computed from the site’s own attention signals—not a budget.</p><div className="principle-points"><div className="principle-point"><strong>Organic</strong><span>Verified traffic, growth, and confidence earn the rank.</span></div><div className="principle-point"><strong>Boosted</strong><span>Paid exposure is useful, transparent, and never rank-changing.</span></div></div></div></div></div></section>
 
-    <section className="section"><div className="container"><SubmitForm /></div></section>
+    <section className="section"><div className="container"><SubmitForm turnstileSiteKey={turnstileSiteKey} /></div></section>
   </>;
 }

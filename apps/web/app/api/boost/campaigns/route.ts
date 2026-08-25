@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   if (!origin.ok) return origin.response;
   const auth = await requireApiUser(request);
   if ("response" in auth) return auth.response;
-  const rate = checkRateLimit("boost-campaign-create", auth.user.id, 10, 60 * 60 * 1000);
+  const rate = await checkRateLimit("boost-campaign-create", auth.user.id, 10, 60 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", "Campaign creation is temporarily rate-limited.");
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError(request, 422, "invalid_payload", "Choose an eligible site, package, placement, and valid creative.");

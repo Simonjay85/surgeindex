@@ -1,0 +1,11 @@
+[Unit]
+Description=Verify the latest off-host SurgeIndex PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 04:15:00 Asia/Ho_Chi_Minh
+RandomizedDelaySec=30m
+Persistent=true
+Unit=surgeindex-postgres-backup-verify.service
+
+[Install]
+WantedBy=timers.target

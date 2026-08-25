@@ -6,6 +6,7 @@ import { requireApiUser } from "../../../lib/server/authorization";
 import { assertSameOrigin, jsonError, jsonOk, requestId } from "../../../lib/server/http";
 import { SiteServiceError, submitSiteForUser } from "../../../lib/server/site-service";
 import { checkRateLimit } from "../../../lib/server/rate-limit";
+import { verifyTurnstile } from "../../../lib/server/turnstile";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,7 @@ const submitSchema = z.object({
   category: z.string().trim().min(1).max(80),
   title: z.string().trim().max(160).optional(),
   description: z.string().trim().max(320).optional(),
+  turnstileToken: z.string().trim().max(2_048).optional(),
 });
 
 export async function POST(request: Request) {
@@ -24,13 +26,15 @@ export async function POST(request: Request) {
   const domain = safeDomain(parsed.data.url);
   if (!domain) return jsonError(request, 422, "invalid_domain", "Only public HTTP or HTTPS domains are accepted.");
   const env = getServerEnv();
+  const turnstile = await verifyTurnstile(request, parsed.data.turnstileToken, "site-submit");
+  if (!turnstile.ok) return jsonError(request, turnstile.code === "turnstile_configuration" ? 503 : 422, turnstile.code, "The anti-bot check could not be completed.");
   if (env.DATA_PROVIDER === "demo") {
     const existing = getLeaderboard("live").some((site) => site.domain === domain);
     return jsonOk(request, { domain, category: parsed.data.category, duplicate: existing, status: "pending_review", isDemo: true, source: "demo" }, 201);
   }
   const auth = await requireApiUser(request);
   if ("response" in auth) return auth.response;
-  const rate = checkRateLimit("site-submit", auth.user.id, 10, 60 * 60 * 1000);
+  const rate = await checkRateLimit("site-submit", auth.user.id, 10, 60 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", `Too many submissions. Try again in ${rate.retryAfterSeconds} seconds.`);
   try {
     const result = await submitSiteForUser({

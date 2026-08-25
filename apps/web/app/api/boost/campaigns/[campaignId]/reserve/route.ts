@@ -11,7 +11,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cam
   if (!origin.ok) return origin.response;
   const auth = await requireApiUser(request);
   if ("response" in auth) return auth.response;
-  const rate = checkRateLimit("boost-reserve", auth.user.id, 20, 60 * 60 * 1000);
+  const rate = await checkRateLimit("boost-reserve", auth.user.id, 20, 60 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", "Inventory reservation is temporarily rate-limited.");
   if (getServerEnv().APP_MODE !== "production" || getServerEnv().DATA_PROVIDER !== "postgres") return jsonError(request, 409, "demo_mode", "Demo delivery does not create production reservations.");
   try {

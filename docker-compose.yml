@@ -4,15 +4,15 @@ services:
     container_name: surgeindex-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: surge
-      POSTGRES_PASSWORD: surge
-      POSTGRES_DB: surgeindex
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER must be set in the deployment environment}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in the deployment environment}"
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB must be set in the deployment environment}"
     ports:
-      - "${SURGEINDEX_DB_PORT:-55433}:5432"
+      - "${SURGEINDEX_DB_BIND_ADDRESS:-127.0.0.1}:${SURGEINDEX_DB_PORT:-55433}:5432"
     volumes:
       - surgeindex-pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U surge -d surgeindex"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 3s
       retries: 10

@@ -17,6 +17,7 @@ import {
 } from "@surge/shared";
 import { jsonError, requestId } from "./http";
 import { checkRateLimit } from "./rate-limit";
+import { getTrustedClientIp } from "./client-ip";
 import { localRealtimeRegistry } from "./realtime";
 
 const MAX_IDENTIFIER_LENGTH = 128;
@@ -67,8 +68,8 @@ export async function collectTrackerRequest(request: Request): Promise<Collector
   const siteCache = new Map<string, { siteId: string; domains: string[]; status: string; siteStatus: string } | null>();
   const originHost = getOriginHost(request);
   const userAgent = request.headers.get("user-agent");
-  const ipHash = hashRotating(env.TRACKER_HASH_SECRET ?? env.TRACKER_HASH_SALT ?? env.TRACKER_SIGNING_SECRET!, `${request.headers.get("x-forwarded-for") ?? request.headers.get("cf-connecting-ip") ?? "unknown"}:${userAgent ?? ""}`);
-  const ipRate = checkRateLimit("tracker-ip", ipHash, 240, 60_000);
+  const ipHash = hashRotating(env.TRACKER_HASH_SECRET ?? env.TRACKER_HASH_SALT ?? env.TRACKER_SIGNING_SECRET!, `${getTrustedClientIp(request)}:${userAgent ?? ""}`);
+  const ipRate = await checkRateLimit("tracker-ip", ipHash, 240, 60_000);
   if (!ipRate.allowed) throw new CollectorError("collector_unavailable", "Collector rate limit reached.", 429);
 
   for (const event of events) {
@@ -79,7 +80,7 @@ export async function collectTrackerRequest(request: Request): Promise<Collector
       continue;
     }
     const keyUsable = ["active", "stale"].includes(key.status);
-    const keyRate = checkRateLimit("tracker-key", event.siteKey, 600, 60_000);
+    const keyRate = await checkRateLimit("tracker-key", event.siteKey, 600, 60_000);
     const eventOriginAllowed = Boolean(originHost && hostAllowed(originHost, key.domains));
     const visitorId = event.visitorId.slice(0, MAX_IDENTIFIER_LENGTH);
     const sessionId = event.sessionId.slice(0, MAX_IDENTIFIER_LENGTH);

@@ -80,10 +80,31 @@ const placementDefinitions: Record<BoostPlacementKey, BoostPlacementDefinition> 
   },
 };
 
+function placementEnabled(key: BoostPlacementKey, env: ReturnType<typeof getServerEnv>): boolean {
+  return {
+    homepage_boosted: env.BOOST_PLACEMENT_HOMEPAGE_ENABLED,
+    category_boosted: env.BOOST_PLACEMENT_CATEGORY_ENABLED,
+    ranking_feed_insert: env.BOOST_PLACEMENT_RANKING_ENABLED,
+    site_profile_recommendation: env.BOOST_PLACEMENT_PROFILE_ENABLED,
+    breakout_sponsor: env.BOOST_PLACEMENT_BREAKOUT_ENABLED,
+  }[key];
+}
+
+export function placementRouteMatches(key: BoostPlacementKey, route: string): boolean {
+  const pathname = route.split("?", 1)[0] ?? "/";
+  if (!pathname.startsWith("/") || pathname.startsWith("/api/")) return false;
+  if (key === "homepage_boosted") return pathname === "/";
+  if (key === "category_boosted") return /^\/categories\/[^/]+$/.test(pathname);
+  if (key === "ranking_feed_insert") return pathname === "/rankings";
+  if (key === "site_profile_recommendation") return /^\/site\/[^/]+$/.test(pathname);
+  return pathname === "/breakouts";
+}
+
 export function listBoostPlacements(): BoostPlacementDefinition[] {
   const env = getServerEnv();
   return BOOST_PLACEMENTS.map((key) => ({
     ...placementDefinitions[key],
+    active: placementEnabled(key, env),
     frequencyCapPerVisitorPerDay: env.BOOST_MAX_FREQUENCY_PER_VISITOR_PER_DAY,
     viewability: {
       minimumPercent: env.BOOST_IMPRESSION_VISIBILITY_PERCENT,
@@ -98,6 +119,7 @@ export function getBoostPlacement(key: string): BoostPlacementDefinition | null 
   const definition = placementDefinitions[key as BoostPlacementKey];
   return {
     ...definition,
+    active: placementEnabled(key as BoostPlacementKey, env),
     frequencyCapPerVisitorPerDay: env.BOOST_MAX_FREQUENCY_PER_VISITOR_PER_DAY,
     viewability: { minimumPercent: env.BOOST_IMPRESSION_VISIBILITY_PERCENT, minimumMilliseconds: env.BOOST_IMPRESSION_VISIBILITY_MS },
   };
@@ -105,6 +127,8 @@ export function getBoostPlacement(key: string): BoostPlacementDefinition | null 
 
 export function listBoostPackages(): BoostPackageDefinition[] {
   const env = getServerEnv();
+  const enabled = new Set(BOOST_PLACEMENTS.filter((key) => placementEnabled(key, env)));
+  const eligible = (keys: BoostPlacementKey[]) => keys.filter((key) => enabled.has(key));
   return [
     {
       id: "starter",
@@ -114,11 +138,11 @@ export function listBoostPackages(): BoostPackageDefinition[] {
       amountCents: 14_900,
       stripePriceId: env.BOOST_STARTER_PRICE_ID ?? null,
       targetQualifiedImpressions: 10_000,
-      eligiblePlacements: ["homepage_boosted", "category_boosted", "site_profile_recommendation"],
+      eligiblePlacements: eligible(["homepage_boosted", "category_boosted", "site_profile_recommendation"]),
       eligibleCategories: [],
       defaultDurationDays: env.BOOST_DEFAULT_CAMPAIGN_DAYS,
       maximumDurationDays: env.BOOST_MAX_CAMPAIGN_DAYS,
-      active: true,
+      active: enabled.has("homepage_boosted") || enabled.has("category_boosted") || enabled.has("site_profile_recommendation"),
       displayOrder: 1,
     },
     {
@@ -129,11 +153,11 @@ export function listBoostPackages(): BoostPackageDefinition[] {
       amountCents: 39_900,
       stripePriceId: env.BOOST_GROWTH_PRICE_ID ?? null,
       targetQualifiedImpressions: 35_000,
-      eligiblePlacements: ["homepage_boosted", "category_boosted", "ranking_feed_insert", "site_profile_recommendation", "breakout_sponsor"],
+      eligiblePlacements: eligible(["homepage_boosted", "category_boosted", "ranking_feed_insert", "site_profile_recommendation", "breakout_sponsor"]),
       eligibleCategories: [],
       defaultDurationDays: env.BOOST_DEFAULT_CAMPAIGN_DAYS,
       maximumDurationDays: env.BOOST_MAX_CAMPAIGN_DAYS,
-      active: true,
+      active: enabled.size > 0,
       displayOrder: 2,
     },
     {
@@ -144,11 +168,11 @@ export function listBoostPackages(): BoostPackageDefinition[] {
       amountCents: 89_900,
       stripePriceId: env.BOOST_LAUNCH_PRICE_ID ?? null,
       targetQualifiedImpressions: 100_000,
-      eligiblePlacements: ["homepage_boosted", "category_boosted", "ranking_feed_insert", "site_profile_recommendation", "breakout_sponsor"],
+      eligiblePlacements: eligible(["homepage_boosted", "category_boosted", "ranking_feed_insert", "site_profile_recommendation", "breakout_sponsor"]),
       eligibleCategories: [],
       defaultDurationDays: env.BOOST_DEFAULT_CAMPAIGN_DAYS,
       maximumDurationDays: env.BOOST_MAX_CAMPAIGN_DAYS,
-      active: true,
+      active: enabled.size > 0,
       displayOrder: 3,
     },
     {
@@ -159,7 +183,7 @@ export function listBoostPackages(): BoostPackageDefinition[] {
       amountCents: null,
       stripePriceId: null,
       targetQualifiedImpressions: null,
-      eligiblePlacements: [...BOOST_PLACEMENTS],
+      eligiblePlacements: BOOST_PLACEMENTS.filter((key) => enabled.has(key)),
       eligibleCategories: [],
       defaultDurationDays: env.BOOST_DEFAULT_CAMPAIGN_DAYS,
       maximumDurationDays: env.BOOST_MAX_CAMPAIGN_DAYS,

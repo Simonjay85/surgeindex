@@ -33,6 +33,8 @@ export const siteStatusEnum = pgEnum("site_status", ["pending", "active", "suspe
 export const verificationStatusEnum = pgEnum("verification_status", ["unverified", "tracker", "ga4"]);
 export const ownershipStatusEnum = pgEnum("ownership_status", ["unclaimed", "claimed"]);
 export const claimMethodEnum = pgEnum("claim_method", ["meta_tag", "html_file", "dns_txt", "tracker", "ga4"]);
+/** V1 ownership proof is intentionally narrower than traffic-source verification. */
+export const ownershipClaimMethodEnum = pgEnum("ownership_claim_method", ["meta_tag", "dns_txt"]);
 export const claimStatusEnum = pgEnum("claim_status", ["pending", "verified", "failed", "expired"]);
 export const dataSourceEnum = pgEnum("data_source", ["tracker", "ga4", "surgeindex", "sponsored", "demo", "unverified"]);
 export const trackerKeyStatusEnum = pgEnum("tracker_key_status", ["pending", "active", "stale", "rotated", "revoked"]);
@@ -247,6 +249,9 @@ export const site = pgTable(
     submittedByUserId: text("submitted_by_user_id").references(() => user.id, { onDelete: "set null" }),
     featured: boolean("featured").notNull().default(false),
     isDemo: boolean("is_demo").notNull().default(false),
+    permittedAliases: text("permitted_aliases").array().notNull().default(sql`ARRAY[]::text[]`),
+    publicRevenueVisible: boolean("public_revenue_visible").notNull().default(false),
+    publicPageMetricsVisible: boolean("public_page_metrics_visible").notNull().default(false),
     createdAt: timestamps.createdAt,
     updatedAt: timestamps.updatedAt,
     deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
@@ -318,7 +323,7 @@ export const siteClaim = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    method: claimMethodEnum("method").notNull(),
+    method: ownershipClaimMethodEnum("method").notNull(),
     token: text("token").notNull().unique(),
     status: claimStatusEnum("status").notNull().default("pending"),
     attempts: integer("attempts").notNull().default(0),
@@ -1127,6 +1132,35 @@ export const featureFlag = pgTable("feature_flag", {
   description: text("description").notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
+
+/** Durable rolling-window limiter for the single-VPS production topology. */
+export const rateLimitBucket = pgTable(
+  "rate_limit_bucket",
+  {
+    key: text("key").primaryKey(),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true, mode: "date" }).notNull(),
+    windowExpiresAt: timestamp("window_expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    count: integer("count").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("rate_limit_expiry_idx").on(t.windowExpiresAt)],
+);
+
+/** Last-run state exposed to the protected admin job-health view. */
+export const systemJobRun = pgTable(
+  "system_job_run",
+  {
+    jobKey: text("job_key").primaryKey(),
+    lastStartedAt: timestamp("last_started_at", { withTimezone: true, mode: "date" }),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true, mode: "date" }),
+    lastFailureAt: timestamp("last_failure_at", { withTimezone: true, mode: "date" }),
+    lastErrorCode: text("last_error_code"),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+    lastRequestId: text("last_request_id"),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("system_job_freshness_idx").on(t.lastSuccessAt, t.lastFailureAt)],
+);
 
 /* ─────────────────────── Boosts and billing ─────────────────────── */
 

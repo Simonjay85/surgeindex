@@ -11,7 +11,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cam
   if (!origin.ok) return origin.response;
   const auth = await requireApiUser(request);
   if ("response" in auth) return auth.response;
-  const rate = checkRateLimit("boost-checkout", auth.user.id, 10, 60 * 60 * 1000);
+  const rate = await checkRateLimit("boost-checkout", auth.user.id, 10, 60 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", "Checkout creation is temporarily rate-limited.");
   if (getServerEnv().APP_MODE !== "production" || getServerEnv().DATA_PROVIDER !== "postgres") return jsonError(request, 409, "demo_mode", "Stripe Checkout is disabled in demo mode.");
   try {

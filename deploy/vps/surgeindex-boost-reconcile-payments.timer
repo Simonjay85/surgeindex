@@ -1,0 +1,12 @@
+[Unit]
+Description=Reconcile Boost payments every five minutes
+
+[Timer]
+OnBootSec=7min
+OnUnitActiveSec=5min
+AccuracySec=15s
+Persistent=true
+Unit=surgeindex-boost-reconcile-payments.service
+
+[Install]
+WantedBy=timers.target

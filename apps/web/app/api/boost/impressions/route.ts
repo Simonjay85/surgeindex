@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   const payload = parseServedImpressionToken(parsed.data.token);
   if (!payload) return jsonError(request, 422, "token_invalid", "The impression opportunity is invalid or expired.");
   const visitorHash = anonymousVisitorHash(request, getServerEnv().APP_MODE === "demo" ? "public" : payload.siteId);
-  const rate = checkRateLimit("boost-impression", visitorHash, 180, 60 * 1000);
+  const rate = await checkRateLimit("boost-impression", visitorHash, 180, 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", "Impression qualification is temporarily rate-limited.");
   if (visitorHash !== payload.visitorContextHash) return jsonError(request, 422, "token_context_mismatch", "The impression opportunity does not match this visitor.");
   if (getServerEnv().APP_MODE === "demo") {

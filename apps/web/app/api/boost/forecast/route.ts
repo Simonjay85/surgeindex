@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   const auth = await requireApiUser(request);
   if ("response" in auth) return auth.response;
   if (getServerEnv().APP_MODE !== "production" || getServerEnv().DATA_PROVIDER !== "postgres") return jsonError(request, 409, "demo_mode", "Inventory forecasts are fixture-only in demo mode.");
-  const rate = checkRateLimit("boost-forecast", auth.user.id, 30, 60 * 60 * 1000);
+  const rate = await checkRateLimit("boost-forecast", auth.user.id, 30, 60 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", "Inventory forecasting is temporarily rate-limited.");
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError(request, 422, "invalid_payload", "Choose a valid site, package, placement, and date window.");

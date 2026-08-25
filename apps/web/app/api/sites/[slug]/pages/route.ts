@@ -9,7 +9,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   const db = getPostgresDb();
   const site = await findPublicSiteBySlug(db, slug);
   if (!site) return NextResponse.json({ error: "Site not found" }, { status: 404 });
-  const [pages, revenue] = await Promise.all([getSitePageMetrics(site.id), getSiteRevenueSummary(site.id, true)]);
+  const [pages, revenue] = await Promise.all([getSitePageMetrics(site.id, 100, true), getSiteRevenueSummary(site.id, true)]);
   return NextResponse.json(
     {
       data: {

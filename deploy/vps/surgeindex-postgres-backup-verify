@@ -1,0 +1,29 @@
+#!/bin/sh
+set -eu
+
+umask 077
+: "${BACKUP_S3_BUCKET:?BACKUP_S3_BUCKET is required}"
+: "${BACKUP_S3_PREFIX:?BACKUP_S3_PREFIX is required}"
+: "${BACKUP_AGE_IDENTITY_FILE:?BACKUP_AGE_IDENTITY_FILE is required}"
+: "${BACKUP_TMP_DIR:=/var/backups/surgeindex/verify}"
+mkdir -p "$BACKUP_TMP_DIR"
+download_dir=$(mktemp -d "$BACKUP_TMP_DIR/.download.XXXXXX")
+latest="$download_dir/latest.dump.age"
+decrypted="$download_dir/latest.dump"
+
+cleanup() { rm -rf "$download_dir"; }
+trap cleanup EXIT HUP INT TERM
+
+prefix="s3://${BACKUP_S3_BUCKET}/${BACKUP_S3_PREFIX%/}/"
+if [ -n "${BACKUP_S3_ENDPOINT:-}" ]; then
+  aws s3 sync "$prefix" "$download_dir" --endpoint-url "$BACKUP_S3_ENDPOINT" --exclude '*' --include '*.dump.age' --only-show-errors
+else
+  aws s3 sync "$prefix" "$download_dir" --exclude '*' --include '*.dump.age' --only-show-errors
+fi
+candidate=$(find "$download_dir" -type f -name '*.dump.age' -print | sort | tail -n 1)
+test -n "$candidate"
+cp "$candidate" "$latest"
+age --decrypt --identity "$BACKUP_AGE_IDENTITY_FILE" --output "$decrypted" "$latest"
+test -s "$decrypted"
+pg_restore --list "$decrypted" >/dev/null
+echo "Encrypted backup verification passed: $(basename "$candidate")"

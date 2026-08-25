@@ -8,6 +8,7 @@ import { boostCampaign, getPostgresDb, outboundClick, site as siteTable } from "
 import { getPublicDataProvider } from "../../../lib/server/public-provider";
 import { recordBoostClick } from "../../../lib/server/boost-service";
 import { anonymousVisitorHash, verifyClickToken } from "../../../lib/server/boost-tokens";
+import { getTrustedClientIp } from "../../../lib/server/client-ip";
 import { signAttributionToken } from "../../../lib/server/traffic-pipeline";
 
 export async function GET(request: Request, { params }: { params: Promise<{ siteSlug: string }> }) {
@@ -22,7 +23,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ site
   let redirectDestination = destination;
   if (env.APP_MODE === "production" && env.DATA_PROVIDER === "postgres") {
     const db = getPostgresDb();
-    const visitorHash = createHmac("sha256", `${env.TRACKER_HASH_SECRET ?? env.TRACKER_HASH_SALT ?? env.TRACKER_SIGNING_SECRET}:${new Date().toISOString().slice(0, 10)}`).update(`${request.headers.get("x-forwarded-for") ?? "unknown"}:${request.headers.get("user-agent") ?? ""}`).digest("hex");
+    const visitorHash = createHmac("sha256", `${env.TRACKER_HASH_SECRET ?? env.TRACKER_HASH_SALT ?? env.TRACKER_SIGNING_SECRET}:${new Date().toISOString().slice(0, 10)}`).update(`${getTrustedClientIp(request)}:${request.headers.get("user-agent") ?? ""}`).digest("hex");
     const recent = await db.select({ id: outboundClick.id }).from(outboundClick).where(and(eq(outboundClick.siteId, site.siteId), eq(outboundClick.visitorHash, visitorHash), gt(outboundClick.occurredAt, new Date(Date.now() - 10 * 60 * 1000)))).limit(25);
     const verdict = checkOutboundClick({ userAgent: request.headers.get("user-agent"), visitorClicksLast10m: recent.length });
     const [click] = await db.insert(outboundClick).values({

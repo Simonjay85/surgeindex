@@ -20,7 +20,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   if (!parsedParams.success) return jsonError(request, 422, "invalid_site", "The site identifier is invalid.");
   const body = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!body.success) return jsonError(request, 422, "invalid_payload", "The return path is invalid.");
-  const rate = checkRateLimit("ga4-oauth-start", `${auth.user.id}:${parsedParams.data.slug}`, 10, 60 * 60 * 1000);
+  const rate = await checkRateLimit("ga4-oauth-start", `${auth.user.id}:${parsedParams.data.slug}`, 10, 60 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", "Google Analytics connection attempts are temporarily rate-limited.");
   try { return jsonOk(request, await startGa4OAuth({ userId: auth.user.id, siteId: parsedParams.data.slug, returnPath: body.data.returnPath }), 201); }
   catch (error) { return handleError(request, error); }

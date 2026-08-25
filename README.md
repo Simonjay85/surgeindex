@@ -40,6 +40,10 @@ pnpm boost:aggregate # rebuild persisted delivery aggregates; demo mode exits di
 pnpm boost:reconcile-payments # inspect pending application payment ledger rows
 pnpm boost:release-reservations # release expired Checkout inventory holds
 pnpm stripe:test-webhook # local signed Stripe fixture only; no network or charge
+pnpm launch:gates   # report tracker, GA4, Stripe, and each Boost placement gate
+pnpm launch:check   # complete deterministic release check; requires an explicit disposable DB for migration smoke
+pnpm db:smoke       # fresh + 0011 upgrade migration smoke; requires disposable DB/reset opt-in
+pnpm production:import -- --file sites.csv # dry-run real-site metadata import; add guarded --apply only after review
 pnpm preview         # OpenNext Cloudflare preview; requires adapter setup
 pnpm deploy          # OpenNext Cloudflare deploy; requires Cloudflare auth
 ```
@@ -105,6 +109,13 @@ Copy `.env.example` to `apps/web/.env`. `APP_MODE` and `DATA_PROVIDER` are alway
 `apps/web/wrangler.jsonc` is the fail-closed OpenNext production configuration for the canonical host `https://surgeindex.lol`; `apps/web/.env.production.example` lists the matching build/runtime values and required secrets. The web Worker defaults to the local queue and realtime adapters until their dedicated Cloudflare services are provisioned. The collector, queue consumer, and realtime worker each retain their own Wrangler config under `workers/`.
 
 The first administrator is promoted out-of-band after sign-up: `ADMIN_BOOTSTRAP_CONFIRM=<exact-email> pnpm admin:promote -- <exact-email>`. The command refuses to promote a second account unless `ADMIN_BOOTSTRAP_ALLOW_EXISTING=true` is set explicitly; there is no public role-changing endpoint.
+
+For release protection, configure the `fix/launch-readiness` branch with required
+status checks for the `checks` and `migrations` jobs in
+`.github/workflows/launch-readiness.yml`, require pull requests and at least one
+review, dismiss stale approvals, require branches to be up to date, and block
+force-pushes. Do not merge this branch automatically; the release owner must
+review the reports and external smoke evidence first.
 
 Auth, payment, GA4, Tinybird, Turnstile, and Cloudflare integrations are intentionally demo-safe until credentials and production policy are supplied. The UI labels those states instead of presenting simulated records as live business data.
 

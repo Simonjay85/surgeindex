@@ -56,7 +56,9 @@ export async function POST(request: Request) {
       periodEnd: body.periodEnd ? new Date(body.periodEnd) : null,
       lastSyncedAt: now,
       status: body.status,
-      publicVisible: body.publicVisible,
+      // Provider payloads never grant public disclosure. The owner-controlled
+      // site flag is the only public visibility authority.
+      publicVisible: false,
       providerDefinitionVersion: body.providerDefinitionVersion,
       metadata: body.metadata,
       updatedAt: now,
@@ -74,7 +76,7 @@ export async function POST(request: Request) {
         periodEnd: body.periodEnd ? new Date(body.periodEnd) : null,
         lastSyncedAt: now,
         status: body.status,
-        publicVisible: body.publicVisible,
+        publicVisible: false,
         providerDefinitionVersion: body.providerDefinitionVersion,
         metadata: body.metadata,
         updatedAt: now,

@@ -17,7 +17,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   const siteId = (await params).slug;
   const body = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!body.success) return jsonError(request, 422, "invalid_sync_type", "Choose core, realtime, or all.");
-  const rate = checkRateLimit("ga4-manual-sync", `${auth.user.id}:${siteId}`, 10, 60 * 60 * 1000);
+  const rate = await checkRateLimit("ga4-manual-sync", `${auth.user.id}:${siteId}`, 10, 60 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", "Manual GA4 sync is temporarily rate-limited.");
   try {
     const result: Record<string, unknown> = {};

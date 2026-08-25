@@ -4,7 +4,7 @@ import { and, desc, eq, gt, gte, isNull, lte, or, sql } from "drizzle-orm";
 import { assertBoostTransition, buildBoostReport, forecastInventory, type BoostCampaignState, type BoostPlacementKey, type BoostReport, type InventoryForecast } from "@surge/boost";
 import { getServerEnv } from "@surge/config";
 import { boostCampaign, boostCampaignCreative, boostCampaignStateTransition, boostClickEvent, boostFrequencyCap, boostImpressionAggregate, boostImpressionEvent, boostImpressionOpportunity, boostInventoryReservation, boostInventoryWindow, boostOrder, boostStripeCheckoutSession, category, getPostgresDb, site, siteMetricCurrent, siteOwner, trackerKey } from "@surge/db";
-import { getBoostPackage, getBoostPlacement, legacyPlacementFor, packageSnapshot, sanitizeCreative } from "./boost-config";
+import { getBoostPackage, getBoostPlacement, legacyPlacementFor, packageSnapshot, placementRouteMatches, sanitizeCreative } from "./boost-config";
 import { anonymousVisitorHash, hashBoostToken, signClickToken, signImpressionToken, verifyImpressionToken } from "./boost-tokens";
 
 export class BoostServiceError extends Error {
@@ -378,10 +378,12 @@ export async function recordBoostClick(input: { payload: { campaignId: string; s
 
 export async function servedBoost(input: { placementKey: BoostPlacementKey; categoryId?: string | null; routeContext: string; visitorContextHash: string; request: Request }) {
   const env = getServerEnv();
+  const placement = getBoostPlacement(input.placementKey);
+  if (!placement?.active || !placementRouteMatches(input.placementKey, input.routeContext)) return null;
   if (env.APP_MODE === "demo") {
     const now = Date.now();
     const impressionToken = signImpressionToken({ campaignId: "demo-boost-campaign", siteId: "demo-boost-site", placementKey: input.placementKey, creativeVersion: 1, visitorContextHash: input.visitorContextHash, routeContext: input.routeContext, issuedAt: now, expiresAt: now + 5 * 60 * 1000 });
-    return { isDemo: true, campaignId: "demo-boost-campaign", siteId: "demo-boost-site", siteSlug: "demo-boost", placementKey: input.placementKey, creativeVersion: 1, headline: "A demo sponsored recommendation", description: "Demo delivery is clearly labeled and never affects organic rank.", ctaLabel: "View demo", destinationUrl: "https://example.com", impressionToken, clickToken: signClickToken({ campaignId: "demo-boost-campaign", siteId: "demo-boost-site", siteSlug: "demo-boost", placementKey: input.placementKey, creativeVersion: 1, visitorContextHash: input.visitorContextHash, destinationUrl: "https://example.com", issuedAt: now, expiresAt: now + 5 * 60 * 1000 }) };
+    return { isDemo: true, campaignId: "demo-boost-campaign", siteId: "demo-boost-site", siteSlug: "demo-boost", placementKey: input.placementKey, creativeVersion: 1, headline: "A demo sponsored recommendation", description: "Demo delivery is clearly labeled and never affects organic rank.", ctaLabel: "View demo", destinationUrl: "https://example.com", minimumVisiblePercent: placement.viewability.minimumPercent, minimumVisibleMilliseconds: placement.viewability.minimumMilliseconds, impressionToken, clickToken: signClickToken({ campaignId: "demo-boost-campaign", siteId: "demo-boost-site", siteSlug: "demo-boost", placementKey: input.placementKey, creativeVersion: 1, visitorContextHash: input.visitorContextHash, destinationUrl: "https://example.com", issuedAt: now, expiresAt: now + 5 * 60 * 1000 }) };
   }
   if (!env.BOOST_ENABLED) return null;
   const now = new Date();
@@ -397,7 +399,7 @@ export async function servedBoost(input: { placementKey: BoostPlacementKey; cate
     if (frequency && Number(frequency.exposureCount) >= env.BOOST_MAX_FREQUENCY_PER_VISITOR_PER_DAY) continue;
     const opportunity = await createImpressionOpportunity({ campaignId: row.campaign.id, siteId: row.campaign.siteId, placementKey: row.campaign.placementKey as BoostPlacementKey, creativeVersion: row.campaign.creativeVersion, visitorContextHash: campaignVisitorHash, routeContext: input.routeContext, expiresAt: new Date(Date.now() + 5 * 60 * 1000) });
     const clickToken = signClickToken({ campaignId: row.campaign.id, siteId: row.campaign.siteId, siteSlug: row.siteSlug, placementKey: row.campaign.placementKey, creativeVersion: row.campaign.creativeVersion, visitorContextHash: campaignVisitorHash, destinationUrl: row.campaign.destinationUrl ?? `https://${row.siteDomain}`, issuedAt: Date.now(), expiresAt: Date.now() + 5 * 60 * 1000 });
-    return { isDemo: false, campaignId: row.campaign.id, siteId: row.campaign.siteId, siteSlug: row.siteSlug, siteName: row.siteName, domain: row.siteDomain, description: row.siteDescription, logoUrl: row.siteLogo, verification: row.siteVerification, placementKey: row.campaign.placementKey, creativeVersion: row.campaign.creativeVersion, headline: row.campaign.headline, descriptionText: row.campaign.shortDescription, ctaLabel: row.campaign.ctaLabel, destinationUrl: row.campaign.destinationUrl, impressionToken: opportunity.token, clickToken };
+    return { isDemo: false, campaignId: row.campaign.id, siteId: row.campaign.siteId, siteSlug: row.siteSlug, siteName: row.siteName, domain: row.siteDomain, description: row.siteDescription, logoUrl: row.siteLogo, verification: row.siteVerification, placementKey: row.campaign.placementKey, creativeVersion: row.campaign.creativeVersion, headline: row.campaign.headline, descriptionText: row.campaign.shortDescription, ctaLabel: row.campaign.ctaLabel, destinationUrl: row.campaign.destinationUrl, minimumVisiblePercent: placement.viewability.minimumPercent, minimumVisibleMilliseconds: placement.viewability.minimumMilliseconds, impressionToken: opportunity.token, clickToken };
   }
   return null;
 }

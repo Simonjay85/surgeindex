@@ -66,7 +66,9 @@ $body = [
     'status' => 'connected',
     // The public board is intentionally modelled after afford.bid: this site
     // has opted into showing its provider-reported net sales total.
-    'publicVisible' => true,
+    // Public disclosure is an owner-controlled SurgeIndex site setting. The
+    // integration payload can never opt a site into public revenue.
+    'publicVisible' => false,
     'providerDefinitionVersion' => 'woocommerce-orders-v1',
     'metadata' => [
         'siteDomain' => 'higuppy.com',
