@@ -194,6 +194,9 @@ export function getServerEnv(): ServerEnv {
   if (values.APP_MODE === "production" && values.TRUSTED_PROXY_MODE === "none") {
     configurationIssues.push("  - TRUSTED_PROXY_MODE: production must explicitly select direct_nginx or cloudflare_nginx");
   }
+  if (values.APP_MODE === "production" && !values.TURNSTILE_REQUIRED) {
+    configurationIssues.push("  - TURNSTILE_REQUIRED: production anonymous mutations require TURNSTILE_REQUIRED=true");
+  }
   if (values.APP_MODE === "production" && values.TURNSTILE_REQUIRED && (!values.TURNSTILE_SITE_KEY || !values.TURNSTILE_SECRET_KEY)) {
     configurationIssues.push("  - TURNSTILE_SITE_KEY/TURNSTILE_SECRET_KEY: required when TURNSTILE_REQUIRED=true");
   }

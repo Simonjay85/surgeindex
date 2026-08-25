@@ -16,6 +16,10 @@ function setMode(mode?: string, provider?: string) {
   delete process.env.EMAIL_FROM;
   delete process.env.EMAIL_HTTP_URL;
   delete process.env.EMAIL_HTTP_API_KEY;
+  delete process.env.TURNSTILE_REQUIRED;
+  delete process.env.TURNSTILE_SITE_KEY;
+  delete process.env.TURNSTILE_SECRET_KEY;
+  delete process.env.TURNSTILE_EXPECTED_HOSTNAME;
   resetServerEnvCache();
 }
 
@@ -26,6 +30,10 @@ function setProductionDependencies() {
   process.env.EMAIL_FROM = "no-reply@surgeindex.example";
   process.env.EMAIL_HTTP_URL = "https://mail.example.test/send";
   process.env.EMAIL_HTTP_API_KEY = "test-only-email-key";
+  process.env.TURNSTILE_REQUIRED = "true";
+  process.env.TURNSTILE_SITE_KEY = "0xsite";
+  process.env.TURNSTILE_SECRET_KEY = "0xsecret";
+  process.env.TURNSTILE_EXPECTED_HOSTNAME = "surgeindex.example";
 }
 
 describe("explicit application configuration", () => {
@@ -52,6 +60,18 @@ describe("explicit application configuration", () => {
     expect(() => getServerEnv()).toThrow(/BETTER_AUTH_SECRET/);
     process.env.BETTER_AUTH_SECRET = "a".repeat(32);
     expect(getServerEnv().APP_MODE).toBe("production");
+  });
+
+  it("fails closed when production Turnstile is not explicitly enabled", () => {
+    setMode("production", "postgres");
+    setProductionDependencies();
+    process.env.DATABASE_URL = "postgresql://example";
+    process.env.BETTER_AUTH_SECRET = "a".repeat(32);
+    delete process.env.TURNSTILE_REQUIRED;
+    delete process.env.TURNSTILE_SITE_KEY;
+    delete process.env.TURNSTILE_SECRET_KEY;
+    delete process.env.TURNSTILE_EXPECTED_HOSTNAME;
+    expect(() => getServerEnv()).toThrow(/TURNSTILE_REQUIRED/);
   });
 
   it("does not permit fixture GA4 or missing token keys in production", () => {
@@ -99,6 +119,7 @@ describe("explicit application configuration", () => {
     process.env.TURNSTILE_REQUIRED = "true";
     process.env.TURNSTILE_SITE_KEY = "0xsite";
     process.env.TURNSTILE_SECRET_KEY = "0xsecret";
+    delete process.env.TURNSTILE_EXPECTED_HOSTNAME;
     expect(() => getServerEnv()).toThrow(/TURNSTILE_EXPECTED_HOSTNAME/);
 
     process.env.TURNSTILE_EXPECTED_HOSTNAME = "surgeindex.example";
