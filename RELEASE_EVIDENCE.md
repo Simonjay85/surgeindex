@@ -15,20 +15,20 @@ recorded as supporting evidence but does not replace an external gate.
 | Field | Value |
 | --- | --- |
 | Branch | `fix/launch-readiness` |
-| Release SHA | `1f4a5919195b94b2fd7cb04aa278e16c0d0c337b` (PR #1 head) |
-| CI merge SHA | `75f58225448af954bcbb34ad7d8310b840af284f` (successful PR merge ref) |
+| Release SHA | `10dc8a1d2cf462b83ed39d174dfdf681c54793f1` (PR #1 head) |
+| CI merge SHA | `65af977914420a57ef8c0f824c9f4258405d4c16` (successful PR merge ref) |
 | Base / ancestry | `feat/surgeindex-boost-stripe` lineage; verify with the CI SHA before release |
 | Release owner | `PENDING OWNER` |
 | Approval ticket | `PENDING TICKET` |
-| Evidence updated at | `2026-08-25T13:16:28Z` |
+| Evidence updated at | `2026-08-25T13:23:14Z` |
 
 ## Repository and CI evidence
 
 | Gate | Result | Evidence / read-back | External action required |
 | --- | --- | --- | --- |
-| Release SHA | `PASS` | PR [#1](https://github.com/Simonjay85/surgeindex/pull/1) head is `1f4a5919195b94b2fd7cb04aa278e16c0d0c337b`; successful CI artifact records merge SHA `75f58225448af954bcbb34ad7d8310b840af284f`. | Reconfirm the head/merge SHA pair for each subsequent release run. |
-| GitHub Actions run | `PASS` | [Run 32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012) passed required `checks` and `migrations` jobs. [launch-readiness-evidence artifact](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012/artifacts/9564749865) and [migration-evidence artifact](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012/artifacts/9564647817) were uploaded. | Re-run for each release SHA. |
-| PostgreSQL fresh migration | `PASS` | [migration-evidence.json](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012/artifacts/9564647817) records PostgreSQL 17.11, disposable guard `PASS`, path `0000 -> 0013`, and `14` journal rows. | Re-run for each release SHA. |
+| Release SHA | `PASS` | PR [#1](https://github.com/Simonjay85/surgeindex/pull/1) head is `10dc8a1d2cf462b83ed39d174dfdf681c54793f1`; successful CI artifact records merge SHA `65af977914420a57ef8c0f824c9f4258405d4c16`. | Reconfirm the head/merge SHA pair for each subsequent release run. |
+| GitHub Actions run | `PASS` | [Run 32852663180](https://github.com/Simonjay85/surgeindex/actions/runs/32852663180) passed required `checks` and `migrations` jobs. [launch-readiness-evidence artifact](https://github.com/Simonjay85/surgeindex/actions/runs/32852663180/artifacts/9565008895) and [migration-evidence artifact](https://github.com/Simonjay85/surgeindex/actions/runs/32852663180/artifacts/9564913211) were uploaded. | Re-run for each release SHA. |
+| PostgreSQL fresh migration | `PASS` | [migration-evidence.json](https://github.com/Simonjay85/surgeindex/actions/runs/32852663180/artifacts/9564913211) records PostgreSQL 17.11, disposable guard `PASS`, path `0000 -> 0013`, and `14` journal rows. | Re-run for each release SHA. |
 | Batch 6 migration upgrade | `PASS` | The same artifact records baseline `11`, then `0011 -> 0012 -> 0013`, ending at `14`. | Re-run for each release SHA. |
 | Typecheck | `PASS` | The sanitized launch artifact records `pnpm typecheck` `PASS` across all 14 workspace packages. | Re-run for each release SHA. |
 | Lint | `PASS` | The sanitized launch artifact records `pnpm lint` `PASS`. | Re-run for each release SHA. |
