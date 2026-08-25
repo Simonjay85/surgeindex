@@ -25,30 +25,23 @@ test("profile, claim, and dashboard surfaces are reachable", async ({ page }) =>
   await expect(page.getByRole("heading", { name: "Good morning, Aaron." })).toBeVisible();
 });
 
-test("all five sponsored placements render with page route context", async ({ page }) => {
-  const placements = [
-    ["/", "homepage_boosted", "/"],
-    ["/categories/ai-tools", "category_boosted", "/categories/ai-tools"],
-    ["/rankings", "ranking_feed_insert", "/rankings"],
-    ["/site/promptharbor-com", "site_profile_recommendation", "/site/promptharbor-com"],
-    ["/breakouts", "breakout_sponsor", "/breakouts"],
-  ] as const;
+test("Public Free hides every sponsored placement and payment entry point", async ({ page }) => {
+  const serveRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/boost/serve")) serveRequests.push(request.url());
+  });
 
-  for (const [path, placement, route] of placements) {
-    const serveResponse = page.waitForResponse((response) => {
-      if (!response.url().includes("/api/boost/serve")) return false;
-      const query = new URL(response.url()).searchParams;
-      return query.get("placement") === placement && query.get("route") === route;
-    });
-    await page.goto(path);
-    const response = await serveResponse;
-    expect(response.ok()).toBe(true);
-    await expect(page.locator(".sponsored-card")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("Demo delivery · not billable", { exact: true })).toBeVisible();
+  for (const path of ["/", "/categories/ai-tools", "/rankings", "/site/promptharbor-com", "/breakouts"]) {
+    await page.goto(path, { waitUntil: "networkidle" });
+    await expect(page.locator(".sponsored-card")).toHaveCount(0);
   }
+  expect(serveRequests).toEqual([]);
 
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
-  await expect(page.getByRole("article", { name: "Sponsored placement" })).toBeVisible();
-  await expect(page.getByText("Sponsored", { exact: true })).toBeVisible();
+  await page.goto("/pricing");
+  await expect(page.getByRole("heading", { name: "Listing and organic ranking are free." })).toBeVisible();
+  await expect(page.getByText("No payment required", { exact: true })).toBeVisible();
+
+  await page.goto("/boost");
+  await expect(page.getByRole("heading", { name: "Public Free is open. Paid distribution is not." })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Checkout|Buy|Create a campaign/i })).toHaveCount(0);
 });
