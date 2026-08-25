@@ -81,6 +81,7 @@ external gate in `RELEASE_EVIDENCE.md`.
 | `pnpm db:smoke` Batch 6 upgrade | `PASS` | The same run applied baseline 11 migrations, then `0011 -> 0012 -> 0013`, ending at 14; evidence artifact records both counts. |
 | `pnpm build` | `PASS` | CI demo production-shaped build generated 66 pages and 13 job artifacts; no deploy claim. |
 | `pnpm test:e2e` | `PASS` | CI Chromium demo E2E passed all 4 tests in 22.3s; production auth/provider flows remain external. |
+| `pnpm audit --prod --audit-level high` | `PASS` | No high/critical findings. One moderate transitive `esbuild@0.18.20` advisory (`GHSA-67mh-4wv8-2f99`, patched `>=0.24.3`) remains for commercial-release review. |
 | Git diff check | `PASS` | `git diff --check` completed in the aggregate launch-check wrapper. |
 
 ## External gate status

@@ -35,6 +35,7 @@ recorded as supporting evidence but does not replace an external gate.
 | Unit tests | `PASS` | The sanitized launch artifact records `pnpm test` `PASS`; database/analytics infrastructure tests remain explicitly skipped where no separate database fixture is required. | Re-run for each release SHA and keep skipped suites labeled. |
 | Build | `PASS` | The sanitized launch artifact records `pnpm build` `PASS`, 66 pages, and 13 production job artifacts. | Re-run for each release SHA. |
 | E2E | `PASS` | The sanitized launch artifact records `pnpm test:e2e` `PASS`: 4 Chromium tests in 22.3 seconds. This remains demo/browser evidence, not production auth/provider proof. | Re-run for each release SHA; complete external smoke separately. |
+| Production dependency audit | `PASS` | `pnpm audit --prod --audit-level high` passes with no high/critical findings. One moderate transitive `esbuild@0.18.20` advisory remains: `GHSA-67mh-4wv8-2f99`, patched at `>=0.24.3`. | Review the transitive upgrade or formally accept the risk before commercial release; this row does not make `COMMERCIAL READY`. |
 
 Successful CI runs upload sanitized `launch-readiness-evidence` and
 `migration-evidence` artifacts. They contain no database URLs, passwords,
