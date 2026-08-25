@@ -62,7 +62,7 @@ jobs:
         run: echo "WORKFLOW_RUN_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm -F web exec playwright install --with-deps chromium
       - run: pnpm launch:check
       - run: pnpm audit --prod --audit-level high
       - name: Upload launch-readiness evidence
