@@ -19,6 +19,9 @@ Repository-side launch-readiness work is implemented on the target branch:
   explicit-disposable guards before every schema reset.
 - `RELEASE_EVIDENCE.md` is the authoritative gate manifest.
 - Read-only staging and VPS diagnostic probes are available.
+- The final review run [32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012)
+  passed both required jobs on PostgreSQL 17; its head SHA is
+  `1f4a5919195b94b2fd7cb04aa278e16c0d0c337b`.
 - Authentication, backup/restore, legal/commercial, tracker, GA4, Stripe, and
   Boost procedures are documented without fabricating external evidence.
 
@@ -52,7 +55,7 @@ explicitly requests that scope.
 | --- | --- | --- |
 | Workflow | Implemented | `.github/workflows/launch-readiness.yml` has `checks`, `migrations`, PostgreSQL 17, `workflow_dispatch`, and artifact upload steps. |
 | Migration guard | Implemented | `scripts/migration-smoke.ts` requires a named loopback disposable target, `RELEASE_DB_SMOKE_DISPOSABLE=YES`, and verifies connected identity before reset. |
-| CI evidence | Implemented | `scripts/launch-check.mjs` writes sanitized command logs and JSON metadata when `LAUNCH_EVIDENCE_DIR` is set. |
+| CI evidence | PASS | [Run 32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012) passed `checks` and `migrations`; sanitized launch and migration artifacts were uploaded. |
 | Release manifest | Implemented | `RELEASE_EVIDENCE.md` contains the authoritative gate states, branch-protection instructions, launch-state rules, and final decision boundary. |
 | Auth smoke | Implemented | `docs/AUTH_PRODUCTION_SMOKE.md` covers real Turnstile, hostname/action checks, mailbox timestamps, verification, resend, reset token cases, rate limits, and non-enumeration. |
 | Tracker staging read-back | Implemented | `scripts/staging-readback.mjs` is read-only, redacts sensitive projections, and refuses to infer the event chain from health alone. |
@@ -71,14 +74,14 @@ override an external gate in `RELEASE_EVIDENCE.md`.
 | `pnpm typecheck` | `PASS` | Completed across all 14 workspace packages. |
 | `pnpm lint` | `PASS` | ESLint completed with no errors. |
 | `pnpm test` | `PASS` | 30 web tests plus workspace suites passed; the existing DB/analytics suites remained explicitly skipped without PostgreSQL. |
-| `pnpm security:scan` | `PASS` | 480 tracked files checked; no high-risk credential patterns found. Static scan only. |
+| `pnpm security:scan` | `PASS` | 485 tracked files checked in CI; no high-risk credential patterns found. Static scan only. |
 | `pnpm boost:placement-check` | `PASS` | Five V1 placements mapped to public routes with server-side context and kill switches. No live delivery proof. |
 | `pnpm jobs:build` | `PASS` | 13 production job artifacts built. |
 | `pnpm jobs:smoke` | `PASS` | 13 bundled entrypoints started in disabled demo mode. |
-| `pnpm db:smoke` fresh path | `BLOCKED` | Guarded local attempt failed closed at PostgreSQL authentication; no schema reset occurred. CI PostgreSQL 17 evidence remains pending. |
-| `pnpm db:smoke` Batch 6 upgrade | `BLOCKED` | The guarded local attempt could not reach the disposable database, so the upgrade path did not run. CI PostgreSQL 17 evidence remains pending. |
-| `pnpm build` | `PASS` | Demo production-shaped build generated 66 pages and 13 job artifacts; no deploy claim. |
-| `pnpm test:e2e` | `PASS` | Chromium demo E2E passed 4 tests in 9.7s; production auth/provider flows remain external. |
+| `pnpm db:smoke` fresh path | `PASS` | [Run 32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012) used PostgreSQL 17.11 and applied 14 migrations (`0000 -> 0013`) to a disposable CI database. |
+| `pnpm db:smoke` Batch 6 upgrade | `PASS` | The same run applied baseline 11 migrations, then `0011 -> 0012 -> 0013`, ending at 14; evidence artifact records both counts. |
+| `pnpm build` | `PASS` | CI demo production-shaped build generated 66 pages and 13 job artifacts; no deploy claim. |
+| `pnpm test:e2e` | `PASS` | CI Chromium demo E2E passed all 4 tests in 22.3s; production auth/provider flows remain external. |
 | Git diff check | `PASS` | `git diff --check` completed in the aggregate launch-check wrapper. |
 
 ## External gate status
@@ -131,9 +134,9 @@ published history automatically.
 | Gate | Result | Evidence | External action required |
 | --- | --- | --- | --- |
 | Repository-side launch-readiness implementation | `PASS` | Workflow, guarded migration paths, evidence scripts, manifest, checklists, and read-only probes are present in the target branch. | Run and archive the final validation/CI artifacts. |
-| PostgreSQL 17 fresh migration | `PENDING` | Requires a disposable PostgreSQL 17 run of `0000 -> 0013` with 14 rows. | Run CI `migrations` job and attach `migration-evidence`. |
-| PostgreSQL 17 Batch 6 upgrade | `PENDING` | Requires a disposable PostgreSQL 17 run of `0000 -> 0010`, then `0011 -> 0012 -> 0013` with 14 final rows. | Run CI `migrations` job and attach baseline/final counts. |
-| Typecheck / lint / tests / build / E2E | `PASS` | Current working-tree validation passed: typecheck, lint, tests, demo build, and 4 Chromium E2E tests. Repeat on the committed SHA/CI artifact before release. | Archive the final-SHA CI evidence; production auth/provider flows remain external. |
+| PostgreSQL 17 fresh migration | `PASS` | [Run 32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012), `migrations` job, PostgreSQL 17.11, 14 final journal rows, path `0000 -> 0013`. | Re-run for each release SHA. |
+| PostgreSQL 17 Batch 6 upgrade | `PASS` | The same `migration-evidence` artifact records baseline 11 and final 14, path `0000 -> 0010; 0011 -> 0012 -> 0013`. | Re-run for each release SHA. |
+| Typecheck / lint / tests / build / E2E | `PASS` | The same CI run passed typecheck, lint, unit/tracker tests, demo build, and all 4 Chromium E2E tests; production auth/provider flows remain external. | Archive the final-SHA CI evidence; do not infer external provider readiness. |
 | Branch protection | `PASS` | GitHub API read-back confirmed the requested protection settings on `fix/launch-readiness`. | Re-read after any settings change. |
 | Turnstile / transactional email / auth | `PENDING` | Real provider, mailbox, hostname, token-case, and rate-limit evidence absent. | Execute `docs/AUTH_PRODUCTION_SMOKE.md`. |
 | Tracker staging and ranking chain | `PENDING` | No controlled real tracker event chain is attached. | Install the staging key and read back every stage through freshness. |
