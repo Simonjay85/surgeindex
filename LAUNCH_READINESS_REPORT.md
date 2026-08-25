@@ -44,10 +44,9 @@ SurgeIndex referral traffic, and demo data remain separate lanes. This report
 does not treat a fixture, local UI, source inspection, or a successful command
 as production evidence.
 
-The worktree contained a pre-existing modification in
-`packages/boost/src/state-machine.ts`. It is preserved and must not be staged
-or overwritten as part of this launch-readiness change unless its owner
-explicitly requests that scope.
+The worktree also contains unrelated concurrent Radar changes plus a
+pre-existing modification in `packages/boost/src/state-machine.ts`. They are
+preserved and are not part of this launch-readiness PR.
 
 ## Repository-side implementation evidence
 
@@ -55,7 +54,7 @@ explicitly requests that scope.
 | --- | --- | --- |
 | Workflow | Implemented | `.github/workflows/launch-readiness.yml` has `checks`, `migrations`, PostgreSQL 17, `workflow_dispatch`, and artifact upload steps. |
 | Migration guard | Implemented | `scripts/migration-smoke.ts` requires a named loopback disposable target, `RELEASE_DB_SMOKE_DISPOSABLE=YES`, and verifies connected identity before reset. |
-| CI evidence | PASS | [Run 32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012) passed `checks` and `migrations`; sanitized launch and migration artifacts were uploaded. |
+| CI evidence | PASS | [Run 32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012) passed `checks` and `migrations`; [launch-readiness-evidence](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012/artifacts/9564749865) and [migration-evidence](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012/artifacts/9564647817) were uploaded. |
 | Release manifest | Implemented | `RELEASE_EVIDENCE.md` contains the authoritative gate states, branch-protection instructions, launch-state rules, and final decision boundary. |
 | Auth smoke | Implemented | `docs/AUTH_PRODUCTION_SMOKE.md` covers real Turnstile, hostname/action checks, mailbox timestamps, verification, resend, reset token cases, rate limits, and non-enumeration. |
 | Tracker staging read-back | Implemented | `scripts/staging-readback.mjs` is read-only, redacts sensitive projections, and refuses to infer the event chain from health alone. |
@@ -64,9 +63,9 @@ explicitly requests that scope.
 
 ## Validation evidence for this release SHA
 
-The following table must be updated from the current successful run and its
-artifacts. `PASS` means the command actually ran and completed; it does not
-override an external gate in `RELEASE_EVIDENCE.md`.
+The following table records the current successful run and its artifacts.
+`PASS` means the command actually ran and completed; it does not override an
+external gate in `RELEASE_EVIDENCE.md`.
 
 | Check | Result | Evidence / boundary |
 | --- | --- | --- |
@@ -133,7 +132,7 @@ published history automatically.
 
 | Gate | Result | Evidence | External action required |
 | --- | --- | --- | --- |
-| Repository-side launch-readiness implementation | `PASS` | Workflow, guarded migration paths, evidence scripts, manifest, checklists, and read-only probes are present in the target branch. | Run and archive the final validation/CI artifacts. |
+| Repository-side launch-readiness implementation | `PASS` | Workflow, guarded migration paths, evidence scripts, manifest, checklists, and read-only probes are present in the target branch. | Keep the PR review gate satisfied; do not merge without explicit release approval. |
 | PostgreSQL 17 fresh migration | `PASS` | [Run 32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012), `migrations` job, PostgreSQL 17.11, 14 final journal rows, path `0000 -> 0013`. | Re-run for each release SHA. |
 | PostgreSQL 17 Batch 6 upgrade | `PASS` | The same `migration-evidence` artifact records baseline 11 and final 14, path `0000 -> 0010; 0011 -> 0012 -> 0013`. | Re-run for each release SHA. |
 | Typecheck / lint / tests / build / E2E | `PASS` | The same CI run passed typecheck, lint, unit/tracker tests, demo build, and all 4 Chromium E2E tests; production auth/provider flows remain external. | Archive the final-SHA CI evidence; do not infer external provider readiness. |

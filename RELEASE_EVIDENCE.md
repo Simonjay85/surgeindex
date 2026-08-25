@@ -15,25 +15,26 @@ recorded as supporting evidence but does not replace an external gate.
 | Field | Value |
 | --- | --- |
 | Branch | `fix/launch-readiness` |
-| Release SHA | `PENDING CURRENT VALIDATION` |
+| Release SHA | `1f4a5919195b94b2fd7cb04aa278e16c0d0c337b` (PR #1 head) |
+| CI merge SHA | `75f58225448af954bcbb34ad7d8310b840af284f` (successful PR merge ref) |
 | Base / ancestry | `feat/surgeindex-boost-stripe` lineage; verify with the CI SHA before release |
 | Release owner | `PENDING OWNER` |
 | Approval ticket | `PENDING TICKET` |
-| Evidence updated at | `PENDING CURRENT VALIDATION` |
+| Evidence updated at | `2026-08-25T13:16:28Z` |
 
 ## Repository and CI evidence
 
 | Gate | Result | Evidence / read-back | External action required |
 | --- | --- | --- | --- |
-| Release SHA | `PENDING` | Fill from `git rev-parse HEAD` and the successful CI artifact. | Release owner records the exact SHA. |
-| GitHub Actions run | `PENDING` | Workflow: `.github/workflows/launch-readiness.yml`; required jobs: `checks`, `migrations`; manual `workflow_dispatch` is enabled. | Run the workflow and attach the run URL and artifact names. |
-| PostgreSQL fresh migration | `PENDING` | Disposable PostgreSQL 17 only; `0000 -> 0013`; expected `14` journal rows. | Attach `migration-evidence.json` from a successful run. |
-| Batch 6 migration upgrade | `PENDING` | Disposable PostgreSQL 17 only; `0000 -> 0010`, then `0011 -> 0012 -> 0013`; expected final `14` rows. | Attach the same migration artifact and database read-back. |
-| Typecheck | `PENDING` | `pnpm typecheck`; record the sanitized CI evidence result. | Re-run after the final release SHA is known. |
-| Lint | `PENDING` | `pnpm lint`; record the sanitized CI evidence result. | Re-run after the final release SHA is known. |
-| Unit tests | `PENDING` | `pnpm test`; skipped infrastructure suites must remain explicitly labeled. | Re-run with PostgreSQL-backed suites where required. |
-| Build | `PENDING` | `pnpm build`; record tracker, Next, and job artifact output status. | Archive the build result for the release SHA. |
-| E2E | `PENDING` | `pnpm test:e2e`; local/demo E2E is not production auth/provider proof. | Attach browser test result and external smoke references. |
+| Release SHA | `PASS` | PR [#1](https://github.com/Simonjay85/surgeindex/pull/1) head is `1f4a5919195b94b2fd7cb04aa278e16c0d0c337b`; successful CI artifact records merge SHA `75f58225448af954bcbb34ad7d8310b840af284f`. | Reconfirm the head/merge SHA pair for each subsequent release run. |
+| GitHub Actions run | `PASS` | [Run 32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012) passed required `checks` and `migrations` jobs. [launch-readiness-evidence artifact](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012/artifacts/9564749865) and [migration-evidence artifact](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012/artifacts/9564647817) were uploaded. | Re-run for each release SHA. |
+| PostgreSQL fresh migration | `PASS` | [migration-evidence.json](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012/artifacts/9564647817) records PostgreSQL 17.11, disposable guard `PASS`, path `0000 -> 0013`, and `14` journal rows. | Re-run for each release SHA. |
+| Batch 6 migration upgrade | `PASS` | The same artifact records baseline `11`, then `0011 -> 0012 -> 0013`, ending at `14`. | Re-run for each release SHA. |
+| Typecheck | `PASS` | The sanitized launch artifact records `pnpm typecheck` `PASS` across all 14 workspace packages. | Re-run for each release SHA. |
+| Lint | `PASS` | The sanitized launch artifact records `pnpm lint` `PASS`. | Re-run for each release SHA. |
+| Unit tests | `PASS` | The sanitized launch artifact records `pnpm test` `PASS`; database/analytics infrastructure tests remain explicitly skipped where no separate database fixture is required. | Re-run for each release SHA and keep skipped suites labeled. |
+| Build | `PASS` | The sanitized launch artifact records `pnpm build` `PASS`, 66 pages, and 13 production job artifacts. | Re-run for each release SHA. |
+| E2E | `PASS` | The sanitized launch artifact records `pnpm test:e2e` `PASS`: 4 Chromium tests in 22.3 seconds. This remains demo/browser evidence, not production auth/provider proof. | Re-run for each release SHA; complete external smoke separately. |
 
 Successful CI runs upload sanitized `launch-readiness-evidence` and
 `migration-evidence` artifacts. They contain no database URLs, passwords,
