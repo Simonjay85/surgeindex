@@ -19,9 +19,9 @@ Repository-side launch-readiness work is implemented on the target branch:
   explicit-disposable guards before every schema reset.
 - `RELEASE_EVIDENCE.md` is the authoritative gate manifest.
 - Read-only staging and VPS diagnostic probes are available.
-- The final review run [32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012)
+- The final review run [32852663180](https://github.com/Simonjay85/surgeindex/actions/runs/32852663180)
   passed both required jobs on PostgreSQL 17; its head SHA is
-  `1f4a5919195b94b2fd7cb04aa278e16c0d0c337b`.
+  `10dc8a1d2cf462b83ed39d174dfdf681c54793f1`.
 - Authentication, backup/restore, legal/commercial, tracker, GA4, Stripe, and
   Boost procedures are documented without fabricating external evidence.
 
@@ -54,7 +54,7 @@ preserved and are not part of this launch-readiness PR.
 | --- | --- | --- |
 | Workflow | Implemented | `.github/workflows/launch-readiness.yml` has `checks`, `migrations`, PostgreSQL 17, `workflow_dispatch`, and artifact upload steps. |
 | Migration guard | Implemented | `scripts/migration-smoke.ts` requires a named loopback disposable target, `RELEASE_DB_SMOKE_DISPOSABLE=YES`, and verifies connected identity before reset. |
-| CI evidence | PASS | [Run 32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012) passed `checks` and `migrations`; [launch-readiness-evidence](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012/artifacts/9564749865) and [migration-evidence](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012/artifacts/9564647817) were uploaded. |
+| CI evidence | PASS | [Run 32852663180](https://github.com/Simonjay85/surgeindex/actions/runs/32852663180) passed `checks` and `migrations`; [launch-readiness-evidence](https://github.com/Simonjay85/surgeindex/actions/runs/32852663180/artifacts/9565008895) and [migration-evidence](https://github.com/Simonjay85/surgeindex/actions/runs/32852663180/artifacts/9564913211) were uploaded. |
 | Release manifest | Implemented | `RELEASE_EVIDENCE.md` contains the authoritative gate states, branch-protection instructions, launch-state rules, and final decision boundary. |
 | Auth smoke | Implemented | `docs/AUTH_PRODUCTION_SMOKE.md` covers real Turnstile, hostname/action checks, mailbox timestamps, verification, resend, reset token cases, rate limits, and non-enumeration. |
 | Tracker staging read-back | Implemented | `scripts/staging-readback.mjs` is read-only, redacts sensitive projections, and refuses to infer the event chain from health alone. |
@@ -77,7 +77,7 @@ external gate in `RELEASE_EVIDENCE.md`.
 | `pnpm boost:placement-check` | `PASS` | Five V1 placements mapped to public routes with server-side context and kill switches. No live delivery proof. |
 | `pnpm jobs:build` | `PASS` | 13 production job artifacts built. |
 | `pnpm jobs:smoke` | `PASS` | 13 bundled entrypoints started in disabled demo mode. |
-| `pnpm db:smoke` fresh path | `PASS` | [Run 32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012) used PostgreSQL 17.11 and applied 14 migrations (`0000 -> 0013`) to a disposable CI database. |
+| `pnpm db:smoke` fresh path | `PASS` | [Run 32852663180](https://github.com/Simonjay85/surgeindex/actions/runs/32852663180) used PostgreSQL 17.11 and applied 14 migrations (`0000 -> 0013`) to a disposable CI database. |
 | `pnpm db:smoke` Batch 6 upgrade | `PASS` | The same run applied baseline 11 migrations, then `0011 -> 0012 -> 0013`, ending at 14; evidence artifact records both counts. |
 | `pnpm build` | `PASS` | CI demo production-shaped build generated 66 pages and 13 job artifacts; no deploy claim. |
 | `pnpm test:e2e` | `PASS` | CI Chromium demo E2E passed all 4 tests in 22.3s; production auth/provider flows remain external. |
@@ -133,7 +133,7 @@ published history automatically.
 | Gate | Result | Evidence | External action required |
 | --- | --- | --- | --- |
 | Repository-side launch-readiness implementation | `PASS` | Workflow, guarded migration paths, evidence scripts, manifest, checklists, and read-only probes are present in the target branch. | Keep the PR review gate satisfied; do not merge without explicit release approval. |
-| PostgreSQL 17 fresh migration | `PASS` | [Run 32851986012](https://github.com/Simonjay85/surgeindex/actions/runs/32851986012), `migrations` job, PostgreSQL 17.11, 14 final journal rows, path `0000 -> 0013`. | Re-run for each release SHA. |
+| PostgreSQL 17 fresh migration | `PASS` | [Run 32852663180](https://github.com/Simonjay85/surgeindex/actions/runs/32852663180), `migrations` job, PostgreSQL 17.11, 14 final journal rows, path `0000 -> 0013`. | Re-run for each release SHA. |
 | PostgreSQL 17 Batch 6 upgrade | `PASS` | The same `migration-evidence` artifact records baseline 11 and final 14, path `0000 -> 0010; 0011 -> 0012 -> 0013`. | Re-run for each release SHA. |
 | Typecheck / lint / tests / build / E2E | `PASS` | The same CI run passed typecheck, lint, unit/tracker tests, demo build, and all 4 Chromium E2E tests; production auth/provider flows remain external. | Archive the final-SHA CI evidence; do not infer external provider readiness. |
 | Branch protection | `PASS` | GitHub API read-back confirmed the requested protection settings on `fix/launch-readiness`. | Re-read after any settings change. |
