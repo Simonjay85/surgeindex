@@ -94,7 +94,6 @@ function isPrivateServiceAddress(address: string): boolean {
 function isAllowedServerAddress(address: string): boolean {
   if (isLoopbackHost(address)) return true;
   return (
-    process.env.GITHUB_ACTIONS === "true" &&
     process.env.RELEASE_DB_SMOKE_ALLOW_PRIVATE_SERVICE_ADDRESS === "true" &&
     isPrivateServiceAddress(address)
   );
