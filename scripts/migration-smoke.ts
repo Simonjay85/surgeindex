@@ -106,7 +106,12 @@ async function serverInfo(pool: Pool): Promise<{ databaseName: string; version: 
   );
   const row = result.rows[0];
   if (!row) throw new Error("PostgreSQL returned no server identity.");
-  return row;
+  return {
+    databaseName: row.database_name,
+    version: row.version,
+    serverAddress: row.server_address,
+    serverPort: row.server_port,
+  };
 }
 
 async function resetSchema(connectionString: string, expectedDatabaseName: string): Promise<void> {

@@ -34,7 +34,6 @@ jobs:
       RELEASE_DB_SMOKE_DISPOSABLE: "YES"
       EXPECTED_MIGRATION_COUNT: "14"
       LAUNCH_EVIDENCE_DIR: artifacts/launch-readiness
-      WORKFLOW_RUN_STARTED_AT: ${{ github.run_started_at }}
     services:
       postgres:
         image: postgres:17-alpine
@@ -58,6 +57,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Capture workflow evidence timestamp
+        run: echo "WORKFLOW_RUN_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - run: pnpm launch:check
       - run: pnpm audit --prod --audit-level high
@@ -80,7 +81,6 @@ jobs:
       RELEASE_DB_SMOKE_DISPOSABLE: "YES"
       EXPECTED_MIGRATION_COUNT: "14"
       MIGRATION_EVIDENCE_FILE: artifacts/migration-evidence/migration-evidence.json
-      WORKFLOW_RUN_STARTED_AT: ${{ github.run_started_at }}
     services:
       postgres:
         image: postgres:17-alpine
@@ -104,6 +104,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Capture workflow evidence timestamp
+        run: echo "WORKFLOW_RUN_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
       - name: Run PostgreSQL 17 migration paths
         run: |
