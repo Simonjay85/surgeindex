@@ -20,7 +20,10 @@ const transitions: Record<BoostCampaignState, readonly BoostCampaignState[]> = {
   refund_pending: ["partially_refunded", "refunded", "refund_pending"],
   partially_refunded: ["refunded"],
   refunded: [],
-  payment_failed: ["pending_payment", "cancelled"],
+  // Allow owners to restart the inventory/checkout flow after a failed or
+  // expired attempt without losing the campaign draft. `cancelled` remains an
+  // explicit terminal alternative.
+  payment_failed: ["pending_payment", "draft", "cancelled"],
   checkout_expired: ["draft", "cancelled"],
   disputed: ["suspended", "refund_pending", "completed"],
   suspended: ["paused", "cancel_requested", "refund_pending", "disputed"],
