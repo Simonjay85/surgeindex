@@ -27,7 +27,7 @@ explicitly provided, schema reset is explicitly opted into, and the database
 name is not production/live-named:
 
 ```bash
-RELEASE_DB_URL='postgresql://user:password@127.0.0.1:5432/surgeindex_migration_smoke' \
+RELEASE_DB_URL="${RELEASE_DB_URL:?set a disposable PostgreSQL URL in the shell}" \
 RELEASE_DB_SMOKE_DATABASE_NAME=surgeindex_migration_smoke \
 RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET=true \
 EXPECTED_MIGRATION_COUNT=14 \

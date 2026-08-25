@@ -1,6 +1,6 @@
 # SurgeIndex launch-readiness report
 
-Date: 2026-08-24 (Asia/Ho_Chi_Minh)
+Date: 2026-08-25 (Asia/Ho_Chi_Minh)
 
 Branch: `fix/launch-readiness`
 
@@ -35,7 +35,7 @@ signal.
 
 | Gate | Result | Evidence / boundary |
 | --- | --- | --- |
-| Release branch | PASS | Branch is `fix/launch-readiness`; no merge or push is performed by this task. |
+| Release branch | PASS | Branch is `fix/launch-readiness`; no merge was performed and no additional push was issued in this continuation. The observed HEAD is `45d3046`. |
 | Typecheck | PASS | `pnpm typecheck` passed across all 14 workspace packages. |
 | Lint | PASS | `pnpm lint` passed with no ESLint warnings or errors. |
 | Unit and fixture tests | PASS | `pnpm test` passed with 30 web tests plus the workspace suites (2 DB/analytics suites skipped without PostgreSQL); tracker, Boost, GA4, and signed Stripe fixtures passed in the launch-check sequence. Fixtures use no provider network or charge. |
@@ -66,7 +66,7 @@ Deterministic release command (requires an explicitly named disposable database
 because it includes schema reset in the migration smoke):
 
 ```bash
-RELEASE_DB_URL='postgresql://<disposable-user>:<disposable-password>@127.0.0.1:5432/<disposable-db>' \
+RELEASE_DB_URL="${RELEASE_DB_URL:?set a disposable PostgreSQL URL in the shell}" \
 RELEASE_DB_SMOKE_DATABASE_NAME='<disposable-db>' \
 RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET=true \
 EXPECTED_MIGRATION_COUNT=14 \

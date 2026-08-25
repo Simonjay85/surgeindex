@@ -66,7 +66,7 @@ database or the production volume.
 CONFIRM_RESTORE=YES \
 BACKUP_FILE=/var/backups/surgeindex/offsite/surgeindex-<timestamp>.dump.age \
 BACKUP_AGE_IDENTITY_FILE=/etc/surgeindex/backup.agekey \
-RESTORE_DATABASE_URL='postgresql://<user>:<password>@127.0.0.1:5432/surgeindex_restore_<date>' \
+RESTORE_DATABASE_URL="${RESTORE_DATABASE_URL:?set a disposable PostgreSQL URL in the shell}" \
 /usr/local/sbin/surgeindex-postgres-restore
 ```
 

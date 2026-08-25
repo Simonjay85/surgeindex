@@ -22,7 +22,7 @@ jobs:
       STRIPE_ENABLED: "false"
       GA4_PROVIDER_MODE: fixture
       SURGEINDEX_NEXT_DIST_DIR: .next-ci
-      RELEASE_DB_URL: postgresql://surgeindex_ci:ci_only_password@127.0.0.1:5432/surgeindex_ci
+      RELEASE_DB_URL: postgresql://surgeindex_ci@127.0.0.1:5432/surgeindex_ci
       RELEASE_DB_SMOKE_DATABASE_NAME: surgeindex_ci
       RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET: "true"
       EXPECTED_MIGRATION_COUNT: "14"
@@ -31,7 +31,7 @@ jobs:
         image: postgres:17-alpine
         env:
           POSTGRES_USER: surgeindex_ci
-          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: surgeindex_ci
         ports:
           - 5432:5432
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      RELEASE_DB_URL: postgresql://surgeindex_ci:ci_only_password@127.0.0.1:5432/surgeindex_ci
+      RELEASE_DB_URL: postgresql://surgeindex_ci@127.0.0.1:5432/surgeindex_ci
       RELEASE_DB_SMOKE_DATABASE_NAME: surgeindex_ci
       RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET: "true"
       EXPECTED_MIGRATION_COUNT: "14"
@@ -66,7 +66,7 @@ jobs:
         image: postgres:17-alpine
         env:
           POSTGRES_USER: surgeindex_ci
-          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: surgeindex_ci
         ports:
           - 5432:5432
