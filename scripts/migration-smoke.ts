@@ -71,11 +71,12 @@ function safeError(error: unknown): { errorType: string; message: string } {
 
 function isLoopbackHost(hostname: string): boolean {
   const normalized = hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1";
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "::ffff:127.0.0.1";
 }
 
 function isPrivateServiceAddress(address: string): boolean {
   const normalized = address.replace(/^\[|\]$/g, "").toLowerCase();
+  if (normalized.startsWith("::ffff:")) return isPrivateServiceAddress(normalized.slice("::ffff:".length));
   if (isIP(normalized) === 4) {
     const octets = normalized.split(".").map(Number);
     const [first, second] = octets;
