@@ -32,6 +32,7 @@ jobs:
       RELEASE_DB_SMOKE_DATABASE_NAME: surgeindex_ci
       RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET: "true"
       RELEASE_DB_SMOKE_DISPOSABLE: "YES"
+      RELEASE_DB_SMOKE_ALLOW_PRIVATE_SERVICE_ADDRESS: "true"
       EXPECTED_MIGRATION_COUNT: "14"
       LAUNCH_EVIDENCE_DIR: artifacts/launch-readiness
     services:
@@ -79,6 +80,7 @@ jobs:
       RELEASE_DB_SMOKE_DATABASE_NAME: surgeindex_ci
       RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET: "true"
       RELEASE_DB_SMOKE_DISPOSABLE: "YES"
+      RELEASE_DB_SMOKE_ALLOW_PRIVATE_SERVICE_ADDRESS: "true"
       EXPECTED_MIGRATION_COUNT: "14"
       MIGRATION_EVIDENCE_FILE: artifacts/migration-evidence/migration-evidence.json
     services:
