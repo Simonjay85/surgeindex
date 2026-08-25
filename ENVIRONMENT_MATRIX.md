@@ -25,7 +25,7 @@ The complete names and safe examples live in
 - `APP_MODE=production`, `DATA_PROVIDER=postgres`, a non-local HTTPS
   `NEXT_PUBLIC_APP_URL`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, and an explicit
   `TRUSTED_PROXY_MODE`.
-- Turnstile site/secret and expected hostname when `TURNSTILE_REQUIRED=true`.
+- `TURNSTILE_REQUIRED=true`, a Turnstile site/secret, and the expected hostname.
 - A configured transactional email provider; console delivery is rejected in
   production.
 - Tracker signing, hash, and rotation secrets when `TRACKER_ENABLED=true`.

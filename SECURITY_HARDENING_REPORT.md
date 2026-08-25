@@ -42,9 +42,9 @@ network staging test remains separate evidence.
 
 - Signup, submission, waitlist, claim start/verify, owner settings, password
   recovery, and verification resend have server-side Turnstile hooks or are
-  authenticated. Production Turnstile is required when configured and checks
-  success, expected action, and optional exact hostname; tokens are never
-  logged or stored.
+  authenticated. Production configuration fails closed unless Turnstile is
+  explicitly enabled and provisioned; checks cover success, expected action,
+  and optional exact hostname. Tokens are never logged or stored.
 - Better Auth requires email verification in production. Password reset,
   verification resend, expiry/used-token handling, and transactional email
   callbacks are configured. Email delivery is an abstraction with disabled,
