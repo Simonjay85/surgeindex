@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { ArrowRight, BarChart3, Database, Eye, MoveUpRight, ShieldCheck, Target } from "lucide-react";
+import { getServerEnv } from "@surge/config";
 import { AppShell, SectionHeading, SourceBadge } from "../../components/app-shell";
 import { stripeTestModeStatus } from "../../lib/server/stripe-service";
 
 export const metadata = { title: "Bid the Moment · Boost exposure" };
 
 export default function BoostPage() {
+  const env = getServerEnv();
+  if (!env.NEXT_PUBLIC_COMMERCIAL_ENABLED) {
+    return <AppShell><div className="container page-hero"><div className="page-hero-grid"><div><div className="eyebrow">COMMERCIAL RELEASE · COMING LATER</div><h1>Public Free is open. Paid distribution is not.</h1><p>SurgeIndex currently ranks source-labelled organic attention only. Boost, inventory reservation, Checkout, and paid delivery remain closed until Stripe, advertising policy, refund handling, and placement verification pass a separate commercial launch review.</p></div><div className="page-hero-aside"><span>current release</span><strong>Public Free</strong><span className="status-chip status-scheduled">Payments disabled</span></div></div><div className="section-tight"><div className="panel"><div className="panel-heading"><div><h2>No campaign action is available</h2><p>Commercial routes stay fail-closed even for signed-in site owners.</p></div><ShieldCheck size={18} color="#2f8b62" /></div><Link className="button button-coral" href="/submit">Submit a site for free <ArrowRight size={15} /></Link></div></div></div></AppShell>;
+  }
   const payment = stripeTestModeStatus();
   return <AppShell><div className="container page-hero">
     <div className="page-hero-grid"><div><div className="eyebrow">BID THE MOMENT · BOOSTED DISTRIBUTION</div><h1>Bid for the moment. Keep the rank honest.</h1><p>Bid the Moment is the paid distribution lane for reaching more of the right audience—not for moving an organic result. Every placement is labeled and every billable event is qualified.</p></div><div className="page-hero-aside"><span>campaign repository</span><strong>Production</strong><SourceBadge source="sponsored" compact /></div></div>

@@ -40,9 +40,10 @@ sudo systemctl enable --now surgeindex-postgres-backup-offsite.timer
 sudo systemctl enable --now surgeindex-postgres-backup-verify.timer
 ```
 
-The backup services require Docker, `pg_dump`/`pg_restore`, `age`, and the AWS
-CLI (or compatible S3 CLI) to be installed on the host. Verify the journal
-after the first run:
+The backup services require Docker, `age`, and the AWS CLI (or compatible S3
+CLI). The helpers prefer PostgreSQL 17's `pg_dump`/`pg_restore` from the
+dedicated database container, avoiding an incompatible older host client.
+Verify the journal after the first run:
 
 ```bash
 sudo systemctl start surgeindex-postgres-backup.service
@@ -107,3 +108,7 @@ mechanism but does not invent an operational target:
 
 Alert on missing daily backup, offsite upload failure, verification failure,
 disk headroom below the approved threshold, and restore-drill failure.
+
+For the initial Public Free launch, the proposed targets are RPO 24 hours and
+RTO 2 hours. They become accepted targets only when the release owner records
+approval in the release evidence.

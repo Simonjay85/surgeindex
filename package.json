@@ -58,6 +58,7 @@
     "db:smoke": "tsx scripts/migration-smoke.ts",
     "production:import": "tsx scripts/import-production-sites.ts",
     "launch:gates": "node scripts/launch-gates.mjs",
+    "launch:gates:public-free": "node scripts/launch-gates.mjs --strict-public-free",
     "launch:check": "node scripts/launch-check.mjs",
     "staging:readback": "node scripts/staging-readback.mjs",
     "jobs:build": "node scripts/build-production-jobs.mjs",

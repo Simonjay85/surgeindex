@@ -20,6 +20,7 @@ function setMode(mode?: string, provider?: string) {
   delete process.env.TURNSTILE_SITE_KEY;
   delete process.env.TURNSTILE_SECRET_KEY;
   delete process.env.TURNSTILE_EXPECTED_HOSTNAME;
+  delete process.env.NEXT_PUBLIC_COMMERCIAL_ENABLED;
   resetServerEnvCache();
 }
 
@@ -104,6 +105,23 @@ describe("explicit application configuration", () => {
     process.env.STRIPE_CHECKOUT_SUCCESS_URL = "https://example.test/boost/success";
     process.env.STRIPE_CHECKOUT_CANCEL_URL = "https://example.test/boost/cancel";
     expect(getServerEnv().STRIPE_TEST_MODE_REQUIRED).toBe(true);
+  });
+
+  it("keeps public commercial UI fail-closed until both Boost and Stripe are enabled", () => {
+    setMode("production", "postgres");
+    setProductionDependencies();
+    process.env.DATABASE_URL = "postgresql://example";
+    process.env.BETTER_AUTH_SECRET = "a".repeat(32);
+    process.env.NEXT_PUBLIC_COMMERCIAL_ENABLED = "true";
+    expect(() => getServerEnv()).toThrow(/NEXT_PUBLIC_COMMERCIAL_ENABLED/);
+
+    process.env.BOOST_ENABLED = "true";
+    process.env.STRIPE_ENABLED = "true";
+    process.env.STRIPE_SECRET_KEY = "sk_test_fixture";
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_fixture";
+    process.env.STRIPE_CHECKOUT_SUCCESS_URL = "https://example.test/boost/success";
+    process.env.STRIPE_CHECKOUT_CANCEL_URL = "https://example.test/boost/cancel";
+    expect(getServerEnv().NEXT_PUBLIC_COMMERCIAL_ENABLED).toBe(true);
   });
 
   it("requires secure production callback and challenge configuration", () => {

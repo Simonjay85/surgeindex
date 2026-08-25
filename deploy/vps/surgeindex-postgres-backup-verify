@@ -5,6 +5,7 @@ umask 077
 : "${BACKUP_S3_BUCKET:?BACKUP_S3_BUCKET is required}"
 : "${BACKUP_S3_PREFIX:?BACKUP_S3_PREFIX is required}"
 : "${BACKUP_AGE_IDENTITY_FILE:?BACKUP_AGE_IDENTITY_FILE is required}"
+: "${BACKUP_CONTAINER:=surgeindex-db}"
 : "${BACKUP_TMP_DIR:=/var/backups/surgeindex/verify}"
 mkdir -p "$BACKUP_TMP_DIR"
 download_dir=$(mktemp -d "$BACKUP_TMP_DIR/.download.XXXXXX")
@@ -25,7 +26,11 @@ test -n "$candidate"
 cp "$candidate" "$latest"
 age --decrypt --identity "$BACKUP_AGE_IDENTITY_FILE" --output "$decrypted" "$latest"
 test -s "$decrypted"
-pg_restore --list "$decrypted" >/dev/null
+if docker inspect "$BACKUP_CONTAINER" >/dev/null 2>&1; then
+  docker exec -i "$BACKUP_CONTAINER" pg_restore --list < "$decrypted" >/dev/null
+else
+  pg_restore --list "$decrypted" >/dev/null
+fi
 verified_size_bytes=$(stat -c '%s' "$decrypted")
 printf 'backup_file=%s verified_size_bytes=%s upload_result=READ_BACK verify_result=PASS restore_result=PENDING rpo=PENDING_OWNER_APPROVAL rto=PENDING_OWNER_APPROVAL\n' \
   "$(basename "$candidate")" "$verified_size_bytes"

@@ -10,6 +10,9 @@ export const dynamic = "force-dynamic";
 
 export default function PricingPage() {
   const env = getServerEnv();
+  if (!env.NEXT_PUBLIC_COMMERCIAL_ENABLED) {
+    return <AppShell><div className="container page-hero"><div className="page-hero-grid"><div><div className="eyebrow">PUBLIC FREE</div><h1>Listing and organic ranking are free.</h1><p>There is no paid plan in the current release. Stripe Checkout, Boost packages, billing, and sponsored placements remain disabled until a separate commercial review is complete.</p></div><div className="page-hero-aside"><span>current price</span><strong>$0</strong><span className="status-chip status-active">No payment required</span></div></div><div className="section-tight"><div className="signal-principle"><div><div className="eyebrow">WHAT IS OPEN</div><h2>Submit, claim, verify, and earn organic visibility.</h2></div><div className="signal-principle-copy"><p>Traffic provenance and ranking rules are the same for every listed site. Payment cannot change Heat Score, rank, or breakout eligibility.</p><Link className="button button-coral" href="/submit">List your site <ArrowRight size={15} /></Link></div></div></div></div></AppShell>;
+  }
   const payment = stripeTestModeStatus();
   const checkoutReady = Boolean(
     payment.configured &&

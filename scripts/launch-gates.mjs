@@ -15,8 +15,57 @@ const isAes256Key = (value) => {
 const productionPostgres = env.APP_MODE === "production" && env.DATA_PROVIDER === "postgres" && has(env.DATABASE_URL);
 const stripeTestKey = env.STRIPE_SECRET_KEY?.startsWith("sk_test_") === true;
 const stripeLiveKey = env.STRIPE_SECRET_KEY?.startsWith("sk_live_") === true;
+const explicitlyFalse = (value) => value === "false" || value === "0" || value === false;
+const publicFreePlacementVariables = [
+  "BOOST_PLACEMENT_HOMEPAGE_ENABLED",
+  "BOOST_PLACEMENT_CATEGORY_ENABLED",
+  "BOOST_PLACEMENT_RANKING_ENABLED",
+  "BOOST_PLACEMENT_PROFILE_ENABLED",
+  "BOOST_PLACEMENT_BREAKOUT_ENABLED",
+];
+const futureFeatureVariables = ["FEATURE_CREATORS", "FEATURE_CAMPAIGNS", "FEATURE_AUCTION", "FEATURE_PUBLIC_API"];
 
 const gates = {
+  publicFree: {
+    ready: all([
+      productionPostgres,
+      env.EXPECTED_MIGRATION_COUNT === "14",
+      env.TRUSTED_PROXY_MODE === "direct_nginx" || env.TRUSTED_PROXY_MODE === "cloudflare_nginx",
+      truthy(env.TURNSTILE_REQUIRED),
+      has(env.TURNSTILE_SITE_KEY),
+      has(env.TURNSTILE_SECRET_KEY),
+      has(env.TURNSTILE_EXPECTED_HOSTNAME),
+      env.EMAIL_PROVIDER === "http",
+      has(env.EMAIL_FROM),
+      has(env.EMAIL_HTTP_URL),
+      has(env.EMAIL_HTTP_API_KEY),
+      truthy(env.TRACKER_ENABLED),
+      lengthAtLeast(env.TRACKER_SIGNING_SECRET, 32),
+      lengthAtLeast(env.TRACKER_HASH_SECRET || env.TRACKER_HASH_SALT, 32),
+      lengthAtLeast(env.TRACKER_KEY_ROTATION_SECRET, 32),
+      explicitlyFalse(env.NEXT_PUBLIC_COMMERCIAL_ENABLED),
+      explicitlyFalse(env.STRIPE_ENABLED),
+      explicitlyFalse(env.BOOST_ENABLED),
+      explicitlyFalse(env.BOOST_LIVE_MODE_ENABLED),
+      explicitlyFalse(env.GA4_ENABLED),
+      explicitlyFalse(env.PUBLIC_REVENUE_BOARD_ENABLED),
+      publicFreePlacementVariables.every((name) => explicitlyFalse(env[name])),
+      futureFeatureVariables.every((name) => explicitlyFalse(env[name])),
+    ]),
+    checks: {
+      productionPostgres,
+      expectedMigrationCount: env.EXPECTED_MIGRATION_COUNT === "14",
+      trustedProxyConfigured: env.TRUSTED_PROXY_MODE === "direct_nginx" || env.TRUSTED_PROXY_MODE === "cloudflare_nginx",
+      turnstileConfigured: truthy(env.TURNSTILE_REQUIRED) && has(env.TURNSTILE_SITE_KEY) && has(env.TURNSTILE_SECRET_KEY) && has(env.TURNSTILE_EXPECTED_HOSTNAME),
+      transactionalEmailConfigured: env.EMAIL_PROVIDER === "http" && has(env.EMAIL_FROM) && has(env.EMAIL_HTTP_URL) && has(env.EMAIL_HTTP_API_KEY),
+      trackerConfigured: truthy(env.TRACKER_ENABLED) && lengthAtLeast(env.TRACKER_SIGNING_SECRET, 32) && lengthAtLeast(env.TRACKER_HASH_SECRET || env.TRACKER_HASH_SALT, 32) && lengthAtLeast(env.TRACKER_KEY_ROTATION_SECRET, 32),
+      publicCommercialUiDisabled: explicitlyFalse(env.NEXT_PUBLIC_COMMERCIAL_ENABLED),
+      commercialBackendsDisabled: explicitlyFalse(env.STRIPE_ENABLED) && explicitlyFalse(env.BOOST_ENABLED) && explicitlyFalse(env.BOOST_LIVE_MODE_ENABLED) && explicitlyFalse(env.GA4_ENABLED),
+      paidPlacementsDisabled: publicFreePlacementVariables.every((name) => explicitlyFalse(env[name])),
+      publicRevenueDisabled: explicitlyFalse(env.PUBLIC_REVENUE_BOARD_ENABLED),
+      futureFeaturesDisabled: futureFeatureVariables.every((name) => explicitlyFalse(env[name])),
+    },
+  },
   tracker: {
     ready: all([productionPostgres, truthy(env.TRACKER_ENABLED), lengthAtLeast(env.TRACKER_SIGNING_SECRET, 32), lengthAtLeast(env.TRACKER_HASH_SECRET || env.TRACKER_HASH_SALT, 32), lengthAtLeast(env.TRACKER_KEY_ROTATION_SECRET, 32)]),
     checks: {
@@ -95,3 +144,4 @@ const output = {
 };
 console.log(JSON.stringify(output, null, 2));
 if (process.argv.includes("--strict") && Object.values(gates).some((gate) => !gate.ready)) process.exitCode = 1;
+if (process.argv.includes("--strict-public-free") && !gates.publicFree.ready) process.exitCode = 1;

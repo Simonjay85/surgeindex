@@ -5,9 +5,10 @@
 # database. Host installation remains an explicit operator/runbook action.
 set -u -o pipefail
 
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="${SURGEINDEX_REPO_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}"
 base_url="${SURGEINDEX_BASE_URL:-https://surgeindex.lol}"
 evidence_file="${VPS_READINESS_EVIDENCE_FILE:-}"
+nginx_bin="${SURGEINDEX_NGINX_BIN:-$(command -v nginx 2>/dev/null || true)}"
 results=()
 overall="PASS"
 
@@ -154,9 +155,14 @@ else
   record "proxy header policy" "FAIL" "expected proxy header policy not found"
 fi
 
-for command_name in docker systemctl journalctl nginx ss ufw nft curl df pg_restore age aws; do
+for command_name in docker systemctl journalctl ss ufw nft curl df pg_restore age aws; do
   command_status "$command_name"
 done
+if [[ -n "$nginx_bin" && -x "$nginx_bin" ]]; then
+  record "command:nginx" "PASS" "available"
+else
+  record "command:nginx" "BLOCKED" "not installed on this host"
+fi
 
 if command -v docker >/dev/null 2>&1; then
   if docker info >/dev/null 2>&1; then
@@ -166,19 +172,36 @@ if command -v docker >/dev/null 2>&1; then
   fi
 fi
 
-if command -v nginx >/dev/null 2>&1; then
-  if nginx -t >/dev/null 2>&1; then
+if [[ -n "$nginx_bin" && -x "$nginx_bin" ]]; then
+  if "$nginx_bin" -t >/dev/null 2>&1; then
     record "nginx -t" "PASS" "effective syntax accepted"
   else
     record "nginx -t" "FAIL" "Nginx rejected the effective configuration"
   fi
-  if nginx -T >/dev/null 2>&1; then
+  if "$nginx_bin" -T >/dev/null 2>&1; then
     record "nginx -T" "PASS" "effective configuration read-back completed"
   else
     record "nginx -T" "FAIL" "effective configuration read-back failed"
   fi
 else
   record "nginx configuration" "BLOCKED" "nginx command unavailable"
+fi
+
+if command -v ss >/dev/null 2>&1; then
+  app_listener="$(ss -ltnH 2>/dev/null | awk '$4 ~ /(^|:)3211$/ {print $4}' | tr '\n' ' ')"
+  if [[ "$app_listener" == *"127.0.0.1:3211"* || "$app_listener" == *"[::1]:3211"* ]]; then
+    if printf '%s\n' "$app_listener" | grep -Eq '(^|[[:space:]])(0\.0\.0\.0|\*):3211([[:space:]]|$)'; then
+      record "application listener" "FAIL" "non-loopback listener observed"
+    else
+      record "application listener" "PASS" "loopback-only listener observed"
+    fi
+  elif [[ -n "$app_listener" ]]; then
+    record "application listener" "FAIL" "non-loopback listener observed"
+  else
+    record "application listener" "PENDING" "port 3211 is not listening at probe time"
+  fi
+else
+  record "application listener" "BLOCKED" "ss command unavailable"
 fi
 
 if command -v ss >/dev/null 2>&1; then
@@ -274,9 +297,14 @@ else
 fi
 
 if command -v df >/dev/null 2>&1; then
-  free_kb="$(df -Pk / 2>/dev/null | awk 'NR == 2 {print $4}')"
-  if [[ "$free_kb" =~ ^[0-9]+$ ]]; then
-    record "disk headroom" "PASS" "root_free_kb=${free_kb}; approved threshold remains an owner gate"
+  read -r free_kb used_pct < <(df -Pk / 2>/dev/null | awk 'NR == 2 {gsub(/%/, "", $5); print $4, $5}')
+  if [[ "$free_kb" =~ ^[0-9]+$ && "$used_pct" =~ ^[0-9]+$ ]]; then
+    free_pct=$((100 - used_pct))
+    if ((free_pct >= 20)); then
+      record "disk headroom" "PASS" "root_free_kb=${free_kb}; free_percent=${free_pct}"
+    else
+      record "disk headroom" "FAIL" "root_free_kb=${free_kb}; free_percent=${free_pct}; minimum=20"
+    fi
   else
     record "disk headroom" "PENDING" "numeric root filesystem read-back unavailable"
   fi
