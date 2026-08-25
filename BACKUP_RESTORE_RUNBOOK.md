@@ -64,9 +64,13 @@ database or the production volume.
 
 ```bash
 CONFIRM_RESTORE=YES \
+RESTORE_DATABASE_DISPOSABLE=YES \
 BACKUP_FILE=/var/backups/surgeindex/offsite/surgeindex-<timestamp>.dump.age \
 BACKUP_AGE_IDENTITY_FILE=/etc/surgeindex/backup.agekey \
+RESTORE_DATABASE_NAME=surgeindex_restore_<ticket> \
 RESTORE_DATABASE_URL="${RESTORE_DATABASE_URL:?set a disposable PostgreSQL URL in the shell}" \
+RESTORE_READINESS_URL='https://<approved-restore-host>/api/health/ready' \
+RESTORE_EVIDENCE_FILE=/var/backups/surgeindex/restore-evidence-<timestamp>.txt \
 /usr/local/sbin/surgeindex-postgres-restore
 ```
 
@@ -82,6 +86,14 @@ After restore:
    readiness result, and any missing extension/role requirement.
 5. Destroy the disposable database through the host's recoverable procedure
    after evidence is archived.
+
+The restore helper accepts only a loopback PostgreSQL URL whose database name
+exactly matches `RESTORE_DATABASE_NAME`, rejects production/live-like names,
+and requires both `RESTORE_DATABASE_DISPOSABLE=YES` and
+`CONFIRM_RESTORE=YES`. It emits safe evidence for backup filename, restore
+start/end, duration, database size, migration count, readiness result, and
+owner-approved RPO/RTO placeholders without printing the database URL or age
+identity.
 
 ## Recovery targets and alerting
 

@@ -5,14 +5,66 @@ umask 077
 : "${BACKUP_FILE:?BACKUP_FILE must point to an encrypted .dump.age file}"
 : "${BACKUP_AGE_IDENTITY_FILE:?BACKUP_AGE_IDENTITY_FILE is required}"
 : "${RESTORE_DATABASE_URL:?RESTORE_DATABASE_URL must name the disposable restore target}"
+: "${RESTORE_DATABASE_NAME:?RESTORE_DATABASE_NAME must exactly name the disposable restore target}"
+: "${RESTORE_DATABASE_DISPOSABLE:?Set RESTORE_DATABASE_DISPOSABLE=YES for a disposable restore target}"
 : "${CONFIRM_RESTORE:?Set CONFIRM_RESTORE=YES to run a destructive restore}"
 test "$CONFIRM_RESTORE" = YES
+test "$RESTORE_DATABASE_DISPOSABLE" = YES
 case "$BACKUP_FILE" in *.dump.age) ;; *) echo "BACKUP_FILE must be an age-encrypted custom-format dump" >&2; exit 1 ;; esac
+
+case "$RESTORE_DATABASE_URL" in
+  postgresql://*localhost*/*|postgresql://*127.0.0.1*/*|postgresql://*[[]::1[]]*/*|postgres://*localhost*/*|postgres://*127.0.0.1*/*|postgres://*[[]::1[]]*/*) ;;
+  *) echo "RESTORE_DATABASE_URL must point to a loopback PostgreSQL host" >&2; exit 1 ;;
+esac
+case "$RESTORE_DATABASE_NAME" in
+  *prod*|*Prod*|*PROD*|*live*|*Live*|*LIVE*|*primary*|*Primary*|*PRIMARY*|*main*|*Main*|*MAIN*) echo "RESTORE_DATABASE_NAME looks production/live-like" >&2; exit 1 ;;
+esac
+restore_url_without_query=${RESTORE_DATABASE_URL%%\?*}
+restore_url_database_name=${restore_url_without_query##*/}
+test "$restore_url_database_name" = "$RESTORE_DATABASE_NAME"
+command -v psql >/dev/null 2>&1 || { echo "psql is required to verify the disposable restore target before reset" >&2; exit 1; }
+connected_database=$(psql "$RESTORE_DATABASE_URL" -Atqc 'select current_database()' 2>/dev/null)
+connected_server_address=$(psql "$RESTORE_DATABASE_URL" -Atqc 'select inet_server_addr()::text' 2>/dev/null)
+test "$connected_database" = "$RESTORE_DATABASE_NAME"
+case "$connected_server_address" in
+  127.*|::1|localhost) ;;
+  *) echo "Connected PostgreSQL server was not loopback-only" >&2; exit 1 ;;
+esac
 
 temporary=$(mktemp "${TMPDIR:-/tmp}/surgeindex-restore.XXXXXX.dump")
 cleanup() { rm -f "$temporary"; }
 trap cleanup EXIT HUP INT TERM
 age --decrypt --identity "$BACKUP_AGE_IDENTITY_FILE" --output "$temporary" "$BACKUP_FILE"
 test -s "$temporary"
-pg_restore --clean --if-exists --no-owner --no-privileges --dbname "$RESTORE_DATABASE_URL" "$temporary"
-echo "Restore completed against the explicitly supplied restore target. Run application migration/readiness and report checks before promotion."
+restore_start_epoch=$(date +%s)
+if pg_restore --clean --if-exists --no-owner --no-privileges --dbname "$RESTORE_DATABASE_URL" "$temporary" >/dev/null 2>&1; then
+  restore_result=PASS
+else
+  restore_result=FAIL
+fi
+restore_end_epoch=$(date +%s)
+restore_duration_seconds=$((restore_end_epoch - restore_start_epoch))
+
+database_size_bytes=PENDING
+migration_count=PENDING
+if command -v psql >/dev/null 2>&1 && [ "$restore_result" = PASS ]; then
+  database_size_bytes=$(psql "$RESTORE_DATABASE_URL" -Atqc 'select pg_database_size(current_database())' 2>/dev/null || printf 'PENDING')
+  migration_count=$(psql "$RESTORE_DATABASE_URL" -Atqc 'select count(*) from __drizzle_migrations' 2>/dev/null || printf 'PENDING')
+fi
+
+readiness_result=PENDING
+if [ -n "${RESTORE_READINESS_URL:-}" ]; then
+  if curl --fail --silent --show-error --max-time 15 --output /dev/null "$RESTORE_READINESS_URL"; then readiness_result=PASS; else readiness_result=FAIL; fi
+fi
+
+printf 'backup_file=%s restore_database=%s restore_result=%s restore_start_epoch=%s restore_end_epoch=%s restore_duration_seconds=%s database_size_bytes=%s migration_count=%s readiness_result=%s rpo=PENDING_OWNER_APPROVAL rto=PENDING_OWNER_APPROVAL\n' \
+  "$(basename "$BACKUP_FILE")" "$RESTORE_DATABASE_NAME" "$restore_result" "$restore_start_epoch" "$restore_end_epoch" "$restore_duration_seconds" "$database_size_bytes" "$migration_count" "$readiness_result"
+
+if [ -n "${RESTORE_EVIDENCE_FILE:-}" ]; then
+  evidence_dir=$(dirname -- "$RESTORE_EVIDENCE_FILE")
+  mkdir -p "$evidence_dir"
+  printf 'schema_version=1\nbackup_file=%s\nrestore_database=%s\nrestore_result=%s\nrestore_start_epoch=%s\nrestore_end_epoch=%s\nrestore_duration_seconds=%s\ndatabase_size_bytes=%s\nmigration_count=%s\nreadiness_result=%s\nrpo=PENDING_OWNER_APPROVAL\nrto=PENDING_OWNER_APPROVAL\nsecrets_printed=false\n' \
+    "$(basename "$BACKUP_FILE")" "$RESTORE_DATABASE_NAME" "$restore_result" "$restore_start_epoch" "$restore_end_epoch" "$restore_duration_seconds" "$database_size_bytes" "$migration_count" "$readiness_result" > "$RESTORE_EVIDENCE_FILE"
+fi
+
+test "$restore_result" = PASS

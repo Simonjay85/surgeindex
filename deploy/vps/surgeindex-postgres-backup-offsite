@@ -30,5 +30,7 @@ else
   aws s3 cp "$final" "$destination" --only-show-errors
 fi
 test -s "$final"
+backup_size_bytes=$(stat -c '%s' "$final")
 find "$BACKUP_TMP_DIR" -type f -name 'surgeindex-*.dump.age' -mtime +7 -delete
-echo "Encrypted offsite backup uploaded: $(basename "$final")"
+printf 'backup_timestamp=%s backup_file=%s backup_size_bytes=%s upload_result=PASS verify_result=PENDING restore_result=PENDING rpo=PENDING_OWNER_APPROVAL rto=PENDING_OWNER_APPROVAL\n' \
+  "$timestamp" "$(basename "$final")" "$backup_size_bytes"

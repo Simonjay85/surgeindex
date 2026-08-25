@@ -59,6 +59,7 @@
     "production:import": "tsx scripts/import-production-sites.ts",
     "launch:gates": "node scripts/launch-gates.mjs",
     "launch:check": "node scripts/launch-check.mjs",
+    "staging:readback": "node scripts/staging-readback.mjs",
     "jobs:build": "node scripts/build-production-jobs.mjs",
     "jobs:smoke": "node scripts/job-artifact-smoke.mjs"
   },

@@ -26,4 +26,6 @@ cp "$candidate" "$latest"
 age --decrypt --identity "$BACKUP_AGE_IDENTITY_FILE" --output "$decrypted" "$latest"
 test -s "$decrypted"
 pg_restore --list "$decrypted" >/dev/null
-echo "Encrypted backup verification passed: $(basename "$candidate")"
+verified_size_bytes=$(stat -c '%s' "$decrypted")
+printf 'backup_file=%s verified_size_bytes=%s upload_result=READ_BACK verify_result=PASS restore_result=PENDING rpo=PENDING_OWNER_APPROVAL rto=PENDING_OWNER_APPROVAL\n' \
+  "$(basename "$candidate")" "$verified_size_bytes"

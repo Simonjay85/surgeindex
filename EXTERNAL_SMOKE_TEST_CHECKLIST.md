@@ -39,17 +39,21 @@ provider tokens into this file.
 
 ## Auth and email
 
-1. Sign up with a controlled mailbox and Turnstile; record the sanitized
-   request ID and mailbox receipt timestamp.
-2. Confirm sign-in is rejected before email verification and succeeds after the
+Follow the detailed procedure in `docs/AUTH_PRODUCTION_SMOKE.md`. At minimum:
+
+1. Use real Turnstile on the exact hostname and record action/hostname
+   validation without recording the token.
+2. Sign up with a controlled mailbox; record the sanitized request ID and
+   mailbox receipt timestamp.
+3. Confirm sign-in is rejected before email verification and succeeds after the
    one-time verification link is consumed.
-3. Request verification resend; confirm rate limiting and a fresh one-time
-   email.
-4. Request password reset; confirm the response does not reveal whether an
-   email exists, receive the link, reset once, confirm the old link cannot be
-   reused, and sign in with the new password.
-5. Confirm expired/invalid tokens return a safe error and no stack/provider
-   details.
+4. Request verification resend; confirm a fresh one-time email and rate
+   limiting.
+5. Request password reset for both a real and nonexistent address; confirm the
+   outward response is non-enumerating, receive the real-account link, reset
+   once, and confirm the old link cannot be reused.
+6. Confirm expired and invalid tokens return safe errors with no stack/provider
+   details, and exercise the signup/reset/resend rate limits.
 
 ## GA4
 
@@ -108,12 +112,38 @@ kill switch stops package availability/serving without changing organic rank.
 
 ## Release, backup, and monitoring
 
-1. Run `pnpm launch:check` with an explicitly named disposable PostgreSQL 17
-   database and archive output.
-2. Run the production build, deploy to a versioned release directory, run
+1. Run `pnpm launch:check` with an explicitly named loopback disposable
+   PostgreSQL 17 database and archive output. Set
+   `RELEASE_DB_SMOKE_DISPOSABLE=YES` in addition to
+   `RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET=true`; the smoke guard refuses remote
+   or production/live-looking targets.
+2. Run the read-only staging probe when an approved host exists:
+
+   ```bash
+   STAGING_BASE_URL='https://<approved-staging-host>' \
+   STAGING_READBACK_EVIDENCE_FILE='output/staging-readback.json' \
+   pnpm staging:readback
+   ```
+
+   If an approved admin session is needed, provide `STAGING_ADMIN_COOKIE`
+   through the secret manager; the probe records only a boolean indicating
+   that a session was supplied and never prints or writes the cookie. The
+   probe remains `PENDING` until the controlled tracker event chain is read
+   back.
+3. Run the production build, deploy to a versioned release directory, run
    `pnpm db:migrate`, and read back readiness before symlink promotion.
-3. Confirm all systemd timers/services use bundled Node artifacts, documented
+4. Confirm all systemd timers/services use bundled Node artifacts, documented
    service accounts, `system_job_run`, and non-zero failure exits.
-4. Run local/encrypted offsite backup and the disposable restore drill.
-5. Confirm Nginx effective configuration, loopback-only database listener,
+5. Run local/encrypted offsite backup and the disposable restore drill.
+6. Confirm Nginx effective configuration, loopback-only database listener,
    firewall, disk headroom, web restart behavior, and alert routing.
+
+## Legal and commercial review
+
+Use `docs/COMMERCIAL_LAUNCH_CHECKLIST.md` to record review ownership and
+approval. It covers Privacy Policy, Terms, Acceptable Use, tracker and
+identifier disclosure, retention/deletion, GA4/OAuth handling, sponsored
+disclosure, ad attribution, refunds, underdelivery, disputes, Stripe processor
+disclosure, taxes, prohibited advertising, and jurisdiction-specific review.
+Professional/legal and payment-provider review remain launch gates; no
+repository fixture can mark them `PASS`.

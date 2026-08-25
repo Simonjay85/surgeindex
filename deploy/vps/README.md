@@ -58,6 +58,29 @@ their real provider credentials and operational requirements are supplied.
 The first-party tracker may run through the local Postgres/queue/realtime path
 on this single-process deployment when all three tracker secrets are present.
 
+## Read-only acceptance probe
+
+From the checked-out release directory, run the repository probe before any
+installation or restart:
+
+```bash
+scripts/vps-readiness.sh --evidence-file /var/tmp/surgeindex-vps-readiness.txt
+```
+
+It checks repository assets, loopback database configuration, effective Nginx
+syntax/read-back, PostgreSQL listener binding, UFW/nftables visibility,
+systemd services/timers/journal presence, health endpoints, and disk
+headroom. It is read-only: it does not install packages, reload Nginx, change
+firewall rules, modify systemd, restart the application, or reset a database.
+The probe reports host-dependent checks as `BLOCKED`/`PENDING` when the host
+does not expose the required command or evidence. Use the install and restart
+commands below and `PRODUCTION_RUNBOOK.md` only as explicit operator actions.
+
+The backup/restore helpers emit safe structured journal lines for timestamp,
+file/size, upload/verification, restore duration, database size, migration
+count, readiness, and owner-approved RPO/RTO placeholders. They never print
+database URLs, age identities, or provider credentials.
+
 Install `surgeindex-postgres-backup` as root-owned mode `0750`, install the
 matching service and timer under `/etc/systemd/system`, then enable the timer.
 Run the service once and validate the new custom-format dump with
