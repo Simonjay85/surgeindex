@@ -34,7 +34,7 @@ jobs:
       RELEASE_DB_SMOKE_DISPOSABLE: "YES"
       EXPECTED_MIGRATION_COUNT: "14"
       LAUNCH_EVIDENCE_DIR: artifacts/launch-readiness
-      GITHUB_RUN_STARTED_AT: ${{ github.run_started_at }}
+      WORKFLOW_RUN_STARTED_AT: ${{ github.run_started_at }}
     services:
       postgres:
         image: postgres:17-alpine
@@ -80,7 +80,7 @@ jobs:
       RELEASE_DB_SMOKE_DISPOSABLE: "YES"
       EXPECTED_MIGRATION_COUNT: "14"
       MIGRATION_EVIDENCE_FILE: artifacts/migration-evidence/migration-evidence.json
-      GITHUB_RUN_STARTED_AT: ${{ github.run_started_at }}
+      WORKFLOW_RUN_STARTED_AT: ${{ github.run_started_at }}
     services:
       postgres:
         image: postgres:17-alpine

@@ -15,7 +15,7 @@ const gitValue = (args, fallback = "unknown") => {
 
 const safeSha = process.env.GITHUB_SHA || gitValue(["rev-parse", "HEAD"]);
 const generatedAt = new Date().toISOString();
-const runStartedAt = process.env.GITHUB_RUN_STARTED_AT || generatedAt;
+const runStartedAt = process.env.WORKFLOW_RUN_STARTED_AT || process.env.GITHUB_RUN_STARTED_AT || generatedAt;
 
 function redact(value) {
   return value
