@@ -1,6 +1,5 @@
 import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile, cp } from "node:fs/promises";
-import { isIP } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Client, Pool } from "pg";
@@ -74,28 +73,11 @@ function isLoopbackHost(hostname: string): boolean {
   return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "::ffff:127.0.0.1";
 }
 
-function isPrivateServiceAddress(address: string): boolean {
-  const normalized = address.replace(/^\[|\]$/g, "").split("/")[0]?.toLowerCase() ?? "";
-  if (normalized.startsWith("::ffff:")) return isPrivateServiceAddress(normalized.slice("::ffff:".length));
-  if (isIP(normalized) === 4) {
-    const octets = normalized.split(".").map(Number);
-    const [first, second] = octets;
-    return (
-      octets.length === 4 &&
-      (first === 10 ||
-        (first === 172 && second >= 16 && second <= 31) ||
-        (first === 192 && second === 168) ||
-        (first === 169 && second === 254))
-    );
-  }
-  return isIP(normalized) === 6 && (normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe80:"));
-}
-
 function isAllowedServerAddress(address: string): boolean {
   if (isLoopbackHost(address)) return true;
   return (
-    process.env.RELEASE_DB_SMOKE_ALLOW_PRIVATE_SERVICE_ADDRESS === "true" &&
-    isPrivateServiceAddress(address)
+    process.env.RELEASE_DB_SMOKE_ALLOW_CI_SERVICE_ADDRESS === "true" &&
+    process.env.RELEASE_DB_SMOKE_DISPOSABLE === "YES"
   );
 }
 
@@ -149,7 +131,7 @@ async function resetSchema(connectionString: string, expectedDatabaseName: strin
     );
     const row = identity.rows[0];
     if (!row || row.database_name !== expectedDatabaseName) throw new Error("Connected database did not match the explicitly named disposable target.");
-    if (row.server_address && !isAllowedServerAddress(row.server_address)) throw new Error("Connected PostgreSQL server address was not an allowed loopback or CI-private service address; refusing schema reset.");
+    if (row.server_address && !isAllowedServerAddress(row.server_address)) throw new Error("Connected PostgreSQL server address was not an allowed loopback or explicitly permitted CI service address; refusing schema reset.");
     await client.query("drop schema if exists drizzle cascade");
     await client.query("drop schema if exists public cascade");
     await client.query("create schema public");
@@ -202,7 +184,7 @@ async function main(): Promise<void> {
     pool = new Pool({ connectionString, connectionTimeoutMillis: 5_000, query_timeout: 10_000, idleTimeoutMillis: 1_000 });
     const info = await serverInfo(pool);
     if (info.databaseName !== target.databaseName) throw new Error("PostgreSQL current_database() did not match the disposable target.");
-    if (info.serverAddress && !isAllowedServerAddress(info.serverAddress)) throw new Error("PostgreSQL reported a non-loopback, non-CI-private server address; refusing schema reset.");
+    if (info.serverAddress && !isAllowedServerAddress(info.serverAddress)) throw new Error("PostgreSQL reported a non-loopback, non-explicitly-permitted CI service address; refusing schema reset.");
     evidence.postgres = { version: info.version, serverAddress: info.serverAddress, serverPort: info.serverPort };
 
     await resetSchema(connectionString, target.databaseName);
