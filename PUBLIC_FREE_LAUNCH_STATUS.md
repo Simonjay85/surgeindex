@@ -17,7 +17,7 @@ credential, Turnstile secret, S3 key, or age identity.
 | Working branch | `codex/public-free-launch` |
 | Protected base | `fix/launch-readiness` |
 | Pull request | Existing PR #1 must be updated with the final commit |
-| Exact release SHA | `PENDING COMMIT AND CI` |
+| Exact release SHA | `d1b83d9` (CI PASS; pending merge) |
 | Independent approval | `PENDING REVIEWER` |
 | Immutable release tag | `PENDING MERGE` |
 | Release owner | `PENDING OWNER` |
@@ -37,32 +37,33 @@ credential, Turnstile secret, S3 key, or age identity.
 | Nginx and firewall read-back | `PASS` | Panel Nginx effective syntax/read-back, UFW active state, and nftables read-back passed under root read-only probe. |
 | Disk headroom | `PASS` | Root filesystem had 25% free at the current read-back; launch minimum is 20%. |
 | Commercial/revenue timers | `PASS` | GA4 and Boost timers are inactive; `surgeindex-higuppy-revenue.timer` was disabled and stopped for Public Free. |
-| Existing production release | `FAIL` | Current preview returns 404 for `/api/health/live` and `/api/health/ready`, has only 13 migration journal rows, and is not the Public Free release. It remains the rollback candidate until promotion. |
+| Existing production release | `FAIL` | Current release `20260824-175645-stats` returns 404 for `/api/health/live` and `/api/health/ready`, has only 13 migration journal rows, and is not the Public Free release. It remains the rollback candidate until promotion. |
 | Production catalog | `FAIL` | Current database has one non-demo site; launch requires at least ten reviewed real sites across at least three categories, without imported metrics. |
-| Production provider configuration | `BLOCKED` | Turnstile hostname keys, transactional email provider/domain, and mailbox evidence are not provisioned. |
+| Production provider configuration | `PENDING` | Root-only Turnstile and Resend-compatible environment files are present on the VPS with the production hostname/provider fields; exact provider validation, mailbox delivery, and negative-path evidence remain pending on the Public Free release. |
 | Staging tracker chain | `BLOCKED` | Explicit staging/tracker-test DNS, isolated staging runtime/database, controlled tracker page, and end-to-end database read-back are not provisioned. |
-| Off-site backup and restore drill | `BLOCKED` | S3-compatible bucket/credentials and age identity are absent; no encrypted upload, download verification, or disposable restore evidence exists. |
+| Off-site backup and restore drill | `PASS` | R2 bucket `surgeindex-postgres-backups` accepted encrypted object `surgeindex/postgres/surgeindex-20260826T120614Z.dump.age` (478830 bytes); download/decrypt/`pg_restore --list` passed; disposable restore passed in 1 second. RPO 24h/RTO 2h remain pending owner approval. |
 | Legal minimum | `PENDING` | Privacy, Terms, tracker disclosure, AUP, deletion/contact process, and proposed RPO 24h/RTO 2h need owner approval. |
 | Canary | `PENDING` | Six-hour production canary begins only after exact-SHA CI, approval, providers, staging, backup/restore, catalog, and readiness gates pass. |
 
 ## Next hard-gate sequence
 
-1. Commit the implementation, fast-forward PR #1's head without force push,
-   and wait for PostgreSQL 17 `checks` and `migrations` on the exact SHA.
-2. Obtain one independent PR approval and merge through branch protection.
-3. Provision explicit staging DNS, Turnstile widgets, a verified SurgeIndex
-   transactional-email domain/API key, mailbox, S3-compatible bucket/API key,
-   and a root-only age identity.
-4. Deploy an isolated staging release and PostgreSQL 17 database; run fresh and
+1. Obtain one independent PR approval and merge through branch protection;
+   current exact SHA `d1b83d9` has PostgreSQL 17 `checks` and `migrations`
+   green.
+2. Provision explicit staging DNS, Turnstile widgets, a verified SurgeIndex
+   transactional-email domain/API key, and a controlled mailbox. The R2 bucket,
+   credential, and root-only age identity are already provisioned.
+3. Deploy an isolated staging release and PostgreSQL 17 database; run fresh and
    Batch 6 migration evidence, real auth/Turnstile negative cases, and the
    tracker-to-rank/breakout read-back.
-5. Complete encrypted off-site upload, download verification, and an explicitly
-   named disposable restore drill. Record owner-approved RPO/RTO.
-6. Review/import the ten-site catalog through the guarded importer; imported
+4. The R2 encrypted upload, download verification, and explicitly named
+   disposable restore drill are complete. Record owner-approved RPO/RTO and
+   keep the old R2 token available until the rotation window is closed.
+5. Review/import the ten-site catalog through the guarded importer; imported
    sites remain pending/unclaimed/unverified and carry no metrics.
-7. Build and install the immutable merge SHA, run forward migration to 14,
+6. Build and install the immutable merge SHA, run forward migration to 14,
    validate health/readiness/jobs, and switch the release symlink atomically.
-8. Run the six-hour canary and browser acceptance. Record GO only if all Public
+7. Run the six-hour canary and browser acceptance. Record GO only if all Public
    Free hard gates pass; keep all Commercial features disabled.
 
 ## Rollback boundary
