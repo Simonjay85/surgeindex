@@ -8,7 +8,8 @@ Type=oneshot
 User=root
 Group=root
 EnvironmentFile=/etc/surgeindex/backup.env
-ExecStart=/usr/local/sbin/surgeindex-postgres-backup-verify
+Environment=BACKUP_TMP_DIR=/var/backups/surgeindex/verify
+ExecStart=/bin/sh -c 'BACKUP_TMP_DIR=/var/backups/surgeindex/verify exec /usr/local/sbin/surgeindex-postgres-backup-verify'
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
