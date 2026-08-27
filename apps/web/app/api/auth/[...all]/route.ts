@@ -14,7 +14,7 @@ async function guardedPost(request: Request) {
   const body = await request.clone().json().catch(() => null) as { email?: unknown; turnstileToken?: unknown } | null;
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase().slice(0, 320) : "unknown";
   const isSignup = pathname.endsWith("/sign-up/email");
-  const isForgotPassword = pathname.endsWith("/forget-password");
+  const isForgotPassword = pathname.endsWith("/request-password-reset") || pathname.endsWith("/forget-password");
   const isResendVerification = pathname.endsWith("/send-verification-email");
   const authScope = isSignup ? "auth-signup" : isForgotPassword ? "auth-forgot-password" : isResendVerification ? "auth-resend-verification" : "auth-signin";
   const authLimit = isSignup ? 6 : isForgotPassword || isResendVerification ? 5 : 20;
