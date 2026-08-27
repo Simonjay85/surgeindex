@@ -144,4 +144,14 @@ describe("explicit application configuration", () => {
     process.env.EMAIL_HTTP_URL = "http://mail.example.test/send";
     expect(() => getServerEnv()).toThrow(/EMAIL_HTTP_URL/);
   });
+
+  it("accepts provider display-name From addresses", () => {
+    setMode("production", "postgres");
+    setProductionDependencies();
+    process.env.DATABASE_URL = "postgresql://example";
+    process.env.BETTER_AUTH_SECRET = "a".repeat(32);
+    process.env.EMAIL_FROM = "SurgeIndex <no-reply@surgeindex.example>";
+
+    expect(getServerEnv().EMAIL_FROM).toBe("SurgeIndex <no-reply@surgeindex.example>");
+  });
 });
