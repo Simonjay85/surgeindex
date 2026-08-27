@@ -40,9 +40,10 @@ sudo systemctl enable --now surgeindex-postgres-backup-offsite.timer
 sudo systemctl enable --now surgeindex-postgres-backup-verify.timer
 ```
 
-The backup services require Docker, `pg_dump`/`pg_restore`, `age`, and the AWS
-CLI (or compatible S3 CLI) to be installed on the host. Verify the journal
-after the first run:
+The backup services require Docker, `age`, and the AWS CLI (or compatible S3
+CLI). The helpers prefer PostgreSQL 17's `pg_dump`/`pg_restore` from the
+dedicated database container, avoiding an incompatible older host client.
+Verify the journal after the first run:
 
 ```bash
 sudo systemctl start surgeindex-postgres-backup.service
@@ -64,9 +65,13 @@ database or the production volume.
 
 ```bash
 CONFIRM_RESTORE=YES \
+RESTORE_DATABASE_DISPOSABLE=YES \
 BACKUP_FILE=/var/backups/surgeindex/offsite/surgeindex-<timestamp>.dump.age \
 BACKUP_AGE_IDENTITY_FILE=/etc/surgeindex/backup.agekey \
+RESTORE_DATABASE_NAME=surgeindex_restore_<ticket> \
 RESTORE_DATABASE_URL="${RESTORE_DATABASE_URL:?set a disposable PostgreSQL URL in the shell}" \
+RESTORE_READINESS_URL='https://<approved-restore-host>/api/health/ready' \
+RESTORE_EVIDENCE_FILE=/var/backups/surgeindex/restore-evidence-<timestamp>.txt \
 /usr/local/sbin/surgeindex-postgres-restore
 ```
 
@@ -83,6 +88,14 @@ After restore:
 5. Destroy the disposable database through the host's recoverable procedure
    after evidence is archived.
 
+The restore helper accepts only a loopback PostgreSQL URL whose database name
+exactly matches `RESTORE_DATABASE_NAME`, rejects production/live-like names,
+and requires both `RESTORE_DATABASE_DISPOSABLE=YES` and
+`CONFIRM_RESTORE=YES`. It emits safe evidence for backup filename, restore
+start/end, duration, database size, migration count, readiness result, and
+owner-approved RPO/RTO placeholders without printing the database URL or age
+identity.
+
 ## Recovery targets and alerting
 
 Set the approved RPO/RTO in the release ticket. The repository supplies the
@@ -95,3 +108,7 @@ mechanism but does not invent an operational target:
 
 Alert on missing daily backup, offsite upload failure, verification failure,
 disk headroom below the approved threshold, and restore-drill failure.
+
+For the initial Public Free launch, the proposed targets are RPO 24 hours and
+RTO 2 hours. They become accepted targets only when the release owner records
+approval in the release evidence.

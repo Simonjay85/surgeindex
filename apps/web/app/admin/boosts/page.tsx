@@ -11,6 +11,9 @@ export const metadata = { title: "Boost operations" };
 export default async function AdminBoostsPage() {
   await requirePageAdmin();
   const env = getServerEnv();
+  if (!env.NEXT_PUBLIC_COMMERCIAL_ENABLED) {
+    return <AppShell><DashboardShell active="/admin"><DashboardTopline title="Boost operations" description="Commercial operations are closed for the Public Free release." /><div className="section-tight"><div className="empty-state"><ShieldAlert size={22} /><h3>No paid operations are active</h3><p>Stripe, Boost delivery, reservations, disputes, and reconciliation remain disabled until a separate Commercial release passes its hard gates.</p></div></div></DashboardShell></AppShell>;
+  }
   const demo = env.APP_MODE !== "production" || env.DATA_PROVIDER !== "postgres";
   const metrics = demo ? { campaigns: 0, pending: 0, active: 0, reservations: 0, disputes: 0, webhookFailures: 0 } : await (async () => {
     const db = getPostgresDb();

@@ -57,6 +57,9 @@ const serverEnvSchema = z.object({
   BOOST_UNDERDELIVERY_GRACE_DAYS: z.coerce.number().int().min(0).max(30).default(2),
   NEXT_PUBLIC_APP_NAME: z.string().default("SurgeIndex"),
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  NEXT_PUBLIC_COMMERCIAL_ENABLED: z
+    .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())
+    .default(false),
   DATABASE_URL: z.string().optional(),
   DATABASE_URL_UNPOOLED: z.string().optional(),
   DB_DRIVER: z.enum(["pg", "neon"]).default("pg"),
@@ -93,6 +96,10 @@ const serverEnvSchema = z.object({
   TURNSTILE_SECRET_KEY: z.string().optional(),
   CLOUDFLARE_ACCOUNT_ID: z.string().optional(),
   CLOUDFLARE_API_TOKEN: z.string().optional(),
+  CLOUDFLARE_RADAR_API_TOKEN: z.string().optional(),
+  CLOUDFLARE_RADAR_API_BASE_URL: z.string().url().default("https://api.cloudflare.com/client/v4/radar"),
+  CLOUDFLARE_RADAR_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(8_000),
+  CLOUDFLARE_RADAR_CACHE_SECONDS: z.coerce.number().int().min(60).max(3_600).default(300),
   CLOUDFLARE_QUEUE_NAME: z.string().default("surgeindex-events"),
   CLOUDFLARE_DLQ_NAME: z.string().default("surgeindex-events-dlq"),
   INTERNAL_INGEST_URL: z.string().optional(),
@@ -242,6 +249,9 @@ export function getServerEnv(): ServerEnv {
   }
   if (values.BOOST_LIVE_MODE_ENABLED && !values.BOOST_ENABLED) {
     configurationIssues.push("  - BOOST_ENABLED: must be true when BOOST_LIVE_MODE_ENABLED=true");
+  }
+  if (values.NEXT_PUBLIC_COMMERCIAL_ENABLED && (!values.BOOST_ENABLED || !values.STRIPE_ENABLED)) {
+    configurationIssues.push("  - NEXT_PUBLIC_COMMERCIAL_ENABLED: public commercial UI requires BOOST_ENABLED=true and STRIPE_ENABLED=true");
   }
   if (values.BOOST_LIVE_MODE_ENABLED || values.STRIPE_ENABLED) {
     if (!values.STRIPE_SECRET_KEY) configurationIssues.push("  - STRIPE_SECRET_KEY: required when Stripe/Boost live mode is enabled");

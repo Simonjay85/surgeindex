@@ -9,7 +9,7 @@ import type { DemoSite } from "../lib/demo-data";
 import { getLeaderboard, getTimeseries } from "../lib/demo-data";
 import { LeaderboardCard } from "./leaderboard-card";
 import { RankMomentumShowcase } from "./rank-momentum-showcase";
-import { DataModeBadge, SectionHeading, SourceBadge } from "./app-shell";
+import { commercialUiEnabled, DataModeBadge, SectionHeading, SourceBadge } from "./app-shell";
 import { SubmitForm } from "./submit-form";
 import { SponsoredBoostCard } from "./sponsored-boost-card";
 
@@ -170,11 +170,11 @@ export function HomeClient({ initialSites, heroPulse, categories, isDemo, initia
 
     <RankMomentumShowcase sites={sites} isDemo={isDemo} />
 
-    <section className="section section-tight" aria-label="Sponsored distribution"><div className="container"><SectionHeading title="Sponsored distribution" description="A separate paid lane. Qualified delivery is reported independently from the organic board." /><SponsoredBoostCard placement="homepage_boosted" /></div></section>
+    {commercialUiEnabled ? <section className="section section-tight" aria-label="Sponsored distribution"><div className="container"><SectionHeading title="Sponsored distribution" description="A separate paid lane. Qualified delivery is reported independently from the organic board." /><SponsoredBoostCard placement="homepage_boosted" /></div></section> : null}
 
-    <ProductLanes />
+    {commercialUiEnabled ? <ProductLanes /> : null}
 
-    <section className="section section-tight"><div className="container"><SectionHeading title="Earn the rank. Buy the reach." description="SurgeIndex keeps organic attention and paid distribution in separate lanes, so a spotlight can never masquerade as momentum." /><div className="signal-principle"><h2>People should be able to tell what they’re looking at.</h2><div className="signal-principle-copy"><p>Every metric has a source. Every sponsored placement says so. Every Heat Score is computed from the site’s own attention signals—not a budget.</p><div className="principle-points"><div className="principle-point"><strong>Organic</strong><span>Verified traffic, growth, and confidence earn the rank.</span></div><div className="principle-point"><strong>Boosted</strong><span>Paid exposure is useful, transparent, and never rank-changing.</span></div></div></div></div></div></section>
+    <section className="section section-tight"><div className="container"><SectionHeading title={commercialUiEnabled ? "Earn the rank. Buy the reach." : "Earn attention. Keep the rank honest."} description={commercialUiEnabled ? "SurgeIndex keeps organic attention and paid distribution in separate lanes, so a spotlight can never masquerade as momentum." : "Public Free ranks only persisted, source-labelled attention signals. Paid distribution remains closed until a separate commercial release."} /><div className="signal-principle"><h2>People should be able to tell what they’re looking at.</h2><div className="signal-principle-copy"><p>Every metric has a source. Every Heat Score is computed from the site’s own attention signals—not a budget.</p><div className="principle-points"><div className="principle-point"><strong>Organic</strong><span>Verified traffic, growth, and confidence earn the rank.</span></div><div className="principle-point"><strong>Commercial</strong><span>{commercialUiEnabled ? "Paid exposure is useful, transparent, and never rank-changing." : "Coming later behind separate payment, policy, and delivery approval."}</span></div></div></div></div></div></section>
 
     <section className="section"><div className="container"><SubmitForm turnstileSiteKey={turnstileSiteKey} /></div></section>
   </>;

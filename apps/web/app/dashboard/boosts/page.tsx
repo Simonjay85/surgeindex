@@ -1,4 +1,5 @@
 import { AppShell } from "../../../components/app-shell";
+import { getServerEnv } from "@surge/config";
 import { BoostDashboardClient } from "../../../components/boost-dashboard-client";
 import { DashboardShell, DashboardTopline } from "../../../components/dashboard-shell";
 import { requirePageUser } from "../../../lib/server/authorization";
@@ -11,6 +12,9 @@ export const metadata = { title: "Boost campaigns" };
 
 export default async function BoostsPage() {
   const user = await requirePageUser();
+  if (!getServerEnv().NEXT_PUBLIC_COMMERCIAL_ENABLED) {
+    return <AppShell><DashboardShell active="/dashboard/boosts"><DashboardTopline title="Boost campaigns" description="Commercial tools are not included in the Public Free release." /><div className="section-tight"><div className="panel"><div className="panel-heading"><div><h2>Campaign creation is closed</h2><p>Stripe, paid inventory, and sponsored delivery require a separate commercial launch approval.</p></div></div><div className="method-note">Your account and organic site data are unaffected. No draft, reservation, Checkout, or billable delivery action is available.</div></div></div></DashboardShell></AppShell>;
+  }
   const provider = getPublicDataProvider();
   const [ownedSites, campaigns] = await Promise.all([
     provider.getOwnedSites(user.id),

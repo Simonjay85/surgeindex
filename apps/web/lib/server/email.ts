@@ -30,7 +30,7 @@ export async function sendTransactionalEmail(input: TransactionalEmail): Promise
       },
       body: JSON.stringify({
         from: env.EMAIL_FROM,
-        replyTo: env.EMAIL_REPLY_TO,
+        reply_to: env.EMAIL_REPLY_TO,
         to: input.to,
         subject: input.subject,
         text: input.text,

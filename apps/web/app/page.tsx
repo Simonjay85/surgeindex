@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   openGraph: {
     title: "SurgeIndex — the live leaderboard of internet attention",
-    description: "Earn the rank. Buy the reach.",
+    description: "Earn attention. Keep the rank honest.",
     type: "website",
     url: "/",
   },

@@ -53,3 +53,37 @@ The load probe accepts TRACKER_LOAD_URL, TRACKER_LOAD_SITE_KEY, TRACKER_LOAD_ORI
 Use environment-based hostnames such as app-staging.example.com, cdn-staging.example.com, and events-staging.example.com. Configure the web app, tracker CDN, Collector Worker, Queue, DLQ, Durable Object binding, site-key KV, event-id replay KV, selected event provider, and aggregation Worker separately. Set the `REALTIME_SIGNAL_TOKEN` Worker secret on both the Collector Worker and Realtime Durable Object; `/signal` is an authenticated internal endpoint, while `/snapshot` and `/ws` are read-side public endpoints. A staging deployment is not complete until real bindings and credentials are supplied, the Worker-compatible preview is exercised, and HTTP/WebSocket/read-back checks pass.
 
 No Cloudflare, Tinybird, or staging credentials were used for Batch 3 local validation. Wrangler configurations are prepared but deployment is not claimed.
+
+## Deterministic staging read-back
+
+The repository-side probe is intentionally read-only:
+
+```bash
+STAGING_BASE_URL='https://<approved-staging-host>' \
+STAGING_READBACK_EVIDENCE_FILE='output/staging-readback.json' \
+pnpm staging:readback
+```
+
+It checks liveness and production readiness, and optionally reads the protected
+traffic, job-health, and scoring projections when an approved admin cookie is
+provided through the secret manager as `STAGING_ADMIN_COOKIE`. It records only
+status codes, safe request IDs, counts, timestamps, and redacted projections;
+the cookie is never printed or written. It does not generate traffic or call a
+mutation endpoint.
+
+The controlled staging procedure must then bind one event window to each
+read-back stage in order:
+
+1. install the exact tracker JavaScript/key on a controlled page;
+2. generate pageview, heartbeat, navigation, engaged, and opt-out events;
+3. read collector acceptance and fraud decision;
+4. read active-session state and confirm tracker Online Now uses that window;
+5. run/read aggregation and confirm `site_metric_current`/freshness;
+6. run/read baseline, score, ranking, and breakout outputs;
+7. read the corresponding `system_job_run` rows and readiness response; and
+8. compare `traffic_origin`, `source`, and paid/demo flags to prove tracker
+   traffic is separate from GA4, `paid_surgedindex_referral`, and demo data.
+
+The probe cannot infer this chain from a healthy HTTP response. Until the same
+controlled event IDs/request IDs are read back at every stage, the tracker
+staging gate remains `PENDING`.

@@ -5,6 +5,12 @@ on:
     branches: [feat/surgeindex-boost-stripe, fix/launch-readiness]
   pull_request:
     branches: [feat/surgeindex-boost-stripe, fix/launch-readiness]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for the manual launch-readiness run"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -25,7 +31,10 @@ jobs:
       RELEASE_DB_URL: postgresql://surgeindex_ci@127.0.0.1:5432/surgeindex_ci
       RELEASE_DB_SMOKE_DATABASE_NAME: surgeindex_ci
       RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET: "true"
+      RELEASE_DB_SMOKE_DISPOSABLE: "YES"
+      RELEASE_DB_SMOKE_ALLOW_CI_SERVICE_ADDRESS: "true"
       EXPECTED_MIGRATION_COUNT: "14"
+      LAUNCH_EVIDENCE_DIR: artifacts/launch-readiness
     services:
       postgres:
         image: postgres:17-alpine
@@ -49,9 +58,21 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Capture workflow evidence timestamp
+        run: echo "WORKFLOW_RUN_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
+      - name: Install Playwright Chromium
+        run: pnpm -F web exec playwright install --with-deps chromium
       - run: pnpm launch:check
       - run: pnpm audit --prod --audit-level high
+      - name: Upload launch-readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launch-readiness-evidence
+          path: artifacts/launch-readiness/
+          if-no-files-found: warn
+          retention-days: 14
 
   migrations:
     runs-on: ubuntu-latest
@@ -60,7 +81,10 @@ jobs:
       RELEASE_DB_URL: postgresql://surgeindex_ci@127.0.0.1:5432/surgeindex_ci
       RELEASE_DB_SMOKE_DATABASE_NAME: surgeindex_ci
       RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET: "true"
+      RELEASE_DB_SMOKE_DISPOSABLE: "YES"
+      RELEASE_DB_SMOKE_ALLOW_CI_SERVICE_ADDRESS: "true"
       EXPECTED_MIGRATION_COUNT: "14"
+      MIGRATION_EVIDENCE_FILE: artifacts/migration-evidence/migration-evidence.json
     services:
       postgres:
         image: postgres:17-alpine
@@ -84,5 +108,18 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Capture workflow evidence timestamp
+        run: echo "WORKFLOW_RUN_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm db:smoke
+      - name: Run PostgreSQL 17 migration paths
+        run: |
+          mkdir -p artifacts/migration-evidence
+          pnpm db:smoke
+      - name: Upload migration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-evidence
+          path: artifacts/migration-evidence/
+          if-no-files-found: warn
+          retention-days: 14

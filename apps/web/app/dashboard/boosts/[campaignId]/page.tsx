@@ -14,8 +14,12 @@ function money(cents: number, currency: string) {
 
 export default async function BoostCampaignPage({ params }: { params: Promise<{ campaignId: string }> }) {
   const user = await requirePageUser();
+  const env = getServerEnv();
+  if (!env.NEXT_PUBLIC_COMMERCIAL_ENABLED) {
+    return <AppShell><DashboardShell><DashboardTopline title="Boost campaign report" description="Commercial reporting is not part of the Public Free launch." /><div className="section-tight"><div className="empty-state"><ShieldCheck size={22} /><h3>Campaign reports are closed</h3><p>Paid campaign, payment, and delivery records remain unavailable until a separate Commercial release is approved.</p><Link className="button button-quiet" href="/dashboard">Back to dashboard</Link></div></div></DashboardShell></AppShell>;
+  }
   const campaignId = (await params).campaignId;
-  const isDemo = getServerEnv().APP_MODE !== "production" || getServerEnv().DATA_PROVIDER !== "postgres";
+  const isDemo = env.APP_MODE !== "production" || env.DATA_PROVIDER !== "postgres";
   if (isDemo) return <AppShell><DashboardShell active="/dashboard/boosts"><DashboardTopline title="Boost campaign report" description="Demo delivery is labeled and not billable." action={<Link className="text-link" href="/dashboard/boosts"><ArrowLeft size={14} /> Back to campaigns</Link>} /><DemoNotice>Demo reports are illustrative only; they do not represent payment, delivery, or attribution in production.</DemoNotice><div className="section-tight"><div className="panel"><h2>Demo campaign</h2><p>Qualified impressions, valid clicks, and tracker-confirmed visits remain separate stages.</p></div></div></DashboardShell></AppShell>;
   let result: Awaited<ReturnType<typeof getBoostCampaignReport>> | null = null;
   let campaignMissing = false;

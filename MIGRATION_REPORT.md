@@ -30,6 +30,7 @@ name is not production/live-named:
 RELEASE_DB_URL="${RELEASE_DB_URL:?set a disposable PostgreSQL URL in the shell}" \
 RELEASE_DB_SMOKE_DATABASE_NAME=surgeindex_migration_smoke \
 RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET=true \
+RELEASE_DB_SMOKE_DISPOSABLE=YES \
 EXPECTED_MIGRATION_COUNT=14 \
 pnpm db:smoke
 ```
@@ -47,13 +48,21 @@ No production reset command is supplied. `pnpm db:migrate` is the deploy-time
 forward-only migration command and must run against a private release database
 before the application symlink is promoted.
 
+The smoke guard also requires a loopback PostgreSQL host, an exact database-name
+match, and the explicit `RELEASE_DB_SMOKE_DISPOSABLE=YES` confirmation. It
+refuses names or hosts that look production/live-like and verifies
+`current_database()` and the connected server address again immediately before
+each schema reset. The optional `MIGRATION_EVIDENCE_FILE` path receives only
+sanitized metadata: commit SHA, PostgreSQL version, migration counts, paths,
+timestamps, and pass/fail state.
+
 ## Migration evidence status
 
 | Check | Status | Note |
 | --- | --- | --- |
 | Journal reviewed | PASS | `0000` through `0013` are present; `EXPECTED_MIGRATION_COUNT` is 14. |
-| Fresh migration | BLOCKED IN THIS WORKSPACE | Requires PostgreSQL 17; the guarded attempt failed closed with `connect ECONNREFUSED 127.0.0.1:5432` because neither a local PostgreSQL listener nor the Docker daemon is available. |
-| Batch 6 baseline → 0011/0012/0013 upgrade | BLOCKED IN THIS WORKSPACE | Requires the same disposable PostgreSQL 17 instance; the smoke did not proceed to schema reset without that dependency. |
+| Fresh migration | BLOCKED IN THIS WORKSPACE | The guarded local attempt reached a non-approved loopback PostgreSQL endpoint but failed authentication before any schema reset. PostgreSQL 17 CI evidence remains pending. |
+| Batch 6 baseline → 0011/0012/0013 upgrade | BLOCKED IN THIS WORKSPACE | The same guarded disposable PostgreSQL 17 path could not start after the authentication failure; no upgrade reset occurred. |
 | Production migration | PENDING RELEASE | Run `pnpm db:migrate`, record the applied count, then call readiness. |
 
 ## Recovery boundary

@@ -24,3 +24,6 @@ mv "$temporary_backup" "$final_backup"
 trap - EXIT HUP INT TERM
 
 find "$backup_dir" -type f -name 'surgeindex-*.dump' -mtime +14 -delete
+backup_size_bytes=$(stat -c '%s' "$final_backup")
+printf 'backup_timestamp=%s backup_file=%s backup_size_bytes=%s upload_result=PENDING verify_result=PENDING restore_result=PENDING rpo=PENDING_OWNER_APPROVAL rto=PENDING_OWNER_APPROVAL\n' \
+  "$timestamp" "$(basename "$final_backup")" "$backup_size_bytes"

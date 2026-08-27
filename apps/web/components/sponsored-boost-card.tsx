@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { BoostPlacementKey } from "@surge/boost";
+import { commercialUiEnabled } from "./app-shell";
 
 type ServedBoost = {
   isDemo: boolean;
@@ -27,6 +28,7 @@ export function SponsoredBoostCard({ placement = "homepage_boosted", categoryId,
   const recorded = useRef(false);
 
   useEffect(() => {
+    if (!commercialUiEnabled) return;
     let cancelled = false;
     const route = routeContext ?? (typeof window === "undefined" ? "/" : window.location.pathname);
     const params = new URLSearchParams({ placement, route });
@@ -64,7 +66,7 @@ export function SponsoredBoostCard({ placement = "homepage_boosted", categoryId,
     return () => { observer.disconnect(); if (timer.current) clearTimeout(timer.current); };
   }, [served]);
 
-  if (!served) return null;
+  if (!commercialUiEnabled || !served) return null;
   const description = served.descriptionText ?? served.description ?? "";
   return <article ref={cardRef} className="sponsored-card" aria-label="Sponsored placement"><div className="sponsored-card-label"><span>Sponsored</span>{served.isDemo ? <em>Demo delivery · not billable</em> : <em>Paid placement</em>}</div><div className="sponsored-card-body"><div><h3>{served.headline}</h3><p>{description}</p></div><Link className="button button-coral button-small" href={`/go/${served.siteSlug}?campaign=${encodeURIComponent(served.clickToken)}`} prefetch={false}>{served.ctaLabel}</Link></div><p className="sponsored-card-note">This website paid for placement. Payment does not affect organic rank or Heat Score.</p></article>;
 }

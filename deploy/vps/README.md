@@ -39,8 +39,8 @@ Runtime boundaries:
 - systemd service: `surgeindex.service`
 - live traffic timer: `surgeindex-traffic-aggregation.timer`
 - scoring and ranking timer: `surgeindex-scoring.timer`
-- GA4 backfill timer: `surgeindex-ga4-backfill.timer`
-- HiGuppy WooCommerce revenue timer: `surgeindex-higuppy-revenue.timer`
+- GA4 backfill timer: `surgeindex-ga4-backfill.timer` (Commercial phase only)
+- HiGuppy WooCommerce revenue timer: `surgeindex-higuppy-revenue.timer` (disabled for Public Free)
 - database backup timer: `surgeindex-postgres-backup.timer`
 - local backup retention: 14 days under `/var/backups/surgeindex/postgres`
 - encrypted offsite backup timer: `surgeindex-postgres-backup-offsite.timer`
@@ -53,10 +53,35 @@ The first certificate is issued with `surgeindex.http.nginx.conf`, then the
 vhost is atomically replaced with `surgeindex.nginx.conf`. Always test with
 `/www/server/nginx/sbin/nginx -t` before reloading the panel Nginx master.
 
-Production is deliberately fail-closed. Stripe and GA4 remain disabled until
-their real provider credentials and operational requirements are supplied.
+Production is deliberately fail-closed. Public Free requires
+`NEXT_PUBLIC_COMMERCIAL_ENABLED=false`, Stripe, Boost, GA4, every paid
+placement, and the public revenue board to remain disabled until their real
+provider credentials and operational requirements are supplied.
 The first-party tracker may run through the local Postgres/queue/realtime path
 on this single-process deployment when all three tracker secrets are present.
+
+## Read-only acceptance probe
+
+From the checked-out release directory, run the repository probe before any
+installation or restart:
+
+```bash
+scripts/vps-readiness.sh --evidence-file /var/tmp/surgeindex-vps-readiness.txt
+```
+
+It checks repository assets, loopback database configuration, effective Nginx
+syntax/read-back, PostgreSQL listener binding, UFW/nftables visibility,
+systemd services/timers/journal presence, health endpoints, and disk
+headroom. It is read-only: it does not install packages, reload Nginx, change
+firewall rules, modify systemd, restart the application, or reset a database.
+The probe reports host-dependent checks as `BLOCKED`/`PENDING` when the host
+does not expose the required command or evidence. Use the install and restart
+commands below and `PRODUCTION_RUNBOOK.md` only as explicit operator actions.
+
+The backup/restore helpers emit safe structured journal lines for timestamp,
+file/size, upload/verification, restore duration, database size, migration
+count, readiness, and owner-approved RPO/RTO placeholders. They never print
+database URLs, age identities, or provider credentials.
 
 Install `surgeindex-postgres-backup` as root-owned mode `0750`, install the
 matching service and timer under `/etc/systemd/system`, then enable the timer.
@@ -81,8 +106,9 @@ tracker traffic. The traffic job expires inactive sessions and refreshes live
 counts every minute. The scoring job uses its database-backed idempotency slots
 to refresh baselines, scores, breakouts, and rankings every five minutes.
 
-The HiGuppy revenue timer runs the WP-CLI-only aggregate bridge every five
-minutes. It posts only confirmed WooCommerce totals to
-`/api/internal/revenue`; cancelled and on-hold orders are excluded. Stripe
-Boost revenue is read from settled live orders in the SurgeIndex ledger and is
-never mixed into organic Heat Score or rank.
+Do not enable the HiGuppy revenue timer during Public Free. It belongs to a
+separate revenue-board release and must remain disabled together with Stripe,
+Boost, GA4, and the public revenue board. When that later release is approved,
+the timer posts only confirmed WooCommerce totals to `/api/internal/revenue`;
+cancelled and on-hold orders are excluded. Stripe Boost revenue remains
+separate from organic Heat Score and rank.
