@@ -100,6 +100,22 @@ and records last start/success/failure in `system_job_run`. Inspect
 if a manual job is still running, wait for its `RuntimeMaxSec`/journal result
 before triggering another run.
 
+After the authenticated admin read-back, backup/restore drill, and controlled
+restart exercise have produced a redacted operator evidence file, pass that
+file to the read-only host probe. Without this explicit input those three
+checks intentionally remain `PENDING`:
+
+```bash
+VPS_OPERATOR_EVIDENCE_FILE=/var/backups/surgeindex/release-evidence/operations-<release>.txt \
+  scripts/vps-readiness.sh \
+  --base-url https://surgeindex.lol \
+  --operator-evidence-file /var/backups/surgeindex/release-evidence/operations-<release>.txt \
+  --evidence-file /var/backups/surgeindex/release-evidence/vps-readiness-<release>.txt
+```
+
+The probe checks only exact safe status fields in that file; it never reads or
+prints credentials, cookies, tokens, database URLs, or mailbox contents.
+
 ## 6. Admin bootstrap and real-site import
 
 Create the first account through the production email flow, verify its email,

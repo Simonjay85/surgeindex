@@ -8,12 +8,13 @@ set -u -o pipefail
 repo_root="${SURGEINDEX_REPO_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}"
 base_url="${SURGEINDEX_BASE_URL:-https://surgeindex.lol}"
 evidence_file="${VPS_READINESS_EVIDENCE_FILE:-}"
+operator_evidence_file="${VPS_OPERATOR_EVIDENCE_FILE:-}"
 nginx_bin="${SURGEINDEX_NGINX_BIN:-$(command -v nginx 2>/dev/null || true)}"
 results=()
 overall="PASS"
 
 usage() {
-  printf '%s\n' "Usage: scripts/vps-readiness.sh [--base-url URL] [--evidence-file PATH]"
+  printf '%s\n' "Usage: scripts/vps-readiness.sh [--base-url URL] [--evidence-file PATH] [--operator-evidence-file PATH]"
   printf '%s\n' "Default mode is read-only. Use PRODUCTION_RUNBOOK.md for installation or remediation."
 }
 
@@ -27,6 +28,11 @@ while (($# > 0)); do
     --evidence-file)
       [[ $# -ge 2 ]] || { usage >&2; exit 2; }
       evidence_file="$2"
+      shift 2
+      ;;
+    --operator-evidence-file)
+      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+      operator_evidence_file="$2"
       shift 2
       ;;
     --help|-h)
@@ -71,6 +77,13 @@ contains_pattern() {
   else
     grep -Eq "$pattern" "$file"
   fi
+}
+
+operator_gate_passed() {
+  local key="$1"
+  local expected="$2"
+  [[ -n "$operator_evidence_file" && -f "$operator_evidence_file" ]] || return 1
+  grep -Eq "^${key}=${expected}$" "$operator_evidence_file"
 }
 
 service_units=(
@@ -312,9 +325,24 @@ else
   record "disk headroom" "BLOCKED" "df command unavailable"
 fi
 
-record "admin jobs health" "PENDING" "requires an authenticated admin read-back; no cookie is accepted by default"
-record "backup and restore evidence" "PENDING" "requires host backup, off-site verification, and disposable restore drill"
-record "job failure behavior" "PENDING" "requires a controlled host failure/readiness exercise and safe journal reference"
+if operator_gate_passed "admin_endpoint_cookie_readback" "PASS"; then
+  record "admin jobs health" "PASS" "authenticated admin API read-back is recorded in operator evidence"
+else
+  record "admin jobs health" "PENDING" "requires an authenticated admin read-back; pass --operator-evidence-file with safe evidence"
+fi
+if operator_gate_passed "backup_local_service" "success" \
+  && operator_gate_passed "offsite_upload_service" "success" \
+  && operator_gate_passed "offsite_verify_service" "success" \
+  && operator_gate_passed "backup_restore_evidence" "PASS"; then
+  record "backup and restore evidence" "PASS" "local, encrypted off-site, verification, and disposable restore evidence are recorded"
+else
+  record "backup and restore evidence" "PENDING" "requires host backup, off-site verification, and disposable restore drill; pass --operator-evidence-file with safe evidence"
+fi
+if operator_gate_passed "job_failure_behavior" "PASS"; then
+  record "job failure behavior" "PASS" "controlled restart/readiness evidence is recorded in operator evidence"
+else
+  record "job failure behavior" "PENDING" "requires a controlled host failure/readiness exercise; pass --operator-evidence-file with safe evidence"
+fi
 
 if [[ -n "$evidence_file" ]]; then
   evidence_dir="$(dirname -- "$evidence_file")"
