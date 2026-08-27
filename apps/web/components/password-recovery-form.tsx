@@ -17,7 +17,7 @@ export function ForgotPasswordForm({ turnstileSiteKey }: { turnstileSiteKey?: st
     setBusy(true);
     setError("");
     setMessage("");
-    const response = await fetch("/api/auth/forget-password", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: email.trim(), redirectTo: `${window.location.origin}/auth/reset-password`, turnstileToken }) });
+    const response = await fetch("/api/auth/request-password-reset", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: email.trim(), redirectTo: `${window.location.origin}/auth/reset-password`, turnstileToken }) });
     const payload = await response.json().catch(() => null) as { error?: { message?: string } } | null;
     if (!response.ok) setError(payload?.error?.message ?? "We could not start password recovery.");
     else setMessage("If an account exists for that address, a reset link is on its way.");
