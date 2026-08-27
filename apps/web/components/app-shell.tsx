@@ -55,7 +55,7 @@ export function Footer() {
           <div><span className="footer-label">Explore</span><Link href="/rankings">Rankings</Link><Link href="/breakouts">Breakouts</Link><Link href="/categories">Categories</Link><Link href="/radar">Radar</Link></div>
           <div><span className="footer-label">Product</span>{commercialUiEnabled ? <Link href="/bid-the-moment">Bid the Moment</Link> : null}<Link href="/fanward">Fanward</Link>{commercialUiEnabled ? <Link href="/dashboard/boosts">Campaign dashboard</Link> : null}</div>
           <div><span className="footer-label">For site owners</span><Link href="/submit">Submit a site</Link><Link href="/dashboard">Dashboard</Link>{commercialUiEnabled ? <Link href="/boost">Boost exposure</Link> : null}</div>
-          <div><span className="footer-label">Learn</span><Link href="/methodology">Methodology</Link>{commercialUiEnabled ? <Link href="/pricing">Pricing</Link> : null}<Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link></div>
+          <div><span className="footer-label">Learn</span><Link href="/methodology">Methodology</Link>{commercialUiEnabled ? <Link href="/pricing">Pricing</Link> : null}<Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/acceptable-use">Acceptable use</Link></div>
         </div>
       </div>
       <div className="footer-bottom"><span>© 2026 SurgeIndex</span><span className="footer-demo-note"><Signal size={13} /> Every metric identifies its source</span><span>Built for attention, not vanity</span></div>
