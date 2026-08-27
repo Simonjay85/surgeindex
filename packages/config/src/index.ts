@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+const emailAddressSchema = z.string().email();
+const emailFromSchema = z.string().refine((value) => {
+  if (emailAddressSchema.safeParse(value).success) return true;
+  const match = value.match(/^.+<([^<>]+)>$/);
+  return Boolean(match && emailAddressSchema.safeParse(match[1].trim()).success);
+}, "Invalid email address");
+
 /**
  * Server-side environment schema. Demo mode is deliberately explicit. A
  * production process may never silently select the deterministic provider.
@@ -125,7 +132,7 @@ const serverEnvSchema = z.object({
     .default(false),
   TURNSTILE_EXPECTED_HOSTNAME: z.string().optional(),
   EMAIL_PROVIDER: z.enum(["disabled", "console", "http"]).default("disabled"),
-  EMAIL_FROM: z.string().email().optional(),
+  EMAIL_FROM: emailFromSchema.optional(),
   EMAIL_REPLY_TO: z.string().email().optional(),
   EMAIL_HTTP_URL: z.string().url().optional(),
   EMAIL_HTTP_API_KEY: z.string().optional(),
