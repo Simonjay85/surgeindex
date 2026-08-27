@@ -1,0 +1,74 @@
+[
+  {
+    "domain": "chatgpt.com",
+    "name": "ChatGPT",
+    "description": "An AI assistant for writing, learning, brainstorming, coding, and more.",
+    "categorySlug": "ai-tools",
+    "aliases": [],
+    "tags": ["ai", "assistant", "productivity"]
+  },
+  {
+    "domain": "figma.com",
+    "name": "Figma",
+    "description": "A collaborative design and product development workspace for teams.",
+    "categorySlug": "design",
+    "aliases": [],
+    "tags": ["design", "collaboration", "prototyping"]
+  },
+  {
+    "domain": "github.com",
+    "name": "GitHub",
+    "description": "A developer platform for planning, building, reviewing, and shipping software.",
+    "categorySlug": "developer-tools",
+    "aliases": [],
+    "tags": ["developers", "code", "collaboration"]
+  },
+  {
+    "domain": "notion.com",
+    "name": "Notion",
+    "description": "An AI workspace for notes, docs, projects, and team knowledge.",
+    "categorySlug": "productivity",
+    "aliases": [],
+    "tags": ["workspace", "docs", "productivity"]
+  },
+  {
+    "domain": "shopify.com",
+    "name": "Shopify",
+    "description": "An all-in-one commerce platform for businesses to start, run, and grow online stores.",
+    "categorySlug": "ecommerce",
+    "aliases": [],
+    "tags": ["commerce", "retail", "stores"]
+  },
+  {
+    "domain": "stripe.com",
+    "name": "Stripe",
+    "description": "Financial infrastructure for payments, billing, and revenue operations.",
+    "categorySlug": "finance",
+    "aliases": [],
+    "tags": ["payments", "billing", "fintech"]
+  },
+  {
+    "domain": "substack.com",
+    "name": "Substack",
+    "description": "A publishing platform for writers and creators to publish posts and newsletters.",
+    "categorySlug": "media",
+    "aliases": [],
+    "tags": ["publishing", "newsletters", "creators"]
+  },
+  {
+    "domain": "vercel.com",
+    "name": "Vercel",
+    "description": "A platform for building, deploying, and scaling web applications and AI experiences.",
+    "categorySlug": "developer-tools",
+    "aliases": [],
+    "tags": ["cloud", "deployment", "web"]
+  },
+  {
+    "domain": "canva.com",
+    "name": "Canva",
+    "description": "A visual communication platform for creating presentations, social posts, videos, and more.",
+    "categorySlug": "design",
+    "aliases": [],
+    "tags": ["visual", "templates", "creative"]
+  }
+]
