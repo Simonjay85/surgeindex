@@ -9,6 +9,8 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/opt/surgeindex/current
 EnvironmentFile=/etc/surgeindex/surgeindex.env
+EnvironmentFile=-/etc/surgeindex/turnstile.production.env
+EnvironmentFile=-/etc/surgeindex/resend.env
 Environment=NODE_ENV=production
 Environment=NODE_OPTIONS=--conditions=react-server
 ExecStart=/usr/bin/node /opt/surgeindex/current/dist/jobs/run-traffic-aggregation.mjs
