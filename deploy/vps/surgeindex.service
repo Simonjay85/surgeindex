@@ -11,6 +11,7 @@ WorkingDirectory=/opt/surgeindex/current/apps/web
 EnvironmentFile=/etc/surgeindex/surgeindex.env
 EnvironmentFile=-/etc/surgeindex/turnstile.production.env
 EnvironmentFile=-/etc/surgeindex/resend.env
+EnvironmentFile=-/opt/surgeindex/current/release.env
 Environment=NODE_ENV=production
 ExecStart=/usr/bin/node /opt/surgeindex/current/apps/web/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3211
 Restart=on-failure
