@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, LoaderCircle, Save, ShieldCheck } from "lucide-react";
 import type { CategoryInfo } from "@surge/shared";
-import { TurnstileField } from "./turnstile-field";
+import { TurnstileField, type TurnstileState } from "./turnstile-field";
 
 type SiteSettings = {
   id: string;
@@ -27,6 +27,9 @@ export function SiteSettingsClient({ siteId, initialCategories, isDemo, turnstil
   const [token, setToken] = useState("");
   const [state, setState] = useState<"loading" | "ready" | "saving" | "saved" | "error">(isDemo ? "ready" : "loading");
   const [message, setMessage] = useState(isDemo ? "Demo listing changes are intentionally read-only." : "");
+  const [turnstileState, setTurnstileState] = useState<TurnstileState>(turnstileSiteKey ? "loading" : "ready");
+  const [turnstileResetNonce, setTurnstileResetNonce] = useState(0);
+  const turnstileReady = !turnstileSiteKey || (turnstileState === "verified" && Boolean(token));
 
   useEffect(() => {
     if (isDemo) return;
@@ -51,29 +54,39 @@ export function SiteSettingsClient({ siteId, initialCategories, isDemo, turnstil
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!settings) return;
+    if (!turnstileReady) { setMessage("Complete the anti-bot verification before saving."); setState("error"); return; }
     setState("saving");
     setMessage("");
-    const response = await fetch(`/api/owner/sites/${siteId}/settings`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({
-        ...form,
-        tags: form.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
-        permittedAliases: form.permittedAliases.split(",").map((alias) => alias.trim()).filter(Boolean),
-        logoUrl: form.logoUrl.trim() || null,
-        faviconUrl: form.faviconUrl.trim() || null,
-        expectedUpdatedAt: settings.updatedAt,
-        turnstileToken: token,
-      }),
-    });
-    const payload = await response.json().catch(() => null) as { data?: { updatedAt: string }; error?: { message?: string } } | null;
-    if (!response.ok || !payload?.data) { setMessage(payload?.error?.message ?? "The listing settings could not be saved."); setState("error"); return; }
-    setSettings((current) => current ? { ...current, updatedAt: payload.data!.updatedAt, name: form.name, description: form.description, categoryId: form.categoryId, logoUrl: form.logoUrl.trim() || null, faviconUrl: form.faviconUrl.trim() || null, publicRevenueVisible: form.publicRevenueVisible, publicPageMetricsVisible: form.publicPageMetricsVisible, tags: form.tags.split(",").map((tag) => tag.trim()).filter(Boolean), permittedAliases: form.permittedAliases.split(",").map((alias) => alias.trim()).filter(Boolean) } : current);
-    setState("saved");
-    setMessage("Listing settings saved and recorded in the audit log.");
+    try {
+      const response = await fetch(`/api/owner/sites/${siteId}/settings`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+          ...form,
+          tags: form.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+          permittedAliases: form.permittedAliases.split(",").map((alias) => alias.trim()).filter(Boolean),
+          logoUrl: form.logoUrl.trim() || null,
+          faviconUrl: form.faviconUrl.trim() || null,
+          expectedUpdatedAt: settings.updatedAt,
+          turnstileToken: token,
+        }),
+      });
+      const payload = await response.json().catch(() => null) as { data?: { updatedAt: string }; error?: { message?: string } } | null;
+      if (!response.ok || !payload?.data) { setMessage(payload?.error?.message ?? "The listing settings could not be saved."); setState("error"); }
+      else {
+        setSettings((current) => current ? { ...current, updatedAt: payload.data!.updatedAt, name: form.name, description: form.description, categoryId: form.categoryId, logoUrl: form.logoUrl.trim() || null, faviconUrl: form.faviconUrl.trim() || null, publicRevenueVisible: form.publicRevenueVisible, publicPageMetricsVisible: form.publicPageMetricsVisible, tags: form.tags.split(",").map((tag) => tag.trim()).filter(Boolean), permittedAliases: form.permittedAliases.split(",").map((alias) => alias.trim()).filter(Boolean) } : current);
+        setState("saved");
+        setMessage("Listing settings saved and recorded in the audit log.");
+      }
+    } catch {
+      setMessage("The listing settings could not be saved. Check your connection and try again.");
+      setState("error");
+    }
+    setToken("");
+    setTurnstileResetNonce((current) => current + 1);
   }
 
   if (isDemo) return <div className="panel"><div className="dashboard-alert"><ShieldCheck size={16} /><span>{message}</span></div></div>;
   if (state === "loading") return <div className="panel"><LoaderCircle className="spin" size={18} /> Loading listing settings…</div>;
-  return <form className="panel" onSubmit={save}><div className="panel-heading"><div><h2>Listing editor</h2><p>Edit public metadata without changing organic metrics or provider records.</p></div><ShieldCheck size={17} color="#2f8b62" /></div><div className="form-grid"><label className="field-label">Name<input value={form.name} onChange={(event) => update("name", event.target.value)} maxLength={160} required /></label><label className="field-label">Category<select value={form.categoryId} onChange={(event) => update("categoryId", event.target.value)} required>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label></div><label className="field-label">Description<textarea value={form.description} onChange={(event) => update("description", event.target.value)} maxLength={320} rows={4} /></label><div className="form-grid"><label className="field-label">Tags <span>(comma separated)</span><input value={form.tags} onChange={(event) => update("tags", event.target.value)} placeholder="launches, planning, AI" /></label><label className="field-label">Permitted aliases <span>(comma separated domains)</span><input value={form.permittedAliases} onChange={(event) => update("permittedAliases", event.target.value)} placeholder="www.example.com" /></label></div><div className="form-grid"><label className="field-label">Logo override <span>(HTTPS)</span><input value={form.logoUrl} onChange={(event) => update("logoUrl", event.target.value)} type="url" placeholder="https://…" /></label><label className="field-label">Favicon override <span>(HTTPS)</span><input value={form.faviconUrl} onChange={(event) => update("faviconUrl", event.target.value)} type="url" placeholder="https://…" /></label></div><div className="dashboard-list"><label className="dashboard-list-row"><span><strong>Public revenue disclosure</strong><small>Show provider-confirmed revenue on public boards when the provider permits it.</small></span><input type="checkbox" checked={form.publicRevenueVisible} onChange={(event) => update("publicRevenueVisible", event.target.checked)} /></label><label className="dashboard-list-row"><span><strong>Public page metrics</strong><small>Show path-level aggregates on the public profile.</small></span><input type="checkbox" checked={form.publicPageMetricsVisible} onChange={(event) => update("publicPageMetricsVisible", event.target.checked)} /></label></div><TurnstileField siteKey={turnstileSiteKey} action="site-settings" onToken={setToken} />{message ? <p className={`form-message ${state === "error" ? "form-error" : "form-success"}`} role="status">{state === "saved" ? <Check size={15} /> : null}{message}</p> : null}<button className="button button-coral" type="submit" disabled={state === "saving" || !settings}><Save size={15} /> {state === "saving" ? "Saving…" : "Save listing"}</button></form>;
+  return <form className="panel" onSubmit={save}><div className="panel-heading"><div><h2>Listing editor</h2><p>Edit public metadata without changing organic metrics or provider records.</p></div><ShieldCheck size={17} color="#2f8b62" /></div><div className="form-grid"><label className="field-label">Name<input value={form.name} onChange={(event) => update("name", event.target.value)} maxLength={160} required /></label><label className="field-label">Category<select value={form.categoryId} onChange={(event) => update("categoryId", event.target.value)} required>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label></div><label className="field-label">Description<textarea value={form.description} onChange={(event) => update("description", event.target.value)} maxLength={320} rows={4} /></label><div className="form-grid"><label className="field-label">Tags <span>(comma separated)</span><input value={form.tags} onChange={(event) => update("tags", event.target.value)} placeholder="launches, planning, AI" /></label><label className="field-label">Permitted aliases <span>(comma separated domains)</span><input value={form.permittedAliases} onChange={(event) => update("permittedAliases", event.target.value)} placeholder="www.example.com" /></label></div><div className="form-grid"><label className="field-label">Logo override <span>(HTTPS)</span><input value={form.logoUrl} onChange={(event) => update("logoUrl", event.target.value)} type="url" placeholder="https://…" /></label><label className="field-label">Favicon override <span>(HTTPS)</span><input value={form.faviconUrl} onChange={(event) => update("faviconUrl", event.target.value)} type="url" placeholder="https://…" /></label></div><div className="dashboard-list"><label className="dashboard-list-row"><span><strong>Public revenue disclosure</strong><small>Show provider-confirmed revenue on public boards when the provider permits it.</small></span><input type="checkbox" checked={form.publicRevenueVisible} onChange={(event) => update("publicRevenueVisible", event.target.checked)} /></label><label className="dashboard-list-row"><span><strong>Public page metrics</strong><small>Show path-level aggregates on the public profile.</small></span><input type="checkbox" checked={form.publicPageMetricsVisible} onChange={(event) => update("publicPageMetricsVisible", event.target.checked)} /></label></div><TurnstileField siteKey={turnstileSiteKey} action="site-settings" onToken={setToken} onStateChange={setTurnstileState} resetNonce={turnstileResetNonce} />{message ? <p className={`form-message ${state === "error" ? "form-error" : "form-success"}`} role="status">{state === "saved" ? <Check size={15} /> : null}{message}</p> : null}<button className="button button-coral" type="submit" disabled={state === "saving" || !settings || !turnstileReady}><Save size={15} /> {state === "saving" ? "Saving…" : !turnstileReady ? "Verify to save" : "Save listing"}</button></form>;
 }
