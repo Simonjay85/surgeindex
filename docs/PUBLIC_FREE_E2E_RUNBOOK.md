@@ -180,9 +180,12 @@ pnpm launch:check
 authenticated read-back. When the staging edge requires Basic Auth, supply
 `STAGING_BASIC_AUTH` from the secret manager as either `user:password` or a
 complete `Basic ...` header. The read-back script consumes it only as an
-Authorization header and records only `basicAuthProvided: true`; it must never
-print or persist the value. A green health endpoint alone is not tracker,
-moderation, email, or provider proof.
+Authorization header for the staging edge and records only
+`basicAuthProvided: true`; it must never print or persist the value. Basic Auth
+does not authenticate the application admin APIs: supply the Better Auth
+session through `STAGING_ADMIN_COOKIE` for those checks, otherwise they remain
+`PENDING`. A green health endpoint alone is not tracker, moderation, email, or
+provider proof.
 
 ## Production rollout and six-hour canary
 

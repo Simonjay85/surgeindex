@@ -61,6 +61,35 @@ describe.skipIf(!enabled)("tracker key authorization and lifecycle", () => {
 
     const now = new Date().toISOString();
     await new PostgresEventStoreProvider().ingest([{
+      eventId: "88888888-8888-4888-8888-888888888888",
+      eventType: "pageview",
+      siteId,
+      visitorHash: "visitor-key-invalid-origin",
+      sessionHash: "session-key-invalid-origin",
+      pathname: "/",
+      referrerHost: null,
+      receivedAt: now,
+      occurredAt: now,
+      clientOccurredAt: now,
+      visible: true,
+      engagedSeconds: null,
+      trackerVersion: "3.0.0",
+      attributionTokenHash: null,
+      attributionClickId: null,
+      trackerPublicKey: first.key!.publicKey,
+      originHost: "evil.example",
+      country: null,
+      device: "desktop",
+      decision: "invalid",
+      fraudScore: 90,
+      fraudReasonCodes: ["disallowed_origin"],
+      fraudRuleVersion: "v1",
+      collectorRequestId: `tracker-key-invalid-origin-${suffix}`,
+      isDemo: false,
+    } satisfies NormalizedTrackerEvent]);
+    expect((await testTrackerInstallation(ownerId, siteId)).accepted).toBe(false);
+
+    await new PostgresEventStoreProvider().ingest([{
       eventId: "77777777-7777-4777-8777-777777777777",
       eventType: "pageview",
       siteId,

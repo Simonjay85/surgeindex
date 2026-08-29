@@ -43,6 +43,9 @@ function safeProjection(value, key = "", depth = 0) {
 async function getJson(baseUrl, path) {
   const url = new URL(path, baseUrl);
   const headers = { accept: "application/json", "user-agent": "surgeindex-staging-readback/1" };
+  // Basic Auth belongs to the staging edge only. It is deliberately not used
+  // as application authentication; admin endpoints still require the
+  // Better-Auth session supplied by STAGING_ADMIN_COOKIE below.
   if (adminCookie) headers.cookie = adminCookie;
   if (basicAuth) headers.authorization = basicAuth;
   try {
@@ -100,7 +103,7 @@ if (!stagingBaseUrl) {
     ];
 
     const adminChecks = ["/api/admin/traffic/summary", "/api/admin/jobs/health", "/api/admin/scoring/health"].map(async (path) => {
-      if (!adminCookie && !basicAuth) return { name: path, result: "PENDING", status: null, requestId: null, data: null, errorType: "admin_session_not_supplied" };
+      if (!adminCookie) return { name: path, result: "PENDING", status: null, requestId: null, data: null, errorType: "admin_session_not_supplied" };
       return checkResult(path, await getJson(baseUrl, path), (response) => response.ok);
     });
     checks.push(...await Promise.all(adminChecks));

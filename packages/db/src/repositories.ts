@@ -613,7 +613,10 @@ export async function createClaim(
     const [target] = await tx.select({ id: site.id, domain: site.domain, status: site.status }).from(site).where(and(eq(site.id, input.siteId), isNull(site.deletedAt))).limit(1).for("update");
     if (!target) return { ok: false as const, reason: "site_not_found" as const };
     if (target.status !== "active") return { ok: false as const, reason: "site_not_active" as const };
-    const owners = await tx.select({ userId: siteOwner.userId, role: siteOwner.role }).from(siteOwner).where(eq(siteOwner.siteId, input.siteId));
+    // Claim mutations use the same site -> membership lock order as owner
+    // settings and tracker-key mutations. The site lock above serializes
+    // moderation; this membership lock serializes owner-role changes.
+    const owners = await tx.select({ userId: siteOwner.userId, role: siteOwner.role }).from(siteOwner).where(eq(siteOwner.siteId, input.siteId)).for("update");
     if (owners.some((owner) => owner.role === "owner" && owner.userId !== input.userId)) {
       await tx.insert(siteClaim).values({ ...input, status: "failed", lastError: "ownership_conflict", usedAt: new Date() });
       return { ok: false as const, reason: "ownership_conflict" as const };
@@ -681,7 +684,12 @@ export async function completeClaim(db: Repository, claimId: string, userId: str
     const [lockedSite] = await tx.select({ id: site.id, status: site.status }).from(site).where(and(eq(site.id, claim.siteId), isNull(site.deletedAt))).limit(1).for("update");
     if (!lockedSite) return { ok: false as const, reason: "not_found" as const };
     if (lockedSite.status !== "active") return { ok: false as const, reason: "site_not_active" as const };
-    const [existingOwner] = await tx.select({ userId: siteOwner.userId, role: siteOwner.role }).from(siteOwner).where(and(eq(siteOwner.siteId, claim.siteId), eq(siteOwner.role, "owner"))).limit(1);
+    const [existingOwner] = await tx
+      .select({ userId: siteOwner.userId, role: siteOwner.role })
+      .from(siteOwner)
+      .where(and(eq(siteOwner.siteId, claim.siteId), eq(siteOwner.role, "owner")))
+      .limit(1)
+      .for("update");
     if (existingOwner && existingOwner.userId !== userId) {
       await tx
         .update(siteClaim)

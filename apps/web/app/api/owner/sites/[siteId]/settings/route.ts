@@ -5,6 +5,7 @@ import { getServerEnv } from "@surge/config";
 import { normalizeDomain } from "@surge/shared";
 import { requireVerifiedApiUser } from "../../../../../../lib/server/authorization";
 import { assertSameOrigin, jsonError, jsonOk, requestId } from "../../../../../../lib/server/http";
+import { authorizeSiteSettingsChange } from "../../../../../../lib/server/site-settings-policy";
 import { verifyTurnstile } from "../../../../../../lib/server/turnstile";
 
 export const runtime = "nodejs";
@@ -125,10 +126,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ si
       }
       const aliasesChanged = !sameDomainSet(before.permittedAliases, aliases);
       const privacyChanged = before.publicRevenueVisible !== parsed.data.publicRevenueVisible || before.publicPageMetricsVisible !== parsed.data.publicPageMetricsVisible;
-      if (membershipRole === "editor" && (aliasesChanged || privacyChanged)) return { kind: "owner_required" as const };
+      const authorization = authorizeSiteSettingsChange(membershipRole, { aliasesChanged, privacyChanged });
+      if (authorization === "not_authorized") return { kind: "not_authorized" as const };
+      if (authorization === "owner_required") return { kind: "owner_required" as const };
       if (before.updatedAt.getTime() !== new Date(parsed.data.expectedUpdatedAt).getTime()) return { kind: "conflict" as const, updatedAt: before.updatedAt.toISOString() };
       const [selectedCategory] = await tx.select({ id: category.id }).from(category).where(eq(category.id, parsed.data.categoryId)).limit(1);
       if (!selectedCategory) return { kind: "category_not_found" as const };
+      // Keep the mutation lock order consistent with tracker-key operations:
+      // site -> membership -> tracker key. This prevents a settings update
+      // from racing a key rotation while aliases are being propagated.
+      await tx
+        .select({ id: trackerKey.id })
+        .from(trackerKey)
+        .where(and(eq(trackerKey.siteId, before.id), or(eq(trackerKey.status, "active"), eq(trackerKey.status, "stale"))))
+        .for("update");
       const [updated] = await tx.update(site).set({ name: parsed.data.name, description: parsed.data.description, categoryId: parsed.data.categoryId, logoUrl: parsed.data.logoUrl, faviconUrl: parsed.data.faviconUrl, permittedAliases: aliases, publicRevenueVisible: parsed.data.publicRevenueVisible, publicPageMetricsVisible: parsed.data.publicPageMetricsVisible, updatedAt: new Date() }).where(eq(site.id, before.id)).returning({ updatedAt: site.updatedAt });
       await tx.update(trackerKey).set({ allowedDomains: [before.domain, ...aliases.filter((alias) => alias !== before.domain)] }).where(and(eq(trackerKey.siteId, before.id), or(eq(trackerKey.status, "active"), eq(trackerKey.status, "stale"))));
       await tx.delete(siteTag).where(eq(siteTag.siteId, before.id));
