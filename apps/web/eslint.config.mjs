@@ -14,6 +14,8 @@ export default defineConfig([
     "out/**",
     "build/**",
     "public/tracker.js",
+    "playwright-report/**",
+    "test-results/**",
     "next-env.d.ts",
   ]),
 ]);

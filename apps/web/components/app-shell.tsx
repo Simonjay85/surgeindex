@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { ArrowUpRight, Menu, Search, Signal } from "lucide-react";
+import { ArrowUpRight, Search, Signal } from "lucide-react";
+import { MobileNavigation } from "./mobile-navigation";
 
 export const commercialUiEnabled = process.env.NEXT_PUBLIC_COMMERCIAL_ENABLED === "true";
+export const radarUiEnabled = process.env.NEXT_PUBLIC_RADAR_ENABLED === "true";
 
 export function SourceBadge({ source, compact = false }: { source: "tracker" | "ga4" | "surgeindex" | "sponsored" | "demo" | "unverified" | "radar"; compact?: boolean }) {
   const labels = { tracker: "Tracker Verified", ga4: "GA4 Verified", surgeindex: "SurgeIndex Referral", sponsored: "Sponsored", demo: "Demo Data", unverified: "Unverified", radar: "Cloudflare Radar" } as const;
@@ -26,17 +28,14 @@ export function Header() {
           <Link href="/rankings">Rankings</Link>
           <Link href="/breakouts">Breakouts</Link>
           <Link href="/categories">Categories</Link>
-          {commercialUiEnabled ? <Link className="nav-feature-active" href="/bid-the-moment">Bid the Moment</Link> : null}
-          <Link href="/radar">Radar</Link>
+          {radarUiEnabled ? <Link href="/radar">Radar</Link> : null}
           <Link href="/methodology">Methodology</Link>
-          <span className="nav-divider" />
-          <Link className="nav-future" href="/fanward">Fanward <span>preview</span></Link>
         </nav>
         <div className="header-actions">
           <Link className="icon-button" href="/search" aria-label="Search sites"><Search size={18} /></Link>
           <Link className="button button-coral button-small header-submit" href="/submit">Submit site <ArrowUpRight size={15} /></Link>
           <Link className="sign-in-link" href="/auth/sign-in">Sign in</Link>
-          <Link className="mobile-menu icon-button" href="/dashboard" aria-label="Open account menu"><Menu size={19} /></Link>
+          <MobileNavigation radarEnabled={radarUiEnabled} />
         </div>
       </div>
     </header>
@@ -52,8 +51,8 @@ export function Footer() {
           <p className="footer-note">The live leaderboard of internet attention.<br />{commercialUiEnabled ? "Earn the rank. Buy the reach." : "Earn attention. Keep the rank honest."}</p>
         </div>
         <div className="footer-links">
-          <div><span className="footer-label">Explore</span><Link href="/rankings">Rankings</Link><Link href="/breakouts">Breakouts</Link><Link href="/categories">Categories</Link><Link href="/radar">Radar</Link></div>
-          <div><span className="footer-label">Product</span>{commercialUiEnabled ? <Link href="/bid-the-moment">Bid the Moment</Link> : null}<Link href="/fanward">Fanward</Link>{commercialUiEnabled ? <Link href="/dashboard/boosts">Campaign dashboard</Link> : null}</div>
+          <div><span className="footer-label">Explore</span><Link href="/rankings">Rankings</Link><Link href="/breakouts">Breakouts</Link><Link href="/categories">Categories</Link>{radarUiEnabled ? <Link href="/radar">Radar</Link> : null}</div>
+          <div><span className="footer-label">Product</span><Link href="/fanward">Fanward <span className="nav-future-label">Preview</span></Link>{commercialUiEnabled ? <><Link href="/bid-the-moment">Bid the Moment</Link><Link href="/dashboard/boosts">Campaign dashboard</Link></> : null}</div>
           <div><span className="footer-label">For site owners</span><Link href="/submit">Submit a site</Link><Link href="/dashboard">Dashboard</Link>{commercialUiEnabled ? <Link href="/boost">Boost exposure</Link> : null}</div>
           <div><span className="footer-label">Learn</span><Link href="/methodology">Methodology</Link>{commercialUiEnabled ? <Link href="/pricing">Pricing</Link> : null}<Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/acceptable-use">Acceptable use</Link></div>
         </div>
