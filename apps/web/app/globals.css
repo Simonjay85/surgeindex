@@ -213,6 +213,8 @@ h3 { font-size: 18px; line-height: 1.12; letter-spacing: -.04em; }
 .rank-momentum-kicker { margin: 0 0 18px; color: #f39a83; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .rank-momentum-copy h2 { max-width: 490px; margin: 0 0 22px; color: #fff8f3; font-family: "Cabinet Grotesk", "Avenir Next", "SF Pro Display", "Helvetica Neue", Arial, sans-serif; font-size: clamp(48px, 5.3vw, 79px); line-height: .9; letter-spacing: -.075em; }
 .rank-momentum-copy > p:not(.rank-momentum-kicker) { max-width: 390px; margin: 0; color: #bfb0a7; font-size: 15px; line-height: 1.65; }
+.rank-momentum-empty .rank-momentum-kicker { color: #f39a83; }
+.rank-momentum-empty > p:not(.rank-momentum-kicker) { color: #bfb0a7; }
 .inline-signal-window { width: 94px; height: 37px; display: inline-flex; margin: 0 8px 2px 4px; vertical-align: middle; overflow: hidden; border: 1px solid rgba(245,164,143,.34); border-radius: 999px; background: rgba(241,122,97,.1); }
 .inline-signal-window svg { width: 100%; height: 100%; }
 .inline-signal-window path { fill: none; stroke: #f39a83; stroke-width: 3; stroke-linecap: round; }
