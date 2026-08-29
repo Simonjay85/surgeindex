@@ -54,5 +54,5 @@ export function TurnstileField({ siteKey, action, onToken }: { siteKey?: string;
       widgetRef.current = null;
     };
   }, [action, onToken, siteKey]);
-  return siteKey ? <div ref={containerRef} aria-label="Anti-bot verification" /> : null;
+  return siteKey ? <div ref={containerRef} role="group" aria-label="Anti-bot verification" /> : null;
 }

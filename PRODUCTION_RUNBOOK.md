@@ -40,6 +40,20 @@ Copy the artifact to `/opt/surgeindex/releases/<release-id>`, set ownership and
 permissions for the `ubuntu` service account, and record the build SHA and
 migration count in the release manifest.
 
+Every release directory must also contain a non-secret `release.env` so the
+live health endpoint can identify the exact immutable build:
+
+```bash
+release_sha="$(git rev-parse HEAD)"
+printf 'BUILD_SHA=%s\n' "$release_sha" > /opt/surgeindex/releases/<release-id>/release.env
+chmod 0644 /opt/surgeindex/releases/<release-id>/release.env
+```
+
+`surgeindex.service` loads this file through `/opt/surgeindex/current`. After
+the atomic symlink switch and service restart, `/api/health/live` must return
+that exact SHA instead of `build: "unknown"`. Never edit tracked source inside
+an installed release; if a fix is required, build and install a new SHA.
+
 ## 3. Database and network
 
 PostgreSQL must be private. Confirm Compose binds only to loopback and inspect
