@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getServerEnv } from "@surge/config";
-import { requireApiUser } from "../../../../../../lib/server/authorization";
+import { requireVerifiedApiUser } from "../../../../../../lib/server/authorization";
 import { assertSameOrigin, jsonError, jsonOk } from "../../../../../../lib/server/http";
 import { checkRateLimit } from "../../../../../../lib/server/rate-limit";
 import { mutateTrackerKey, revokeTrackerKey, getTrackerKeyStatus, TrackerKeyServiceError } from "../../../../../../lib/server/tracker-key-service";
@@ -12,7 +12,7 @@ const actionSchema = z.object({ action: z.enum(["generate", "rotate"]) });
 
 export async function GET(request: Request, { params }: { params: Promise<{ siteId: string }> }) {
   if (getServerEnv().APP_MODE !== "production" || getServerEnv().DATA_PROVIDER !== "postgres") return jsonError(request, 409, "demo_mode", "Tracker key state is available for an ownership-verified production site.");
-  const auth = await requireApiUser(request);
+  const auth = await requireVerifiedApiUser(request);
   if ("response" in auth) return auth.response;
   const parsed = siteParams.safeParse(await params);
   if (!parsed.success) return jsonError(request, 422, "invalid_site", "The site identifier is invalid.");
@@ -24,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ sit
   const origin = assertSameOrigin(request);
   if (!origin.ok) return origin.response;
   if (getServerEnv().APP_MODE !== "production" || getServerEnv().DATA_PROVIDER !== "postgres") return jsonError(request, 409, "demo_mode", "Tracker key mutations are disabled in demo mode.");
-  const auth = await requireApiUser(request);
+  const auth = await requireVerifiedApiUser(request);
   if ("response" in auth) return auth.response;
   const parsedParams = siteParams.safeParse(await params);
   if (!parsedParams.success) return jsonError(request, 422, "invalid_site", "The site identifier is invalid.");
@@ -40,7 +40,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ s
   const origin = assertSameOrigin(request);
   if (!origin.ok) return origin.response;
   if (getServerEnv().APP_MODE !== "production" || getServerEnv().DATA_PROVIDER !== "postgres") return jsonError(request, 409, "demo_mode", "Tracker key mutations are disabled in demo mode.");
-  const auth = await requireApiUser(request);
+  const auth = await requireVerifiedApiUser(request);
   if ("response" in auth) return auth.response;
   const parsed = siteParams.safeParse(await params);
   if (!parsed.success) return jsonError(request, 422, "invalid_site", "The site identifier is invalid.");

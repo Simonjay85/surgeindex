@@ -130,6 +130,7 @@ describe.skipIf(!enabled)("PostgreSQL repository integration", () => {
     expect(competingSite.duplicate).toBe(false);
     if (competingSite.duplicate) return;
     extraSiteIds.push(competingSite.siteId);
+    expect(await moderateSite(db, { siteId: competingSite.siteId, adminUserId: admin, action: "approve", reason: "Claim race fixture approved", requestId: `req-race-approve-${suffix}` })).toBe(true);
 
     const claimA = await createClaim(db, { siteId: competingSite.siteId, userId: userA, method: "meta_tag", token: `token-race-a-${suffix}`, expiresAt: new Date(Date.now() + 60_000) });
     const claimB = await createClaim(db, { siteId: competingSite.siteId, userId: userB, method: "dns_txt", token: `token-race-b-${suffix}`, expiresAt: new Date(Date.now() + 60_000) });
@@ -165,6 +166,7 @@ describe.skipIf(!enabled)("PostgreSQL repository integration", () => {
     expect(duplicateSite.duplicate).toBe(false);
     if (duplicateSite.duplicate) return;
     extraSiteIds.push(duplicateSite.siteId);
+    expect(await moderateSite(db, { siteId: duplicateSite.siteId, adminUserId: admin, action: "approve", reason: "Duplicate claim fixture approved", requestId: `req-duplicate-approve-${suffix}` })).toBe(true);
     const duplicateClaim = await createClaim(db, { siteId: duplicateSite.siteId, userId: userA, method: "meta_tag", token: `token-duplicate-${suffix}`, expiresAt: new Date(Date.now() + 60_000) });
     expect(duplicateClaim.ok).toBe(true);
     if (!duplicateClaim.ok) return;

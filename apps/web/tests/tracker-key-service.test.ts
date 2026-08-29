@@ -9,6 +9,7 @@ const enabled = process.env.RUN_DB_TESTS === "1" && process.env.APP_MODE === "pr
 const suffix = Date.now().toString(36);
 const ownerId = `tracker-owner-${suffix}`;
 const otherUserId = `tracker-other-${suffix}`;
+const editorId = `tracker-editor-${suffix}`;
 const categoryId = crypto.randomUUID();
 const siteId = crypto.randomUUID();
 
@@ -19,9 +20,13 @@ describe.skipIf(!enabled)("tracker key authorization and lifecycle", () => {
     await db.insert(user).values([
       { id: ownerId, name: "Tracker Owner", email: `${ownerId}@example.com` },
       { id: otherUserId, name: "Other User", email: `${otherUserId}@example.com` },
+      { id: editorId, name: "Tracker Editor", email: `${editorId}@example.com` },
     ]);
-    await db.insert(site).values({ id: siteId, slug: `tracker-${suffix}`, domain: `tracker-${suffix}.example.com`, name: "Tracker Fixture", description: "", categoryId, status: "active", ownership: "claimed", isDemo: false });
-    await db.insert(siteOwner).values({ siteId, userId: ownerId, role: "owner" });
+    await db.insert(site).values({ id: siteId, slug: `tracker-${suffix}`, domain: `tracker-${suffix}.example.com`, name: "Tracker Fixture", description: "", categoryId, status: "active", ownership: "claimed", isDemo: false, permittedAliases: [`www.tracker-${suffix}.example.com`] });
+    await db.insert(siteOwner).values([
+      { siteId, userId: ownerId, role: "owner" },
+      { siteId, userId: editorId, role: "editor" },
+    ]);
   });
 
   afterAll(async () => {
@@ -30,14 +35,29 @@ describe.skipIf(!enabled)("tracker key authorization and lifecycle", () => {
     await db.delete(category).where(eq(category.id, categoryId));
     await db.delete(user).where(eq(user.id, ownerId));
     await db.delete(user).where(eq(user.id, otherUserId));
+    await db.delete(user).where(eq(user.id, editorId));
     await closeDb();
   });
 
+  it("requires the exact owner role for every tracker-key operation", async () => {
+    await expect(getTrackerKeyStatus(editorId, siteId)).rejects.toMatchObject({ code: "ownership_required" });
+    await expect(mutateTrackerKey({ userId: editorId, siteId, action: "generate" })).rejects.toMatchObject({ code: "ownership_required" });
+    await expect(mutateTrackerKey({ userId: editorId, siteId, action: "rotate" })).rejects.toMatchObject({ code: "ownership_required" });
+    await expect(revokeTrackerKey(editorId, siteId)).rejects.toMatchObject({ code: "ownership_required" });
+    await expect(testTrackerInstallation(editorId, siteId)).rejects.toMatchObject({ code: "ownership_required" });
+  });
+
   it("requires ownership and keeps rotation/revocation states one-way", async () => {
-    const first = await mutateTrackerKey({ userId: ownerId, siteId, action: "generate" });
+    const firstResults = await Promise.all([
+      mutateTrackerKey({ userId: ownerId, siteId, action: "generate" }),
+      mutateTrackerKey({ userId: ownerId, siteId, action: "generate" }),
+    ]);
+    const first = firstResults[0];
     expect(first.status).toBe("waiting");
     expect(first.key?.publicKey).toMatch(/^pk_live_/);
     expect(first.key?.publicKey).not.toContain(siteId);
+    expect(firstResults[1].key?.publicKey).toBe(first.key?.publicKey);
+    expect(first.key?.allowedDomains).toEqual([`tracker-${suffix}.example.com`, `www.tracker-${suffix}.example.com`]);
 
     const now = new Date().toISOString();
     await new PostgresEventStoreProvider().ingest([{
@@ -88,5 +108,26 @@ describe.skipIf(!enabled)("tracker key authorization and lifecycle", () => {
     expect(keys.find((key) => key.publicKey === first.key?.publicKey)?.status).toBe("revoked");
     expect(keys.find((key) => key.version === 2)?.status).toBe("revoked");
     expect(keys.find((key) => key.version === 3)?.status).toBe("active");
+
+    const concurrentRotates = await Promise.all([
+      mutateTrackerKey({ userId: ownerId, siteId, action: "rotate" }),
+      mutateTrackerKey({ userId: ownerId, siteId, action: "rotate" }),
+    ]);
+    const afterRotates = await getPostgresDb().select({ publicKey: trackerKey.publicKey, status: trackerKey.status, version: trackerKey.version }).from(trackerKey).where(eq(trackerKey.siteId, siteId));
+    expect(concurrentRotates.every((result) => result.status === "active")).toBe(true);
+    expect(afterRotates).toHaveLength(5);
+    expect(afterRotates.filter((key) => key.status === "active")).toHaveLength(1);
+    expect(new Set(afterRotates.map((key) => key.version)).size).toBe(afterRotates.length);
+
+    await Promise.all([
+      revokeTrackerKey(ownerId, siteId),
+      mutateTrackerKey({ userId: ownerId, siteId, action: "rotate" }),
+    ]);
+    const afterRevokeRotate = await getPostgresDb().select({ status: trackerKey.status, version: trackerKey.version }).from(trackerKey).where(eq(trackerKey.siteId, siteId));
+    // The serialized order determines whether rotate follows revoke (one new
+    // active key) or revoke follows rotate (no active key), but neither order
+    // may leave two live keys or duplicate versions.
+    expect(afterRevokeRotate.filter((key) => key.status === "active").length).toBeLessThanOrEqual(1);
+    expect(new Set(afterRevokeRotate.map((key) => key.version)).size).toBe(afterRevokeRotate.length);
   });
 });

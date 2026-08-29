@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getServerEnv } from "@surge/config";
-import { requireApiUser } from "../../../../../../../lib/server/authorization";
+import { requireVerifiedApiUser } from "../../../../../../../lib/server/authorization";
 import { assertSameOrigin, jsonError, jsonOk } from "../../../../../../../lib/server/http";
 import { testTrackerInstallation, TrackerKeyServiceError } from "../../../../../../../lib/server/tracker-key-service";
 
@@ -10,7 +10,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ sit
   const origin = assertSameOrigin(request);
   if (!origin.ok) return origin.response;
   if (getServerEnv().APP_MODE !== "production" || getServerEnv().DATA_PROVIDER !== "postgres") return jsonError(request, 409, "demo_mode", "Tracker installation tests require a production repository.");
-  const auth = await requireApiUser(request);
+  const auth = await requireVerifiedApiUser(request);
   if ("response" in auth) return auth.response;
   const parsed = z.object({ siteId: z.string().uuid() }).safeParse(await params);
   if (!parsed.success) return jsonError(request, 422, "invalid_site", "The site identifier is invalid.");
