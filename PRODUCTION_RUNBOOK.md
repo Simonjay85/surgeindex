@@ -26,7 +26,7 @@ build time for the canonical URL and public keys:
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
-test -s tracker/dist/tracker.js
+test -s tracker/build/tracker.js
 test -d dist/jobs
 find dist/jobs -maxdepth 1 -type f -name '*.mjs' -print | sort
 ```
