@@ -8,6 +8,8 @@ import { isSafeInternalPath } from "../../../../lib/utils";
 
 export const runtime = "nodejs";
 
+const CALLBACK_PATH_PARAMETERS = ["callbackURL", "callbackUrl", "redirectTo", "redirectURI", "newUserCallbackURL"] as const;
+
 async function guardedPost(request: Request) {
   const origin = assertSameOrigin(request);
   if (!origin.ok) return origin.response;
@@ -22,7 +24,7 @@ async function guardedPost(request: Request) {
   const authLimit = isSignup ? 6 : isForgotPassword || isResendVerification ? 5 : isResetPassword ? 10 : 20;
   const rate = await checkRateLimit(authScope, `${getTrustedClientIp(request)}:${email}`, authLimit, 15 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", `Too many authentication attempts. Try again in ${rate.retryAfterSeconds} seconds.`);
-  for (const key of ["callbackURL", "callbackUrl", "redirectTo", "redirectURI"]) {
+  for (const key of CALLBACK_PATH_PARAMETERS) {
     if (body && Object.hasOwn(body, key) && !isSafeInternalPath(body[key])) {
       return jsonError(request, 400, "unsafe_redirect", "Only same-origin paths are allowed for authentication redirects.");
     }
@@ -44,7 +46,7 @@ async function guardedPost(request: Request) {
 
 function guardedGet(request: Request) {
   const url = new URL(request.url);
-  for (const key of ["callbackURL", "callbackUrl", "redirectTo", "redirectURI"]) {
+  for (const key of CALLBACK_PATH_PARAMETERS) {
     const value = url.searchParams.get(key);
     if (value && !isSafeInternalPath(value)) return jsonError(request, 400, "unsafe_redirect", "Only same-origin paths are allowed for authentication redirects.");
   }

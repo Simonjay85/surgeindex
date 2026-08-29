@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { PostgresEventStoreProvider } from "@surge/analytics";
-import { closeDb, getPostgresDb, category, site, siteOwner, trackerKey, user } from "@surge/db";
+import { closeDb, completeClaim, createClaim, getPostgresDb, category, site, siteClaim, siteOwner, trackerKey, user } from "@surge/db";
 import { getTrackerKeyStatus, mutateTrackerKey, revokeTrackerKey, testTrackerInstallation } from "../lib/server/tracker-key-service";
 import type { NormalizedTrackerEvent } from "@surge/shared";
 
@@ -12,6 +12,7 @@ const otherUserId = `tracker-other-${suffix}`;
 const editorId = `tracker-editor-${suffix}`;
 const categoryId = crypto.randomUUID();
 const siteId = crypto.randomUUID();
+let claimRaceSiteId = "";
 
 describe.skipIf(!enabled)("tracker key authorization and lifecycle", () => {
   beforeAll(async () => {
@@ -32,6 +33,7 @@ describe.skipIf(!enabled)("tracker key authorization and lifecycle", () => {
   afterAll(async () => {
     const db = getPostgresDb();
     await db.delete(site).where(eq(site.id, siteId));
+    if (claimRaceSiteId) await db.delete(site).where(eq(site.id, claimRaceSiteId));
     await db.delete(category).where(eq(category.id, categoryId));
     await db.delete(user).where(eq(user.id, ownerId));
     await db.delete(user).where(eq(user.id, otherUserId));
@@ -158,5 +160,39 @@ describe.skipIf(!enabled)("tracker key authorization and lifecycle", () => {
     // may leave two live keys or duplicate versions.
     expect(afterRevokeRotate.filter((key) => key.status === "active").length).toBeLessThanOrEqual(1);
     expect(new Set(afterRevokeRotate.map((key) => key.version)).size).toBe(afterRevokeRotate.length);
+  });
+
+  it("settles a claim and key race without creating an unauthorized key", async () => {
+    const db = getPostgresDb();
+    const domain = `claim-key-race-${suffix}.example.com`;
+    const [created] = await db
+      .insert(site)
+      .values({ id: crypto.randomUUID(), slug: `claim-key-race-${suffix}`, domain, name: "Claim key race fixture", description: "", categoryId, status: "active", ownership: "unclaimed", isDemo: false })
+      .returning({ id: site.id });
+    claimRaceSiteId = created.id;
+    const started = await createClaim(db, { siteId: claimRaceSiteId, userId: ownerId, method: "meta_tag", token: `claim-key-race-${suffix}`, expiresAt: new Date(Date.now() + 60_000) });
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+
+    const [claimResult, keyResult] = await Promise.allSettled([
+      completeClaim(db, started.claim.id, ownerId),
+      mutateTrackerKey({ userId: ownerId, siteId: claimRaceSiteId, action: "generate" }),
+    ]);
+    expect(claimResult.status).toBe("fulfilled");
+    expect(claimResult.status === "fulfilled" ? claimResult.value : null).toMatchObject({ ok: true, siteId: claimRaceSiteId });
+    if (keyResult.status === "rejected") expect(keyResult.reason).toMatchObject({ code: "ownership_required" });
+    const [claim] = await db.select({ status: siteClaim.status }).from(siteClaim).where(eq(siteClaim.id, started.claim.id));
+    const [claimedSite] = await db.select({ ownership: site.ownership }).from(site).where(eq(site.id, claimRaceSiteId));
+    const owners = await db.select({ userId: siteOwner.userId, role: siteOwner.role }).from(siteOwner).where(eq(siteOwner.siteId, claimRaceSiteId));
+    const keys = await db.select({ status: trackerKey.status, isDemo: site.isDemo }).from(trackerKey).innerJoin(site, eq(trackerKey.siteId, site.id)).where(eq(trackerKey.siteId, claimRaceSiteId));
+    expect(claim?.status).toBe("verified");
+    expect(claimedSite?.ownership).toBe("claimed");
+    expect(owners).toEqual([{ userId: ownerId, role: "owner" }]);
+    expect(keys.filter((key) => key.status === "active")).toHaveLength(keyResult.status === "fulfilled" ? 1 : 0);
+    expect(keys.every((key) => key.isDemo === false)).toBe(true);
+
+    const eventual = await mutateTrackerKey({ userId: ownerId, siteId: claimRaceSiteId, action: "generate" });
+    expect(eventual.status).toBe("waiting");
+    expect(eventual.key?.allowedDomains).toEqual([domain]);
   });
 });

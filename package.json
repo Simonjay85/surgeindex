@@ -55,6 +55,7 @@
     "stripe:replay-event": "tsx --env-file=apps/web/.env scripts/stripe-replay-event.ts",
     "boost:placement-check": "node scripts/boost-placement-check.mjs",
     "security:scan": "node scripts/secret-scan.mjs",
+    "db:test": "node scripts/database-tests.mjs",
     "db:smoke": "tsx scripts/migration-smoke.ts",
     "production:import": "tsx scripts/import-production-sites.ts",
     "launch:gates": "node scripts/launch-gates.mjs",

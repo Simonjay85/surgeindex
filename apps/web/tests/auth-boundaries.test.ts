@@ -38,6 +38,14 @@ describe("authentication redirect boundary", () => {
     expect(mocks.toNextJsHandler).not.toHaveBeenCalled();
   });
 
+  it("rejects an unsafe newUserCallbackURL at the actual auth GET boundary", async () => {
+    const response = await GET(new Request("https://surgeindex.example/api/auth/sign-in?newUserCallbackURL=https%3A%2F%2Fevil.example%2Fafter-signup"));
+
+    expect(response.status).toBe(400);
+    expect((await errorBody(response)).error?.code).toBe("unsafe_redirect");
+    expect(mocks.toNextJsHandler).not.toHaveBeenCalled();
+  });
+
   it("rejects an unsafe callbackURL at the actual auth POST boundary before Turnstile or Better Auth", async () => {
     const response = await POST(new Request("https://surgeindex.example/api/auth/sign-up/email", {
       method: "POST",
@@ -54,6 +62,23 @@ describe("authentication redirect boundary", () => {
     expect(response.status).toBe(400);
     expect((await errorBody(response)).error?.code).toBe("unsafe_redirect");
     expect(mocks.verifyTurnstile).not.toHaveBeenCalled();
+    expect(mocks.getAuth).not.toHaveBeenCalled();
+    expect(mocks.toNextJsHandler).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsafe newUserCallbackURL at the actual auth POST boundary", async () => {
+    const response = await POST(new Request("https://surgeindex.example/api/auth/sign-in/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "fixture@example.com",
+        password: "password-fixture",
+        newUserCallbackURL: "//evil.example/after-signup",
+      }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect((await errorBody(response)).error?.code).toBe("unsafe_redirect");
     expect(mocks.getAuth).not.toHaveBeenCalled();
     expect(mocks.toNextJsHandler).not.toHaveBeenCalled();
   });

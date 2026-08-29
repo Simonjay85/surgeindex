@@ -1,9 +1,9 @@
 import "server-only";
 
 import { randomBytes } from "node:crypto";
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import { getServerEnv } from "@surge/config";
-import { activityEvent, getPostgresDb, site, siteOwner, trackerEvent, trackerKey } from "@surge/db";
+import { activityEvent, getPostgresDb, site, siteOwner, trackerEvent, trackerKey, type PostgresDatabase } from "@surge/db";
 
 export class TrackerKeyServiceError extends Error {
   constructor(public readonly code: "site_not_found" | "ownership_required" | "tracker_not_found" | "revoked" | "rate_limited", message: string, public readonly status = 422) {
@@ -12,6 +12,47 @@ export class TrackerKeyServiceError extends Error {
 }
 
 type TrackerAction = "generate" | "rotate";
+
+type TrackerKeyTransaction = Parameters<Parameters<PostgresDatabase["transaction"]>[0]>[0];
+
+const OWNERSHIP_REQUIRED_MESSAGE = "Only an ownership-verified site can manage tracker keys.";
+
+async function lockAuthorizedSite(tx: TrackerKeyTransaction, userId: string, siteId: string) {
+  // Do not use a joined FOR UPDATE here. PostgreSQL may lock every joined
+  // relation (and the planner can choose a different relation order), which
+  // lets settings/claim transactions deadlock or observe a mixed snapshot.
+  // Every tracker-key mutation follows this order: site -> exact membership ->
+  // current key. The site row also serializes the no-key case with inserts.
+  const [target] = await tx
+    .select({ id: site.id, domain: site.domain, name: site.name, ownership: site.ownership, status: site.status, permittedAliases: site.permittedAliases })
+    .from(site)
+    .where(and(eq(site.id, siteId), eq(site.isDemo, false), sql`${site.deletedAt} is null`))
+    .limit(1)
+    .for("update");
+  if (!target) throw new TrackerKeyServiceError("ownership_required", OWNERSHIP_REQUIRED_MESSAGE, 403);
+
+  const [membership] = await tx
+    .select({ id: siteOwner.id })
+    .from(siteOwner)
+    .where(and(eq(siteOwner.siteId, target.id), eq(siteOwner.userId, userId), eq(siteOwner.role, "owner")))
+    .limit(1)
+    .for("update");
+  if (!membership) throw new TrackerKeyServiceError("ownership_required", OWNERSHIP_REQUIRED_MESSAGE, 403);
+  if (target.ownership !== "claimed") throw new TrackerKeyServiceError("ownership_required", OWNERSHIP_REQUIRED_MESSAGE, 403);
+  if (target.status !== "active") throw new TrackerKeyServiceError("site_not_found", "The site is not active.", 404);
+  return target;
+}
+
+async function lockCurrentTrackerKey(tx: TrackerKeyTransaction, siteId: string, activeOnly = false) {
+  const [current] = await tx
+    .select()
+    .from(trackerKey)
+    .where(and(eq(trackerKey.siteId, siteId), activeOnly ? sql`${trackerKey.status} <> 'revoked'` : undefined))
+    .orderBy(desc(trackerKey.version), asc(trackerKey.id))
+    .limit(1)
+    .for("update");
+  return current;
+}
 
 async function authorizedSite(userId: string, siteId: string) {
   const db = getPostgresDb();
@@ -55,27 +96,8 @@ export async function getTrackerKeyStatus(userId: string, siteId: string) {
 export async function mutateTrackerKey(input: { userId: string; siteId: string; action: TrackerAction }) {
   const db = getPostgresDb();
   await db.transaction(async (tx) => {
-    // Lock the site and the exact owner membership before reading mutable
-    // tracker state. This serializes claim/suspend/ownership changes with key
-    // generation and ensures aliases come from the same snapshot as the key.
-    const [target] = await tx
-      .select({ id: site.id, domain: site.domain, name: site.name, ownership: site.ownership, status: site.status, permittedAliases: site.permittedAliases })
-      .from(site)
-      .innerJoin(siteOwner, and(eq(siteOwner.siteId, site.id), eq(siteOwner.userId, input.userId), eq(siteOwner.role, "owner")))
-      .where(and(eq(site.id, input.siteId), eq(site.isDemo, false), sql`${site.deletedAt} is null`))
-      .limit(1)
-      .for("update");
-    if (!target) throw new TrackerKeyServiceError("ownership_required", "Only an ownership-verified site can manage tracker keys.", 403);
-    if (target.ownership !== "claimed") throw new TrackerKeyServiceError("ownership_required", "Only an ownership-verified site can manage tracker keys.", 403);
-    if (target.status !== "active") throw new TrackerKeyServiceError("site_not_found", "The site is not active.", 404);
-
-    const [current] = await tx
-      .select()
-      .from(trackerKey)
-      .where(eq(trackerKey.siteId, target.id))
-      .orderBy(desc(trackerKey.version))
-      .limit(1)
-      .for("update");
+    const target = await lockAuthorizedSite(tx, input.userId, input.siteId);
+    const current = await lockCurrentTrackerKey(tx, target.id);
     if (input.action === "generate" && current && ["active", "stale"].includes(current.status)) {
       return;
     }
@@ -94,24 +116,8 @@ export async function mutateTrackerKey(input: { userId: string; siteId: string; 
 export async function revokeTrackerKey(userId: string, siteId: string) {
   const db = getPostgresDb();
   await db.transaction(async (tx) => {
-    const [target] = await tx
-      .select({ id: site.id, ownership: site.ownership, status: site.status })
-      .from(site)
-      .innerJoin(siteOwner, and(eq(siteOwner.siteId, site.id), eq(siteOwner.userId, userId), eq(siteOwner.role, "owner")))
-      .where(and(eq(site.id, siteId), eq(site.isDemo, false), sql`${site.deletedAt} is null`))
-      .limit(1)
-      .for("update");
-    if (!target) throw new TrackerKeyServiceError("ownership_required", "Only an ownership-verified site can manage tracker keys.", 403);
-    if (target.ownership !== "claimed") throw new TrackerKeyServiceError("ownership_required", "Only an ownership-verified site can manage tracker keys.", 403);
-    if (target.status !== "active") throw new TrackerKeyServiceError("site_not_found", "The site is not active.", 404);
-
-    const [current] = await tx
-      .select({ id: trackerKey.id })
-      .from(trackerKey)
-      .where(and(eq(trackerKey.siteId, target.id), sql`${trackerKey.status} <> 'revoked'`))
-      .orderBy(desc(trackerKey.version))
-      .limit(1)
-      .for("update");
+    const target = await lockAuthorizedSite(tx, userId, siteId);
+    const current = await lockCurrentTrackerKey(tx, target.id, true);
     if (!current) throw new TrackerKeyServiceError("tracker_not_found", "No active tracker key exists for this site.", 404);
     const now = new Date();
     const [revoked] = await tx

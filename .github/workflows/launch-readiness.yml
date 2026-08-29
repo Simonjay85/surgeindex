@@ -74,6 +74,107 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  database-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_ENV: test
+      RUN_DB_TESTS: "1"
+      APP_MODE: production
+      DATA_PROVIDER: postgres
+      ANALYTICS_PROVIDER: postgres
+      DB_DRIVER: pg
+      DATABASE_URL: postgresql://surgeindex_ci@127.0.0.1:5432/surgeindex_ci
+      DATABASE_URL_UNPOOLED: postgresql://surgeindex_ci@127.0.0.1:5432/surgeindex_ci
+      RELEASE_DB_URL: postgresql://surgeindex_ci@127.0.0.1:5432/surgeindex_ci
+      RELEASE_DB_SMOKE_DATABASE_NAME: surgeindex_ci
+      RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET: "true"
+      RELEASE_DB_SMOKE_DISPOSABLE: "YES"
+      RELEASE_DB_SMOKE_ALLOW_CI_SERVICE_ADDRESS: "true"
+      EXPECTED_MIGRATION_COUNT: "14"
+      NEXT_PUBLIC_APP_URL: https://ci.surgeindex.invalid
+      BETTER_AUTH_URL: https://auth.ci.surgeindex.invalid
+      BETTER_AUTH_SECRET: fixture-better-auth-secret-for-db-tests-2026
+      TRUSTED_PROXY_MODE: direct_nginx
+      TURNSTILE_REQUIRED: "true"
+      TURNSTILE_SITE_KEY: fixture-turnstile-site-key
+      TURNSTILE_SECRET_KEY: fixture-turnstile-secret-key
+      TURNSTILE_EXPECTED_HOSTNAME: ci.surgeindex.invalid
+      EMAIL_PROVIDER: http
+      EMAIL_FROM: ci@surgeindex.invalid
+      EMAIL_HTTP_URL: https://email.ci.surgeindex.invalid/send
+      EMAIL_HTTP_API_KEY: fixture-email-http-api-key
+      TRACKER_ENABLED: "true"
+      TRACKER_HASH_SECRET: fixture-tracker-hash-secret-for-db-tests-2026
+      TRACKER_SIGNING_SECRET: fixture-tracker-signing-secret-for-db-tests-2026
+      TRACKER_KEY_ROTATION_SECRET: fixture-tracker-rotation-secret-for-db-tests-2026
+      QUEUE_PROVIDER: local
+      REALTIME_PROVIDER: local
+      BOOST_ENABLED: "false"
+      BOOST_LIVE_MODE_ENABLED: "false"
+      STRIPE_ENABLED: "false"
+      GA4_ENABLED: "false"
+      GA4_PROVIDER_MODE: fixture
+      NEXT_PUBLIC_COMMERCIAL_ENABLED: "false"
+      NEXT_PUBLIC_RADAR_ENABLED: "false"
+      PUBLIC_REVENUE_BOARD_ENABLED: "false"
+      PUBLIC_PAGE_METRICS_ENABLED: "false"
+      BOOST_PLACEMENT_HOMEPAGE_ENABLED: "false"
+      BOOST_PLACEMENT_CATEGORY_ENABLED: "false"
+      BOOST_PLACEMENT_RANKING_ENABLED: "false"
+      BOOST_PLACEMENT_PROFILE_ENABLED: "false"
+      BOOST_PLACEMENT_BREAKOUT_ENABLED: "false"
+      FEATURE_CREATORS: "false"
+      FEATURE_CAMPAIGNS: "false"
+      FEATURE_AUCTION: "false"
+      FEATURE_PUBLIC_API: "false"
+      SURGEINDEX_NEXT_DIST_DIR: .next-db-tests
+      DB_TEST_EVIDENCE_DIR: artifacts/database-tests
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: surgeindex_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: surgeindex_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U surgeindex_ci -d surgeindex_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Assert exact checked-out revision
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "database-tests revision=$(git rev-parse HEAD)"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Capture workflow evidence timestamp
+        run: echo "WORKFLOW_RUN_STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_ENV"
+      - run: pnpm install --frozen-lockfile
+      - name: Apply schema for database integration suites
+        run: pnpm db:migrate
+      - name: Run required PostgreSQL suites (fail closed on skipped files)
+        run: pnpm db:test
+      - name: Upload database-test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-test-evidence
+          path: artifacts/database-tests/
+          if-no-files-found: warn
+          retention-days: 14
+
   migrations:
     runs-on: ubuntu-latest
     timeout-minutes: 10
