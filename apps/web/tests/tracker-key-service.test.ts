@@ -145,7 +145,10 @@ describe.skipIf(!enabled)("tracker key authorization and lifecycle", () => {
       mutateTrackerKey({ userId: ownerId, siteId, action: "rotate" }),
     ]);
     const afterRotates = await getPostgresDb().select({ publicKey: trackerKey.publicKey, status: trackerKey.status, version: trackerKey.version }).from(trackerKey).where(eq(trackerKey.siteId, siteId));
-    expect(concurrentRotates.every((result) => result.status === "active")).toBe(true);
+    // A freshly rotated key has no accepted event yet, so the service should
+    // report the persisted key as waiting until the collector sees it.
+    expect(concurrentRotates.every((result) => result.status === "waiting")).toBe(true);
+    expect(concurrentRotates.map((result) => result.key?.version).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([4, 5]);
     expect(afterRotates).toHaveLength(5);
     expect(afterRotates.filter((key) => key.status === "active")).toHaveLength(1);
     expect(new Set(afterRotates.map((key) => key.version)).size).toBe(afterRotates.length);
