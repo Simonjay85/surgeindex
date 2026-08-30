@@ -149,7 +149,8 @@ release_secret_cleanup() {
     STAGING_FIXTURE_ADMIN_SIGNIN_CURL_CONFIG STAGING_FIXTURE_SIGNOUT_JSON \
     STAGING_FIXTURE_OWNER_SIGNOUT_CURL_CONFIG STAGING_FIXTURE_ADMIN_SIGNOUT_CURL_CONFIG \
     STAGING_FIXTURE_OWNER_COOKIE_JAR STAGING_FIXTURE_ADMIN_COOKIE_JAR \
-    STAGING_FIXTURE_RATE_LIMIT_PHASE_ENV STAGING_FIXTURE_READBACK_ENV; do
+    STAGING_FIXTURE_RATE_LIMIT_PHASE_ENV STAGING_FIXTURE_READBACK_ENV \
+    NGINX_EFFECTIVE_CONFIG NGINX_PROBE_CODES; do
     secret_file="${!variable_name:-}"
     expected_path=""
     if [[ "${RELEASE_ID:-}" =~ ^surgeindex-fanward-[0-9]{8}\.[0-9]{4}-[0-9a-f]{12}$ ]]; then
@@ -172,6 +173,8 @@ release_secret_cleanup() {
         STAGING_FIXTURE_ADMIN_COOKIE_JAR) expected_path="/run/surgeindex-fanward-${RELEASE_ID}-fixture-admin.cookies" ;;
         STAGING_FIXTURE_RATE_LIMIT_PHASE_ENV) expected_path="/run/surgeindex-fanward-${RELEASE_ID}-fixture-rate-limit-phase.env" ;;
         STAGING_FIXTURE_READBACK_ENV) expected_path="/run/surgeindex-fanward-${RELEASE_ID}-fixture-readback.env" ;;
+        NGINX_EFFECTIVE_CONFIG) expected_path="/run/surgeindex-fanward-${RELEASE_ID}-nginx-effective.conf" ;;
+        NGINX_PROBE_CODES) expected_path="/run/surgeindex-fanward-${RELEASE_ID}-nginx-probe.codes" ;;
       esac
     fi
     if [[ -n "$secret_file" && "$secret_file" == "$expected_path" ]]; then
@@ -310,6 +313,7 @@ NODE_ENV=production
 APP_MODE=production
 DATA_PROVIDER=postgres
 EXPECTED_MIGRATION_COUNT=15
+TRUSTED_PROXY_MODE=direct_nginx
 TRACKER_ENABLED=true
 TURNSTILE_REQUIRED=true
 EMAIL_PROVIDER=http
@@ -339,8 +343,12 @@ the command line or in the release directory.
 Validate only safe switches without showing credentials:
 
 ```bash
-sudo grep -E '^(APP_MODE|DATA_PROVIDER|EXPECTED_MIGRATION_COUNT|TRACKER_ENABLED|TURNSTILE_REQUIRED|EMAIL_PROVIDER|NEXT_PUBLIC_COMMERCIAL_ENABLED|STRIPE_ENABLED|BOOST_ENABLED|BOOST_LIVE_MODE_ENABLED|GA4_ENABLED|PUBLIC_REVENUE_BOARD_ENABLED|PUBLIC_PAGE_METRICS_ENABLED|BOOST_PLACEMENT_[A-Z_]+|FEATURE_[A-Z_]+)=' "$STAGING_ENV_CANDIDATE"
-sudo grep -E '^(APP_MODE|DATA_PROVIDER|EXPECTED_MIGRATION_COUNT|TRACKER_ENABLED|TURNSTILE_REQUIRED|EMAIL_PROVIDER|NEXT_PUBLIC_COMMERCIAL_ENABLED|STRIPE_ENABLED|BOOST_ENABLED|BOOST_LIVE_MODE_ENABLED|GA4_ENABLED|PUBLIC_REVENUE_BOARD_ENABLED|PUBLIC_PAGE_METRICS_ENABLED|BOOST_PLACEMENT_[A-Z_]+|FEATURE_[A-Z_]+)=' "$PRODUCTION_ENV_CANDIDATE"
+sudo grep -E '^(APP_MODE|DATA_PROVIDER|EXPECTED_MIGRATION_COUNT|TRUSTED_PROXY_MODE|TRACKER_ENABLED|TURNSTILE_REQUIRED|EMAIL_PROVIDER|NEXT_PUBLIC_COMMERCIAL_ENABLED|STRIPE_ENABLED|BOOST_ENABLED|BOOST_LIVE_MODE_ENABLED|GA4_ENABLED|PUBLIC_REVENUE_BOARD_ENABLED|PUBLIC_PAGE_METRICS_ENABLED|BOOST_PLACEMENT_[A-Z_]+|FEATURE_[A-Z_]+)=' "$STAGING_ENV_CANDIDATE"
+sudo grep -E '^(APP_MODE|DATA_PROVIDER|EXPECTED_MIGRATION_COUNT|TRUSTED_PROXY_MODE|TRACKER_ENABLED|TURNSTILE_REQUIRED|EMAIL_PROVIDER|NEXT_PUBLIC_COMMERCIAL_ENABLED|STRIPE_ENABLED|BOOST_ENABLED|BOOST_LIVE_MODE_ENABLED|GA4_ENABLED|PUBLIC_REVENUE_BOARD_ENABLED|PUBLIC_PAGE_METRICS_ENABLED|BOOST_PLACEMENT_[A-Z_]+|FEATURE_[A-Z_]+)=' "$PRODUCTION_ENV_CANDIDATE"
+for env_candidate in "$STAGING_ENV_CANDIDATE" "$PRODUCTION_ENV_CANDIDATE"; do
+  test "$(sudo grep -Ec '^TRUSTED_PROXY_MODE=' "$env_candidate")" = '1'
+  sudo grep -qx 'TRUSTED_PROXY_MODE=direct_nginx' "$env_candidate"
+done
 ```
 
 Install and build with the repository-pinned pnpm. Do not use the VPS-global
@@ -407,6 +415,279 @@ sudo systemd-run --wait --collect --pipe --unit="surgeindex-gate-${RELEASE_ID}-p
   --property="EnvironmentFile=$EMAIL_ENV" \
   /usr/bin/corepack pnpm launch:gates:fanward
 ```
+
+Before exposing the database-backed Fanward surfaces, apply the reviewed URI
+map and `surgeindex_fanward_public` zone from
+`deploy/vps/nginx-http-hardening.conf` in Nginx's `http {}` context. Apply the
+three server-scope directives from `deploy/vps/surgeindex.nginx.conf` to both
+canonical TLS vhosts: the Fanward `limit_req`, status `429`, and explicit
+`limit_req_dry_run off`. Requests outside the exact map have an empty key and
+are not accounted. Do not create a new Fanward `location`: preserving the
+existing catch-all locations also preserves staging Basic Auth and the pinned
+upstreams (`3211` production, `3212` staging). Do not reuse the stricter
+anonymous-mutation zone. Installing or reloading Nginx and the bounded runtime
+burst below are separately approved external actions.
+
+Resolve the three active files from the source markers in the current
+`nginx -T` output. The production vhost path is fixed; enter the exact included
+hardening and staging-vhost paths discovered on this host. Back up all three
+before preparing same-directory candidates. Keep the backup after the release:
+
+```bash
+export NGINX_BIN='/www/server/nginx/sbin/nginx'
+export NGINX_PID_FILE='/www/server/nginx/logs/nginx.pid'
+export NGINX_HTTP_HARDENING_CONFIG='<active included http-hardening path from nginx -T>'
+export NGINX_PRODUCTION_VHOST='/www/server/panel/vhost/nginx/surgeindex.lol.conf'
+export NGINX_STAGING_VHOST='<active staging TLS vhost path from nginx -T>'
+export NGINX_BACKUP_DIR="/var/backups/surgeindex/nginx/${RELEASE_ID}"
+export NGINX_HTTP_CANDIDATE="${NGINX_HTTP_HARDENING_CONFIG}.${RELEASE_ID}.candidate"
+export NGINX_PRODUCTION_CANDIDATE="${NGINX_PRODUCTION_VHOST}.${RELEASE_ID}.candidate"
+export NGINX_STAGING_CANDIDATE="${NGINX_STAGING_VHOST}.${RELEASE_ID}.candidate"
+export NGINX_HTTP_RESTORE="${NGINX_HTTP_HARDENING_CONFIG}.${RELEASE_ID}.restore"
+export NGINX_PRODUCTION_RESTORE="${NGINX_PRODUCTION_VHOST}.${RELEASE_ID}.restore"
+export NGINX_STAGING_RESTORE="${NGINX_STAGING_VHOST}.${RELEASE_ID}.restore"
+export NGINX_EFFECTIVE_CONFIG="/run/surgeindex-fanward-${RELEASE_ID}-nginx-effective.conf"
+export NGINX_PROBE_CODES="/run/surgeindex-fanward-${RELEASE_ID}-nginx-probe.codes"
+test -x "$NGINX_BIN"
+sudo test -r "$NGINX_PID_FILE"
+for config_path in \
+  "$NGINX_HTTP_HARDENING_CONFIG" "$NGINX_PRODUCTION_VHOST" "$NGINX_STAGING_VHOST"; do
+  sudo test -f "$config_path"
+  test "$(sudo realpath -e "$config_path")" = "$config_path"
+done
+sudo test ! -e "$NGINX_BACKUP_DIR"
+sudo test ! -L "$NGINX_BACKUP_DIR"
+for transient_path in \
+  "$NGINX_HTTP_CANDIDATE" "$NGINX_PRODUCTION_CANDIDATE" "$NGINX_STAGING_CANDIDATE" \
+  "$NGINX_HTTP_RESTORE" "$NGINX_PRODUCTION_RESTORE" "$NGINX_STAGING_RESTORE"; do
+  sudo test ! -e "$transient_path"
+  sudo test ! -L "$transient_path"
+done
+sudo install -d -m 0700 -o root -g root "$NGINX_BACKUP_DIR"
+sudo cp --preserve=all "$NGINX_HTTP_HARDENING_CONFIG" "$NGINX_BACKUP_DIR/http-hardening.conf"
+sudo cp --preserve=all "$NGINX_PRODUCTION_VHOST" "$NGINX_BACKUP_DIR/production-vhost.conf"
+sudo cp --preserve=all "$NGINX_STAGING_VHOST" "$NGINX_BACKUP_DIR/staging-vhost.conf"
+sudo cp --preserve=all "$NGINX_HTTP_HARDENING_CONFIG" "$NGINX_HTTP_CANDIDATE"
+sudo cp --preserve=all "$NGINX_PRODUCTION_VHOST" "$NGINX_PRODUCTION_CANDIDATE"
+sudo cp --preserve=all "$NGINX_STAGING_VHOST" "$NGINX_STAGING_CANDIDATE"
+sudo sha256sum \
+  "$NGINX_BACKUP_DIR/http-hardening.conf" \
+  "$NGINX_BACKUP_DIR/production-vhost.conf" \
+  "$NGINX_BACKUP_DIR/staging-vhost.conf"
+sudoedit "$NGINX_HTTP_CANDIDATE"
+sudoedit "$NGINX_PRODUCTION_CANDIDATE"
+sudoedit "$NGINX_STAGING_CANDIDATE"
+```
+
+Edit only the URI map/zone and the three server-scope directives described
+above. Leave both catch-all proxy blocks and all staging authentication
+directives where they are. The checker deliberately rejects a child location
+that can divert a protected Fanward route, a local limiter that cancels server
+inheritance, commented-only expected directives, direct includes/rewrites it
+cannot associate, missing staging Basic Auth, production Basic Auth, a wrong
+upstream, or any effective dry-run override.
+
+Define the exact restore path before replacing the files. It atomically restores
+the retained originals, syntax-checks them, reloads them, and verifies the old
+configuration again. Do not continue the application release after this runs:
+
+```bash
+restore_nginx_boundary() {
+  local master_pid old_children current_children new_pids pid attempt probe_ip probe_path
+  local stability_check survivor
+  sudo cp --preserve=all "$NGINX_BACKUP_DIR/http-hardening.conf" "$NGINX_HTTP_RESTORE"
+  sudo cp --preserve=all "$NGINX_BACKUP_DIR/production-vhost.conf" "$NGINX_PRODUCTION_RESTORE"
+  sudo cp --preserve=all "$NGINX_BACKUP_DIR/staging-vhost.conf" "$NGINX_STAGING_RESTORE"
+  sudo mv -Tf "$NGINX_HTTP_RESTORE" "$NGINX_HTTP_HARDENING_CONFIG"
+  sudo mv -Tf "$NGINX_PRODUCTION_RESTORE" "$NGINX_PRODUCTION_VHOST"
+  sudo mv -Tf "$NGINX_STAGING_RESTORE" "$NGINX_STAGING_VHOST"
+  sudo cmp -s "$NGINX_BACKUP_DIR/http-hardening.conf" "$NGINX_HTTP_HARDENING_CONFIG"
+  sudo cmp -s "$NGINX_BACKUP_DIR/production-vhost.conf" "$NGINX_PRODUCTION_VHOST"
+  sudo cmp -s "$NGINX_BACKUP_DIR/staging-vhost.conf" "$NGINX_STAGING_VHOST"
+  sudo "$NGINX_BIN" -t
+  master_pid="$(sudo cat "$NGINX_PID_FILE")"
+  case "$master_pid" in ''|*[!0-9]*) return 1 ;; esac
+  old_children="$(sudo pgrep -P "$master_pid" | sort -n | tr '\n' ' ' || true)"
+  test -n "$old_children"
+  sudo "$NGINX_BIN" -s reload
+  new_pids=''
+  for attempt in $(seq 1 30); do
+    test "$(sudo cat "$NGINX_PID_FILE")" = "$master_pid"
+    current_children="$(sudo pgrep -P "$master_pid" | sort -n | tr '\n' ' ' || true)"
+    for pid in $current_children; do
+      if [[ " $old_children " != *" $pid "* && " $new_pids " != *" $pid "* ]]; then
+        new_pids+="${pid} "
+      fi
+    done
+    if [[ -n "$new_pids" ]]; then break; fi
+    sleep 1
+  done
+  test -n "$new_pids"
+  printf -v probe_ip '127.%d.%d.%d' \
+    "$((16#${RELEASE_SHA:34:2} % 254 + 1))" \
+    "$((16#${RELEASE_SHA:36:2} % 254 + 1))" \
+    "$((16#${RELEASE_SHA:38:2} % 254 + 1))"
+  for probe_path in \
+    /fanward '/api/fanward/creators?limit=1' /sitemap.xml \
+    /dashboard/fanward /admin/fanward; do
+    test "$(curl --silent --show-error --max-time 10 \
+      --interface "$probe_ip" \
+      --resolve 'staging.surgeindex.lol:443:127.0.0.1' \
+      --output /dev/null --write-out '%{http_code}' \
+      "https://staging.surgeindex.lol${probe_path}")" = '401'
+  done
+  for stability_check in 1 2; do
+    current_children="$(sudo pgrep -P "$master_pid" | sort -n | tr '\n' ' ' || true)"
+    survivor=''
+    for pid in $new_pids; do
+      if [[ " $current_children " == *" $pid "* ]]; then survivor=$pid; break; fi
+    done
+    test -n "$survivor"
+    if (( stability_check == 1 )); then sleep 1; fi
+  done
+}
+```
+
+Run the repository checker from both immutable artifacts, atomically promote the
+three candidates, and validate the semantic `nginx -T` output before reload.
+The guarded subshell restores the old configuration after any syntax, parser,
+worker-generation, Basic-Auth, or runtime-limiter failure:
+
+```bash
+for release_dir in "$STAGING_RELEASE" "$PRODUCTION_RELEASE"; do
+  sudo systemd-run --quiet --wait --collect --pipe \
+    --unit="surgeindex-nginx-boundary-${RELEASE_ID}-$(basename "$release_dir")" \
+    --property=User=ubuntu --property=Group=ubuntu \
+    --property="WorkingDirectory=$release_dir" \
+    /usr/bin/corepack pnpm nginx:release-check
+done
+```
+
+Freeze Nginx changes in the control panel, Certbot, and operator sessions for
+this promotion. Immediately before arming the restore guard, prove that none of
+the three active files changed after backup. If any comparison fails, stop
+without restoring or promoting anything; recreate the backup and candidates
+from the newly reviewed active configuration:
+
+```bash
+sudo cmp -s "$NGINX_BACKUP_DIR/http-hardening.conf" "$NGINX_HTTP_HARDENING_CONFIG"
+sudo cmp -s "$NGINX_BACKUP_DIR/production-vhost.conf" "$NGINX_PRODUCTION_VHOST"
+sudo cmp -s "$NGINX_BACKUP_DIR/staging-vhost.conf" "$NGINX_STAGING_VHOST"
+
+set +e
+(
+  set -euo pipefail
+  NGINX_PROMOTION_COMPLETE=0
+  nginx_promotion_guard() {
+    local original_status=$?
+    trap - EXIT HUP INT TERM
+    if (( NGINX_PROMOTION_COMPLETE == 0 )); then
+      restore_nginx_boundary
+      exit 90
+    fi
+    exit "$original_status"
+  }
+  trap nginx_promotion_guard EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  sudo mv -Tf "$NGINX_HTTP_CANDIDATE" "$NGINX_HTTP_HARDENING_CONFIG"
+  sudo mv -Tf "$NGINX_PRODUCTION_CANDIDATE" "$NGINX_PRODUCTION_VHOST"
+  sudo mv -Tf "$NGINX_STAGING_CANDIDATE" "$NGINX_STAGING_VHOST"
+  sudo "$NGINX_BIN" -t
+  sudo install -m 0600 -o root -g root /dev/null "$NGINX_EFFECTIVE_CONFIG"
+  sudo "$NGINX_BIN" -T 2>&1 | sudo tee "$NGINX_EFFECTIVE_CONFIG" >/dev/null
+  test "$(sudo stat -c '%U:%G %a' "$NGINX_EFFECTIVE_CONFIG")" = 'root:root 600'
+  sudo /usr/bin/node "$STAGING_RELEASE/scripts/nginx-fanward-boundary-check.mjs" \
+    --effective "$NGINX_EFFECTIVE_CONFIG"
+
+  NGINX_MASTER_PID="$(sudo cat "$NGINX_PID_FILE")"
+  case "$NGINX_MASTER_PID" in ''|*[!0-9]*) exit 1 ;; esac
+  OLD_NGINX_CHILDREN="$(sudo pgrep -P "$NGINX_MASTER_PID" | sort -n | tr '\n' ' ' || true)"
+  test -n "$OLD_NGINX_CHILDREN"
+  sudo "$NGINX_BIN" -s reload
+  NEW_NGINX_PIDS=''
+  for attempt in $(seq 1 30); do
+    test "$(sudo cat "$NGINX_PID_FILE")" = "$NGINX_MASTER_PID"
+    CURRENT_NGINX_CHILDREN="$(sudo pgrep -P "$NGINX_MASTER_PID" | sort -n | tr '\n' ' ' || true)"
+    for pid in $CURRENT_NGINX_CHILDREN; do
+      if [[ " $OLD_NGINX_CHILDREN " != *" $pid "* && " $NEW_NGINX_PIDS " != *" $pid "* ]]; then
+        NEW_NGINX_PIDS+="${pid} "
+      fi
+    done
+    if [[ -n "$NEW_NGINX_PIDS" ]]; then break; fi
+    sleep 1
+  done
+  test -n "$NEW_NGINX_PIDS"
+  sudo "$NGINX_BIN" -T 2>&1 | sudo tee "$NGINX_EFFECTIVE_CONFIG" >/dev/null
+  sudo /usr/bin/node "$STAGING_RELEASE/scripts/nginx-fanward-boundary-check.mjs" \
+    --effective "$NGINX_EFFECTIVE_CONFIG"
+
+  printf -v NGINX_PROBE_CLIENT_IP '127.%d.%d.%d' \
+    "$((16#${RELEASE_SHA:34:2} % 254 + 1))" \
+    "$((16#${RELEASE_SHA:36:2} % 254 + 1))" \
+    "$((16#${RELEASE_SHA:38:2} % 254 + 1))"
+  for probe_path in \
+    /fanward '/api/fanward/creators?limit=1' /sitemap.xml \
+    /dashboard/fanward /admin/fanward; do
+    test "$(curl --silent --show-error --max-time 10 \
+      --interface "$NGINX_PROBE_CLIENT_IP" \
+      --resolve 'staging.surgeindex.lol:443:127.0.0.1' \
+      --output /dev/null --write-out '%{http_code}' \
+      "https://staging.surgeindex.lol${probe_path}")" = '401'
+  done
+
+  sudo install -m 0600 -o ubuntu -g ubuntu /dev/null "$NGINX_PROBE_CODES"
+  for request_number in $(seq 1 80); do
+    (
+      curl --silent --show-error --max-time 10 --request HEAD \
+        --interface "$NGINX_PROBE_CLIENT_IP" \
+        --resolve 'surgeindex.lol:443:127.0.0.1' \
+        --output /dev/null --write-out '%{http_code}\n' \
+        'https://surgeindex.lol/creators' || printf '000\n'
+    ) >>"$NGINX_PROBE_CODES" &
+  done
+  wait
+  test "$(wc -l < "$NGINX_PROBE_CODES" | tr -d ' ')" = '80'
+  if grep -Ev '^(2[0-9][0-9]|3[0-9][0-9]|429)$' "$NGINX_PROBE_CODES"; then exit 1; fi
+  grep -Eq '^(2[0-9][0-9]|3[0-9][0-9])$' "$NGINX_PROBE_CODES"
+  grep -Fxq '429' "$NGINX_PROBE_CODES"
+  test "$(curl --silent --show-error --max-time 10 \
+    --interface "$NGINX_PROBE_CLIENT_IP" \
+    --resolve 'surgeindex.lol:443:127.0.0.1' \
+    --output /dev/null --write-out '%{http_code}' \
+    'https://surgeindex.lol/api/health/live')" = '200'
+  for stability_check in 1 2; do
+    CURRENT_NGINX_CHILDREN="$(sudo pgrep -P "$NGINX_MASTER_PID" | sort -n | tr '\n' ' ' || true)"
+    NGINX_GENERATION_SURVIVOR=''
+    for pid in $NEW_NGINX_PIDS; do
+      if [[ " $CURRENT_NGINX_CHILDREN " == *" $pid "* ]]; then
+        NGINX_GENERATION_SURVIVOR=$pid
+        break
+      fi
+    done
+    test -n "$NGINX_GENERATION_SURVIVOR"
+    if (( stability_check == 1 )); then sleep 1; fi
+  done
+  NGINX_PROMOTION_COMPLETE=1
+  trap - EXIT HUP INT TERM
+)
+NGINX_PROMOTION_STATUS=$?
+set -e
+if (( NGINX_PROMOTION_STATUS != 0 )); then
+  if (( NGINX_PROMOTION_STATUS != 90 )); then restore_nginx_boundary; fi
+  exit 1
+fi
+sudo rm -f -- "$NGINX_EFFECTIVE_CONFIG" "$NGINX_PROBE_CODES"
+```
+
+The unique loopback source IP contains the last three SHA bytes, so the bounded
+80-request HEAD burst cannot consume a real visitor's bucket or the later
+fixture bucket. The required mix of normal responses and edge `429`, followed
+by a same-IP `200` on an unmapped health route, proves both enforcement and the
+empty-key exclusion. The credential-free staging probes prove that the current
+Nginx worker generation still enforces Basic Auth across every protected route.
+Only after all of this passes may migration `0014` begin.
 
 ## 4. Stage migration 0014 and switch staging
 

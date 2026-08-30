@@ -122,6 +122,13 @@ export interface ListPublicFanwardResult {
   categories: RepositoryFanwardCategory[];
 }
 
+export interface RepositoryFanwardSitemapEntry {
+  slug: string;
+  publishedAt: Date;
+}
+
+export const FANWARD_SITEMAP_MAX_ENTRIES = 5_000;
+
 const revisionSelection = {
   revisionId: creatorProfileRevision.id,
   revisionProfileId: creatorProfileRevision.creatorProfileId,
@@ -328,6 +335,25 @@ export async function listPublicFanwardCreators(
     total: totalRows[0]?.total ?? 0,
     categories: categoryRows,
   };
+}
+
+export async function listPublicFanwardSitemapEntries(
+  db: FanwardRepository,
+): Promise<RepositoryFanwardSitemapEntry[]> {
+  const rows = await db
+    .select({
+      slug: creatorProfile.slug,
+      publishedAt: creatorProfileRevision.publishedAt,
+    })
+    .from(creatorProfile)
+    .innerJoin(creatorProfileRevision, eq(creatorProfileRevision.creatorProfileId, creatorProfile.id))
+    .innerJoin(site, eq(site.id, creatorProfile.primarySiteId))
+    .innerJoin(siteOwner, eq(siteOwner.siteId, site.id))
+    .where(publicEligibility)
+    .orderBy(desc(creatorProfileRevision.publishedAt), asc(creatorProfile.id))
+    .limit(FANWARD_SITEMAP_MAX_ENTRIES);
+
+  return rows.map((row) => ({ slug: row.slug, publishedAt: row.publishedAt! }));
 }
 
 export async function findPublicFanwardCreatorBySlug(

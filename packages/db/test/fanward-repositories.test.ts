@@ -1,15 +1,17 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   adminAuditLog,
   category,
   closeDb,
   creatorProfile,
+  FANWARD_SITEMAP_MAX_ENTRIES,
   findPublicFanwardCreatorBySlug,
   getFanwardOwnerWorkspace,
   getPostgresDb,
   listFanwardAdminQueue,
   listPublicFanwardCreators,
+  listPublicFanwardSitemapEntries,
   reviewFanwardProfile,
   saveFanwardDraft,
   site,
@@ -77,6 +79,37 @@ async function createAndPublish(ownerUserId: string, siteId: string, marker: str
   expect(approved.ok).toBe(true);
   return { profileId: saved.profileId, slug: `fanward-creator-${marker}-${suffix}` };
 }
+
+describe("Fanward sitemap repository query", () => {
+  it("selects only sitemap fields and enforces one fixed bounded query", async () => {
+    const publishedAt = new Date("2026-08-30T01:02:03.000Z");
+    const rows = [{ slug: "bounded-creator", publishedAt }];
+    const query = {
+      from: vi.fn(),
+      innerJoin: vi.fn(),
+      where: vi.fn(),
+      orderBy: vi.fn(),
+      limit: vi.fn().mockResolvedValue(rows),
+    };
+    query.from.mockReturnValue(query);
+    query.innerJoin.mockReturnValue(query);
+    query.where.mockReturnValue(query);
+    query.orderBy.mockReturnValue(query);
+    const select = vi.fn().mockReturnValue(query);
+
+    const result = await listPublicFanwardSitemapEntries({ select } as unknown as PostgresDatabase);
+
+    expect(FANWARD_SITEMAP_MAX_ENTRIES).toBe(5_000);
+    expect(FANWARD_SITEMAP_MAX_ENTRIES).toBeLessThanOrEqual(5_000);
+    expect(select).toHaveBeenCalledOnce();
+    expect(Object.keys(select.mock.calls[0]![0])).toEqual(["slug", "publishedAt"]);
+    expect(query.innerJoin).toHaveBeenCalledTimes(3);
+    expect(query.orderBy).toHaveBeenCalledWith(expect.anything(), expect.anything());
+    expect(query.limit).toHaveBeenCalledOnce();
+    expect(query.limit).toHaveBeenCalledWith(FANWARD_SITEMAP_MAX_ENTRIES);
+    expect(result).toEqual(rows);
+  });
+});
 
 describe.skipIf(!enabled)("Fanward PostgreSQL repositories", () => {
   beforeAll(async () => {
@@ -220,6 +253,15 @@ describe.skipIf(!enabled)("Fanward PostgreSQL repositories", () => {
     });
     expect(restored).toMatchObject({ ok: true, profileStatus: "active", revisionStatus: "published" });
     expect(await findPublicFanwardCreatorBySlug(db, `fanward-creator-a-${suffix}`)).not.toBeNull();
+
+    const sitemapEntries = (await listPublicFanwardSitemapEntries(db))
+      .filter((entry) => entry.slug.endsWith(`-${suffix}`));
+    expect(sitemapEntries.map((entry) => entry.slug)).toEqual(expect.arrayContaining([
+      `fanward-creator-a-${suffix}`,
+      `fanward-creator-b-${suffix}`,
+    ]));
+    expect(sitemapEntries).toHaveLength(2);
+    expect(sitemapEntries[0]!.publishedAt.getTime()).toBeGreaterThanOrEqual(sitemapEntries[1]!.publishedAt.getTime());
 
     const firstPublicPage = await listPublicFanwardCreators(db, { query: suffix, limit: 1 });
     expect(firstPublicPage.hasMore).toBe(true);

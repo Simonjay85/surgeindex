@@ -8,6 +8,7 @@ import {
   getPostgresDb,
   listFanwardAdminQueue as listFanwardAdminQueueRecords,
   listPublicFanwardCreators as listPublicFanwardCreatorRecords,
+  listPublicFanwardSitemapEntries as listPublicFanwardSitemapEntryRecords,
   loadLatestFanwardScores,
   reviewFanwardProfile as reviewFanwardProfileRecord,
   saveFanwardDraft,
@@ -90,6 +91,11 @@ export interface FanwardCreatorListResult {
   nextCursor: string | null;
   total: number;
   categories: FanwardCategoryDto[];
+}
+
+export interface FanwardSitemapEntry {
+  slug: string;
+  publishedAt: string;
 }
 
 export interface FanwardRevisionDto {
@@ -332,8 +338,16 @@ export function currentFanwardReviewReason(
   profileStatus: RepositoryFanwardProfile["status"] | undefined,
   revisions: FanwardRevisionDto[],
 ): string | null {
-  if (profileStatus !== "rejected") return null;
-  return revisions.find((revision) => revision.status === "rejected" && revision.reviewReason)?.reviewReason ?? null;
+  if (!profileStatus || profileStatus === "suspended") return null;
+  const latestReviewed = revisions
+    .filter((revision) => revision.reviewedAt)
+    .sort((left, right) => {
+      const reviewedOrder = right.reviewedAt!.localeCompare(left.reviewedAt!);
+      if (reviewedOrder !== 0) return reviewedOrder;
+      const updatedOrder = right.updatedAt.localeCompare(left.updatedAt);
+      return updatedOrder !== 0 ? updatedOrder : right.id.localeCompare(left.id);
+    })[0];
+  return latestReviewed?.status === "rejected" ? latestReviewed.reviewReason : null;
 }
 
 interface FanwardCursorPayload {
@@ -395,6 +409,15 @@ export async function listPublicFanwardCreators(input: {
     total: page.total,
     categories: page.categories,
   };
+}
+
+export async function listPublicFanwardSitemapEntries(): Promise<FanwardSitemapEntry[]> {
+  requireFanwardProvider();
+  const records = await listPublicFanwardSitemapEntryRecords(getPostgresDb());
+  return records.map((record) => ({
+    slug: record.slug,
+    publishedAt: record.publishedAt.toISOString(),
+  }));
 }
 
 export async function getPublicFanwardCreatorBySlug(slug: string): Promise<PublicFanwardCreatorDetail | null> {

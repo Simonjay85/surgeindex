@@ -27,6 +27,7 @@ const futureFeatureVariables = ["FEATURE_CREATORS", "FEATURE_CAMPAIGNS", "FEATUR
 const nonFanwardFutureFeatureVariables = ["FEATURE_CAMPAIGNS", "FEATURE_AUCTION", "FEATURE_PUBLIC_API"];
 const expectedMigrationCount = env.EXPECTED_MIGRATION_COUNT === "15";
 const trustedProxyConfigured = env.TRUSTED_PROXY_MODE === "direct_nginx" || env.TRUSTED_PROXY_MODE === "cloudflare_nginx";
+const trustedProxyDirectNginx = env.TRUSTED_PROXY_MODE === "direct_nginx";
 const turnstileConfigured = truthy(env.TURNSTILE_REQUIRED) && has(env.TURNSTILE_SITE_KEY) && has(env.TURNSTILE_SECRET_KEY) && has(env.TURNSTILE_EXPECTED_HOSTNAME);
 const transactionalEmailConfigured = env.EMAIL_PROVIDER === "http" && has(env.EMAIL_FROM) && has(env.EMAIL_HTTP_URL) && has(env.EMAIL_HTTP_API_KEY);
 const trackerConfigured = truthy(env.TRACKER_ENABLED) && lengthAtLeast(env.TRACKER_SIGNING_SECRET, 32) && lengthAtLeast(env.TRACKER_HASH_SECRET || env.TRACKER_HASH_SALT, 32) && lengthAtLeast(env.TRACKER_KEY_ROTATION_SECRET, 32);
@@ -79,6 +80,7 @@ const gates = {
   fanwardMvp: {
     ready: all([
       ...noncommercialCoreChecks,
+      trustedProxyDirectNginx,
       creatorsEnabled,
       nonFanwardFutureFeaturesDisabled,
     ]),
@@ -86,6 +88,7 @@ const gates = {
       productionPostgres,
       expectedMigrationCount,
       trustedProxyConfigured,
+      trustedProxyDirectNginx,
       turnstileConfigured,
       transactionalEmailConfigured,
       trackerConfigured,

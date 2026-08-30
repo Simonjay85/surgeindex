@@ -1,13 +1,38 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  env: {
+    FEATURE_CREATORS: true,
+    DATA_PROVIDER: "postgres" as "postgres" | "demo",
+    NEXT_PUBLIC_APP_URL: "https://surgeindex.test",
+    NEXT_PUBLIC_COMMERCIAL_ENABLED: false,
+  },
+  db: { kind: "fanward-sitemap-test-db" },
+  getLeaderboard: vi.fn(),
+  listPublicFanwardSitemapEntries: vi.fn(),
+}));
+
+vi.mock("@surge/config", () => ({ getServerEnv: () => mocks.env }));
+vi.mock("@surge/db", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@surge/db")>(),
+  getPostgresDb: () => mocks.db,
+  listPublicFanwardSitemapEntries: mocks.listPublicFanwardSitemapEntries,
+}));
+vi.mock("../lib/server/public-provider", () => ({
+  getPublicDataProvider: () => ({ getLeaderboard: mocks.getLeaderboard }),
+}));
+
 import {
   decodeFanwardCursor,
   currentFanwardReviewReason,
   encodeFanwardCursor,
   fanwardImpactFromScore,
   FanwardServiceError,
+  listPublicFanwardSitemapEntries,
   normalizeFanwardDraftInput,
   normalizeFanwardReviewReason,
 } from "../lib/server/fanward-service";
+import sitemap from "../app/sitemap";
 import type { RepositoryFanwardScore } from "@surge/db";
 
 const score: RepositoryFanwardScore = {
@@ -26,6 +51,13 @@ const score: RepositoryFanwardScore = {
 };
 
 describe("Fanward server projection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.env.FEATURE_CREATORS = true;
+    mocks.env.DATA_PROVIDER = "postgres";
+    mocks.getLeaderboard.mockResolvedValue([]);
+  });
+
   it("round-trips the strict deterministic public cursor", () => {
     const encoded = encodeFanwardCursor({
       publishedAt: "2026-08-30T01:02:03.000Z",
@@ -99,7 +131,7 @@ describe("Fanward server projection", () => {
     expect(normalizeFanwardReviewReason("<b>Evidence reviewed</b>")).toBe("Evidence reviewed");
   });
 
-  it("shows review feedback only for the current rejected profile state", () => {
+  it("shows the latest rejected review until a later moderation decision clears it", () => {
     const rejectedRevision = {
       id: "10000000-0000-4000-8000-000000000004",
       displayName: "Creator Name",
@@ -115,7 +147,81 @@ describe("Fanward server projection", () => {
       reviewReason: "Add clearer creator attribution.",
     };
     expect(currentFanwardReviewReason("rejected", [rejectedRevision])).toBe("Add clearer creator attribution.");
-    expect(currentFanwardReviewReason("active", [rejectedRevision])).toBeNull();
-    expect(currentFanwardReviewReason("draft", [rejectedRevision])).toBeNull();
+    expect(currentFanwardReviewReason("active", [rejectedRevision])).toBe("Add clearer creator attribution.");
+    expect(currentFanwardReviewReason("draft", [rejectedRevision])).toBe("Add clearer creator attribution.");
+    expect(currentFanwardReviewReason("pending", [rejectedRevision])).toBe("Add clearer creator attribution.");
+    expect(currentFanwardReviewReason("suspended", [rejectedRevision])).toBeNull();
+
+    const publishedRevision = {
+      ...rejectedRevision,
+      id: "10000000-0000-4000-8000-000000000005",
+      status: "published" as const,
+      publishedAt: "2026-08-30T03:00:00.000Z",
+      reviewedAt: "2026-08-30T03:00:00.000Z",
+      updatedAt: "2026-08-30T03:00:00.000Z",
+      reviewReason: "Approved after evidence review.",
+    };
+    expect(currentFanwardReviewReason("active", [rejectedRevision, publishedRevision])).toBeNull();
+    expect(currentFanwardReviewReason("active", [publishedRevision, rejectedRevision])).toBeNull();
+
+    const newerRejectedRevision = {
+      ...rejectedRevision,
+      id: "10000000-0000-4000-8000-000000000006",
+      reviewedAt: "2026-08-30T04:00:00.000Z",
+      updatedAt: "2026-08-30T04:00:00.000Z",
+      reviewReason: "Add a verifiable primary-site attribution.",
+    };
+    expect(currentFanwardReviewReason("active", [publishedRevision, newerRejectedRevision])).toBe(
+      "Add a verifiable primary-site attribution.",
+    );
+  });
+
+  it("loads the sitemap projection once through the guarded specialized repository", async () => {
+    const publishedAt = new Date("2026-08-30T01:02:03.000Z");
+    mocks.listPublicFanwardSitemapEntries.mockResolvedValue([
+      { slug: "creator-one", publishedAt },
+      { slug: "creator-two", publishedAt: new Date("2026-08-29T01:02:03.000Z") },
+    ]);
+
+    await expect(listPublicFanwardSitemapEntries()).resolves.toEqual([
+      { slug: "creator-one", publishedAt: "2026-08-30T01:02:03.000Z" },
+      { slug: "creator-two", publishedAt: "2026-08-29T01:02:03.000Z" },
+    ]);
+    expect(mocks.listPublicFanwardSitemapEntries).toHaveBeenCalledOnce();
+    expect(mocks.listPublicFanwardSitemapEntries).toHaveBeenCalledWith(mocks.db);
+  });
+
+  it("fails closed before the sitemap repository when the feature or provider is unavailable", async () => {
+    mocks.env.FEATURE_CREATORS = false;
+    await expect(listPublicFanwardSitemapEntries()).rejects.toMatchObject({ code: "feature_disabled" });
+
+    mocks.env.FEATURE_CREATORS = true;
+    mocks.env.DATA_PROVIDER = "demo";
+    await expect(listPublicFanwardSitemapEntries()).rejects.toMatchObject({ code: "data_provider_unavailable" });
+    expect(mocks.listPublicFanwardSitemapEntries).not.toHaveBeenCalled();
+  });
+
+  it("builds all Fanward sitemap URLs with one specialized service query", async () => {
+    mocks.listPublicFanwardSitemapEntries.mockResolvedValue([
+      { slug: "creator-one", publishedAt: new Date("2026-08-30T01:02:03.000Z") },
+      { slug: "creator-two", publishedAt: new Date("2026-08-29T01:02:03.000Z") },
+    ]);
+
+    const entries = await sitemap();
+
+    expect(mocks.listPublicFanwardSitemapEntries).toHaveBeenCalledOnce();
+    expect(entries.filter((entry) => entry.url.includes("/fanward/"))).toEqual([
+      expect.objectContaining({ url: "https://surgeindex.test/fanward/creator-one", lastModified: "2026-08-30T01:02:03.000Z" }),
+      expect.objectContaining({ url: "https://surgeindex.test/fanward/creator-two", lastModified: "2026-08-29T01:02:03.000Z" }),
+    ]);
+  });
+
+  it("does not query or expose Fanward sitemap routes while the feature is disabled", async () => {
+    mocks.env.FEATURE_CREATORS = false;
+
+    const entries = await sitemap();
+
+    expect(mocks.listPublicFanwardSitemapEntries).not.toHaveBeenCalled();
+    expect(entries.some((entry) => entry.url.includes("/fanward"))).toBe(false);
   });
 });
