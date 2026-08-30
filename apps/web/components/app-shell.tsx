@@ -4,6 +4,7 @@ import { MobileNavigation } from "./mobile-navigation";
 
 export const commercialUiEnabled = process.env.NEXT_PUBLIC_COMMERCIAL_ENABLED === "true";
 export const radarUiEnabled = process.env.NEXT_PUBLIC_RADAR_ENABLED === "true";
+export const fanwardUiEnabled = process.env.FEATURE_CREATORS === "true" || process.env.FEATURE_CREATORS === "1";
 
 export function SourceBadge({ source, compact = false }: { source: "tracker" | "ga4" | "surgeindex" | "sponsored" | "demo" | "unverified" | "radar"; compact?: boolean }) {
   const labels = { tracker: "Tracker Verified", ga4: "GA4 Verified", surgeindex: "SurgeIndex Referral", sponsored: "Sponsored", demo: "Demo Data", unverified: "Unverified", radar: "Cloudflare Radar" } as const;
@@ -29,13 +30,14 @@ export function Header() {
           <Link href="/breakouts">Breakouts</Link>
           <Link href="/categories">Categories</Link>
           {radarUiEnabled ? <Link href="/radar">Radar</Link> : null}
+          {fanwardUiEnabled ? <Link href="/fanward">Fanward</Link> : null}
           <Link href="/methodology">Methodology</Link>
         </nav>
         <div className="header-actions">
           <Link className="icon-button" href="/search" aria-label="Search sites"><Search size={18} /></Link>
           <Link className="button button-coral button-small header-submit" href="/submit">Submit site <ArrowUpRight size={15} /></Link>
           <Link className="sign-in-link" href="/auth/sign-in">Sign in</Link>
-          <MobileNavigation radarEnabled={radarUiEnabled} />
+          <MobileNavigation fanwardEnabled={fanwardUiEnabled} radarEnabled={radarUiEnabled} />
         </div>
       </div>
     </header>
@@ -52,8 +54,8 @@ export function Footer() {
         </div>
         <div className="footer-links">
           <div><span className="footer-label">Explore</span><Link href="/rankings">Rankings</Link><Link href="/breakouts">Breakouts</Link><Link href="/categories">Categories</Link>{radarUiEnabled ? <Link href="/radar">Radar</Link> : null}</div>
-          <div><span className="footer-label">Product</span><Link href="/fanward">Fanward <span className="nav-future-label">Preview</span></Link>{commercialUiEnabled ? <><Link href="/bid-the-moment">Bid the Moment</Link><Link href="/dashboard/boosts">Campaign dashboard</Link></> : null}</div>
-          <div><span className="footer-label">For site owners</span><Link href="/submit">Submit a site</Link><Link href="/dashboard">Dashboard</Link>{commercialUiEnabled ? <Link href="/boost">Boost exposure</Link> : null}</div>
+          {fanwardUiEnabled || commercialUiEnabled ? <div><span className="footer-label">Product</span>{fanwardUiEnabled ? <Link href="/fanward">Fanward</Link> : null}{commercialUiEnabled ? <><Link href="/bid-the-moment">Bid the Moment</Link><Link href="/dashboard/boosts">Campaign dashboard</Link></> : null}</div> : null}
+          <div><span className="footer-label">For site owners</span><Link href="/submit">Submit a site</Link><Link href="/dashboard">Dashboard</Link>{fanwardUiEnabled ? <Link href="/dashboard/fanward">Creator profile</Link> : null}{commercialUiEnabled ? <Link href="/boost">Boost exposure</Link> : null}</div>
           <div><span className="footer-label">Learn</span><Link href="/methodology">Methodology</Link>{commercialUiEnabled ? <Link href="/pricing">Pricing</Link> : null}<Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/acceptable-use">Acceptable use</Link></div>
         </div>
       </div>

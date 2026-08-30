@@ -24,46 +24,79 @@ const publicFreePlacementVariables = [
   "BOOST_PLACEMENT_BREAKOUT_ENABLED",
 ];
 const futureFeatureVariables = ["FEATURE_CREATORS", "FEATURE_CAMPAIGNS", "FEATURE_AUCTION", "FEATURE_PUBLIC_API"];
+const nonFanwardFutureFeatureVariables = ["FEATURE_CAMPAIGNS", "FEATURE_AUCTION", "FEATURE_PUBLIC_API"];
+const expectedMigrationCount = env.EXPECTED_MIGRATION_COUNT === "15";
+const trustedProxyConfigured = env.TRUSTED_PROXY_MODE === "direct_nginx" || env.TRUSTED_PROXY_MODE === "cloudflare_nginx";
+const turnstileConfigured = truthy(env.TURNSTILE_REQUIRED) && has(env.TURNSTILE_SITE_KEY) && has(env.TURNSTILE_SECRET_KEY) && has(env.TURNSTILE_EXPECTED_HOSTNAME);
+const transactionalEmailConfigured = env.EMAIL_PROVIDER === "http" && has(env.EMAIL_FROM) && has(env.EMAIL_HTTP_URL) && has(env.EMAIL_HTTP_API_KEY);
+const trackerConfigured = truthy(env.TRACKER_ENABLED) && lengthAtLeast(env.TRACKER_SIGNING_SECRET, 32) && lengthAtLeast(env.TRACKER_HASH_SECRET || env.TRACKER_HASH_SALT, 32) && lengthAtLeast(env.TRACKER_KEY_ROTATION_SECRET, 32);
+const publicCommercialUiDisabled = explicitlyFalse(env.NEXT_PUBLIC_COMMERCIAL_ENABLED);
+const publicRadarDisabled = explicitlyFalse(env.NEXT_PUBLIC_RADAR_ENABLED);
+const commercialBackendsDisabled = explicitlyFalse(env.STRIPE_ENABLED) && explicitlyFalse(env.BOOST_ENABLED) && explicitlyFalse(env.BOOST_LIVE_MODE_ENABLED) && explicitlyFalse(env.GA4_ENABLED);
+const paidPlacementsDisabled = publicFreePlacementVariables.every((name) => explicitlyFalse(env[name]));
+const publicRevenueDisabled = explicitlyFalse(env.PUBLIC_REVENUE_BOARD_ENABLED);
+const publicPageMetricsDisabled = explicitlyFalse(env.PUBLIC_PAGE_METRICS_ENABLED);
+const futureFeaturesDisabled = futureFeatureVariables.every((name) => explicitlyFalse(env[name]));
+const creatorsEnabled = truthy(env.FEATURE_CREATORS);
+const nonFanwardFutureFeaturesDisabled = nonFanwardFutureFeatureVariables.every((name) => explicitlyFalse(env[name]));
+const noncommercialCoreChecks = [
+  productionPostgres,
+  expectedMigrationCount,
+  trustedProxyConfigured,
+  turnstileConfigured,
+  transactionalEmailConfigured,
+  trackerConfigured,
+  publicCommercialUiDisabled,
+  publicRadarDisabled,
+  commercialBackendsDisabled,
+  paidPlacementsDisabled,
+  publicRevenueDisabled,
+  publicPageMetricsDisabled,
+];
 
 const gates = {
   publicFree: {
     ready: all([
-      productionPostgres,
-      env.EXPECTED_MIGRATION_COUNT === "14",
-      env.TRUSTED_PROXY_MODE === "direct_nginx" || env.TRUSTED_PROXY_MODE === "cloudflare_nginx",
-      truthy(env.TURNSTILE_REQUIRED),
-      has(env.TURNSTILE_SITE_KEY),
-      has(env.TURNSTILE_SECRET_KEY),
-      has(env.TURNSTILE_EXPECTED_HOSTNAME),
-      env.EMAIL_PROVIDER === "http",
-      has(env.EMAIL_FROM),
-      has(env.EMAIL_HTTP_URL),
-      has(env.EMAIL_HTTP_API_KEY),
-      truthy(env.TRACKER_ENABLED),
-      lengthAtLeast(env.TRACKER_SIGNING_SECRET, 32),
-      lengthAtLeast(env.TRACKER_HASH_SECRET || env.TRACKER_HASH_SALT, 32),
-      lengthAtLeast(env.TRACKER_KEY_ROTATION_SECRET, 32),
-      explicitlyFalse(env.NEXT_PUBLIC_COMMERCIAL_ENABLED),
-      explicitlyFalse(env.STRIPE_ENABLED),
-      explicitlyFalse(env.BOOST_ENABLED),
-      explicitlyFalse(env.BOOST_LIVE_MODE_ENABLED),
-      explicitlyFalse(env.GA4_ENABLED),
-      explicitlyFalse(env.PUBLIC_REVENUE_BOARD_ENABLED),
-      publicFreePlacementVariables.every((name) => explicitlyFalse(env[name])),
-      futureFeatureVariables.every((name) => explicitlyFalse(env[name])),
+      ...noncommercialCoreChecks,
+      futureFeaturesDisabled,
     ]),
     checks: {
       productionPostgres,
-      expectedMigrationCount: env.EXPECTED_MIGRATION_COUNT === "14",
-      trustedProxyConfigured: env.TRUSTED_PROXY_MODE === "direct_nginx" || env.TRUSTED_PROXY_MODE === "cloudflare_nginx",
-      turnstileConfigured: truthy(env.TURNSTILE_REQUIRED) && has(env.TURNSTILE_SITE_KEY) && has(env.TURNSTILE_SECRET_KEY) && has(env.TURNSTILE_EXPECTED_HOSTNAME),
-      transactionalEmailConfigured: env.EMAIL_PROVIDER === "http" && has(env.EMAIL_FROM) && has(env.EMAIL_HTTP_URL) && has(env.EMAIL_HTTP_API_KEY),
-      trackerConfigured: truthy(env.TRACKER_ENABLED) && lengthAtLeast(env.TRACKER_SIGNING_SECRET, 32) && lengthAtLeast(env.TRACKER_HASH_SECRET || env.TRACKER_HASH_SALT, 32) && lengthAtLeast(env.TRACKER_KEY_ROTATION_SECRET, 32),
-      publicCommercialUiDisabled: explicitlyFalse(env.NEXT_PUBLIC_COMMERCIAL_ENABLED),
-      commercialBackendsDisabled: explicitlyFalse(env.STRIPE_ENABLED) && explicitlyFalse(env.BOOST_ENABLED) && explicitlyFalse(env.BOOST_LIVE_MODE_ENABLED) && explicitlyFalse(env.GA4_ENABLED),
-      paidPlacementsDisabled: publicFreePlacementVariables.every((name) => explicitlyFalse(env[name])),
-      publicRevenueDisabled: explicitlyFalse(env.PUBLIC_REVENUE_BOARD_ENABLED),
-      futureFeaturesDisabled: futureFeatureVariables.every((name) => explicitlyFalse(env[name])),
+      expectedMigrationCount,
+      trustedProxyConfigured,
+      turnstileConfigured,
+      transactionalEmailConfigured,
+      trackerConfigured,
+      publicCommercialUiDisabled,
+      publicRadarDisabled,
+      commercialBackendsDisabled,
+      paidPlacementsDisabled,
+      publicRevenueDisabled,
+      publicPageMetricsDisabled,
+      futureFeaturesDisabled,
+    },
+  },
+  fanwardMvp: {
+    ready: all([
+      ...noncommercialCoreChecks,
+      creatorsEnabled,
+      nonFanwardFutureFeaturesDisabled,
+    ]),
+    checks: {
+      productionPostgres,
+      expectedMigrationCount,
+      trustedProxyConfigured,
+      turnstileConfigured,
+      transactionalEmailConfigured,
+      trackerConfigured,
+      publicCommercialUiDisabled,
+      publicRadarDisabled,
+      commercialBackendsDisabled,
+      paidPlacementsDisabled,
+      publicRevenueDisabled,
+      publicPageMetricsDisabled,
+      creatorsEnabled,
+      nonFanwardFutureFeaturesDisabled,
     },
   },
   tracker: {
@@ -139,9 +172,11 @@ const output = {
   secretsPrinted: false,
   environment: { appMode: env.APP_MODE ?? null, dataProvider: env.DATA_PROVIDER ?? null },
   gates,
+  releaseProfileReady: gates.publicFree.ready || gates.fanwardMvp.ready,
   readyCount: Object.values(gates).filter((gate) => gate.ready).length,
   totalGates: Object.keys(gates).length,
 };
 console.log(JSON.stringify(output, null, 2));
-if (process.argv.includes("--strict") && Object.values(gates).some((gate) => !gate.ready)) process.exitCode = 1;
+if (process.argv.includes("--strict") && !output.releaseProfileReady) process.exitCode = 1;
 if (process.argv.includes("--strict-public-free") && !gates.publicFree.ready) process.exitCode = 1;
+if (process.argv.includes("--strict-fanward-mvp") && !gates.fanwardMvp.ready) process.exitCode = 1;

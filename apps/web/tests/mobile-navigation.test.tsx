@@ -14,13 +14,14 @@ describe("MobileNavigation", () => {
 
   it("opens an accessible drawer and keeps Radar out until explicitly enabled", () => {
     document.body.style.overflow = "auto";
-    render(<MobileNavigation radarEnabled={false} />);
+    render(<MobileNavigation fanwardEnabled={false} radarEnabled={false} />);
     const trigger = screen.getByRole("button", { name: "Open navigation" });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(trigger);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close menu" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Radar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Fanward" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dashboard / Sign in" })).toBeInTheDocument();
     expect(document.body.style.overflow).toBe("hidden");
     const closeButton = screen.getByRole("button", { name: "Close menu" });
@@ -45,19 +46,23 @@ describe("MobileNavigation", () => {
     expect(document.body.style.overflow).toBe("auto");
   });
 
-  it("renders Radar only when the public flag is enabled", () => {
-    render(<MobileNavigation radarEnabled />);
+  it("renders flagged public routes only when they are enabled", () => {
+    render(<MobileNavigation fanwardEnabled radarEnabled />);
     fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
     expect(screen.getByRole("link", { name: "Radar" })).toHaveAttribute("href", "/radar");
+    expect(screen.getByRole("link", { name: "Fanward" })).toHaveAttribute("href", "/fanward");
   });
 
   it("closes the drawer automatically when the route changes", () => {
-    const { rerender } = render(<MobileNavigation radarEnabled={false} />);
+    document.body.style.overflow = "auto";
+    const { rerender } = render(<MobileNavigation fanwardEnabled={false} radarEnabled={false} />);
     const trigger = screen.getByRole("button", { name: "Open navigation" });
     fireEvent.click(trigger);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("hidden");
     navigationState.pathname = "/rankings";
-    rerender(<MobileNavigation radarEnabled={false} />);
+    rerender(<MobileNavigation fanwardEnabled={false} radarEnabled={false} />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("auto");
   });
 });

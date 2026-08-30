@@ -184,8 +184,13 @@ Authorization header for the staging edge and records only
 `basicAuthProvided: true`; it must never print or persist the value. Basic Auth
 does not authenticate the application admin APIs: supply the Better Auth
 session through `STAGING_ADMIN_COOKIE` for those checks, otherwise they remain
-`PENDING`. A green health endpoint alone is not tracker, moderation, email, or
-provider proof.
+`PENDING`.
+
+Fanward releases additionally use `pnpm fanward:readback`.
+`docs/FANWARD_MVP_RELEASE_RUNBOOK.md` defines that probe's root-owned transient
+EnvironmentFile, exact deployment/origin and SHA binding, credential cleanup,
+and evidence assertions. A green health endpoint alone is not tracker,
+moderation, email, or provider proof.
 
 ## Production rollout and six-hour canary
 

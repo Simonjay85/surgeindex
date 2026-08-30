@@ -117,8 +117,9 @@ review, dismiss stale approvals, require branches to be up to date, and block
 force-pushes. The authoritative gate manifest is
 [RELEASE_EVIDENCE.md](RELEASE_EVIDENCE.md); the repository-side validation
 summary is [LAUNCH_READINESS_REPORT.md](LAUNCH_READINESS_REPORT.md). The
-read-only staging and VPS probes are `pnpm staging:readback` and
-`scripts/vps-readiness.sh`. Do not merge this branch automatically; the release
+release-specific Fanward and VPS probes are `pnpm fanward:readback` and
+`scripts/vps-readiness.sh`. The legacy generic staging read-back is deprecated
+because it is not exact-SHA/origin evidence. Do not merge this branch automatically; the release
 owner must review the reports and external smoke evidence first.
 
 Auth, payment, GA4, Tinybird, Turnstile, and Cloudflare integrations are intentionally demo-safe until credentials and production policy are supplied. The UI labels those states instead of presenting simulated records as live business data.

@@ -23,9 +23,15 @@ jobs:
       APP_MODE: demo
       DATA_PROVIDER: demo
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
+      NEXT_PUBLIC_COMMERCIAL_ENABLED: "false"
+      NEXT_PUBLIC_RADAR_ENABLED: "false"
       BOOST_ENABLED: "false"
       BOOST_LIVE_MODE_ENABLED: "false"
       STRIPE_ENABLED: "false"
+      FEATURE_CREATORS: "true"
+      FEATURE_CAMPAIGNS: "false"
+      FEATURE_AUCTION: "false"
+      FEATURE_PUBLIC_API: "false"
       GA4_PROVIDER_MODE: fixture
       SURGEINDEX_NEXT_DIST_DIR: .next-ci
       RELEASE_DB_URL: postgresql://surgeindex_ci@127.0.0.1:5432/surgeindex_ci
@@ -33,7 +39,7 @@ jobs:
       RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET: "true"
       RELEASE_DB_SMOKE_DISPOSABLE: "YES"
       RELEASE_DB_SMOKE_ALLOW_CI_SERVICE_ADDRESS: "true"
-      EXPECTED_MIGRATION_COUNT: "14"
+      EXPECTED_MIGRATION_COUNT: "15"
       LAUNCH_EVIDENCE_DIR: artifacts/launch-readiness
     services:
       postgres:
@@ -64,6 +70,44 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm -F web exec playwright install --with-deps chromium
       - run: pnpm launch:check
+      - name: Validate noncommercial release profiles
+        env:
+          APP_MODE: production
+          DATA_PROVIDER: postgres
+          DATABASE_URL: postgresql://surgeindex_ci@127.0.0.1:5432/surgeindex_ci
+          EXPECTED_MIGRATION_COUNT: "15"
+          TRUSTED_PROXY_MODE: direct_nginx
+          TURNSTILE_REQUIRED: "true"
+          TURNSTILE_SITE_KEY: ci-only-site-key
+          TURNSTILE_SECRET_KEY: ci-only-secret-key
+          TURNSTILE_EXPECTED_HOSTNAME: staging.surgeindex.lol
+          EMAIL_PROVIDER: http
+          EMAIL_FROM: no-reply@example.invalid
+          EMAIL_HTTP_URL: https://example.invalid/email
+          EMAIL_HTTP_API_KEY: ci-only-email-api-key
+          TRACKER_ENABLED: "true"
+          TRACKER_SIGNING_SECRET: ci-only-signing-secret-000000000000
+          TRACKER_HASH_SECRET: ci-only-hashing-secret-000000000000
+          TRACKER_KEY_ROTATION_SECRET: ci-only-rotation-secret-00000000000
+          NEXT_PUBLIC_COMMERCIAL_ENABLED: "false"
+          NEXT_PUBLIC_RADAR_ENABLED: "false"
+          STRIPE_ENABLED: "false"
+          BOOST_ENABLED: "false"
+          BOOST_LIVE_MODE_ENABLED: "false"
+          GA4_ENABLED: "false"
+          PUBLIC_REVENUE_BOARD_ENABLED: "false"
+          PUBLIC_PAGE_METRICS_ENABLED: "false"
+          BOOST_PLACEMENT_HOMEPAGE_ENABLED: "false"
+          BOOST_PLACEMENT_CATEGORY_ENABLED: "false"
+          BOOST_PLACEMENT_RANKING_ENABLED: "false"
+          BOOST_PLACEMENT_PROFILE_ENABLED: "false"
+          BOOST_PLACEMENT_BREAKOUT_ENABLED: "false"
+          FEATURE_CAMPAIGNS: "false"
+          FEATURE_AUCTION: "false"
+          FEATURE_PUBLIC_API: "false"
+        run: |
+          FEATURE_CREATORS=false pnpm launch:gates:public-free
+          FEATURE_CREATORS=true pnpm launch:gates:fanward
       - run: pnpm audit --prod --audit-level high
       - name: Upload launch-readiness evidence
         if: always()
@@ -91,7 +135,7 @@ jobs:
       RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET: "true"
       RELEASE_DB_SMOKE_DISPOSABLE: "YES"
       RELEASE_DB_SMOKE_ALLOW_CI_SERVICE_ADDRESS: "true"
-      EXPECTED_MIGRATION_COUNT: "14"
+      EXPECTED_MIGRATION_COUNT: "15"
       NEXT_PUBLIC_APP_URL: https://ci.surgeindex.invalid
       BETTER_AUTH_URL: https://auth.ci.surgeindex.invalid
       BETTER_AUTH_SECRET: fixture-better-auth-secret-for-db-tests-2026
@@ -184,7 +228,7 @@ jobs:
       RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET: "true"
       RELEASE_DB_SMOKE_DISPOSABLE: "YES"
       RELEASE_DB_SMOKE_ALLOW_CI_SERVICE_ADDRESS: "true"
-      EXPECTED_MIGRATION_COUNT: "14"
+      EXPECTED_MIGRATION_COUNT: "15"
       MIGRATION_EVIDENCE_FILE: artifacts/migration-evidence/migration-evidence.json
     services:
       postgres:
@@ -216,6 +260,12 @@ jobs:
         run: |
           mkdir -p artifacts/migration-evidence
           pnpm db:smoke
+      - name: Run PostgreSQL repository integration tests
+        env:
+          RUN_DB_TESTS: "1"
+          DB_DRIVER: pg
+          DATABASE_URL: postgresql://surgeindex_ci@127.0.0.1:5432/surgeindex_ci
+        run: pnpm -F @surge/db test
       - name: Upload migration evidence
         if: always()
         uses: actions/upload-artifact@v4

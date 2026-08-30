@@ -128,7 +128,7 @@ const serverEnvSchema = z.object({
   TRACKER_EVENT_MAX_BODY_BYTES: z.coerce.number().int().min(4096).max(1_048_576).default(64 * 1024),
   EVENT_RETENTION_DAYS: z.coerce.number().int().min(1).max(730).default(90),
   SCORE_VERSION: z.string().default("v1"),
-  EXPECTED_MIGRATION_COUNT: z.coerce.number().int().min(1).max(10_000).default(14),
+  EXPECTED_MIGRATION_COUNT: z.coerce.number().int().min(1).max(10_000).default(15),
   TRUSTED_PROXY_MODE: z.enum(["none", "direct_nginx", "cloudflare_nginx"]).default("none"),
   TURNSTILE_REQUIRED: z
     .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())

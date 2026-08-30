@@ -103,6 +103,10 @@ if (!stagingBaseUrl) {
     ];
 
     const adminChecks = ["/api/admin/traffic/summary", "/api/admin/jobs/health", "/api/admin/scoring/health"].map(async (path) => {
+      // Basic Auth only crosses the staging edge (for example Nginx). It is
+      // deliberately not an application admin session and must not turn an
+      // admin read-back into a false PASS/FAIL. Keep these checks pending
+      // until an explicit Better Auth admin cookie is supplied.
       if (!adminCookie) return { name: path, result: "PENDING", status: null, requestId: null, data: null, errorType: "admin_session_not_supplied" };
       return checkResult(path, await getJson(baseUrl, path), (response) => response.ok);
     });

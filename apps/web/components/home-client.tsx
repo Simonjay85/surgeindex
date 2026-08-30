@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ChevronRight, Gavel, HeartHandshake, Radio, Search, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronRight, Gavel, Radio, Search, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { CategoryInfo, TimeseriesPoint } from "@surge/shared";
 import type { DemoSite } from "../lib/demo-data";
@@ -84,23 +84,25 @@ function HomeSearch({ categoryOptions }: { categoryOptions: CategoryInfo[] }) {
 
 function ProductLanes() {
   return <section className="section section-product-lanes"><div className="container">
-    <SectionHeading title="Two ways to take part in the moment." description="The public board shows earned attention. These product lanes make the next action visible without mixing paid reach into organic rank." />
-    <div className="product-lanes-grid">
+    <SectionHeading title="A separate way to take part in the moment." description="The public board shows earned attention. Paid reach stays in a clearly separated lane and never changes organic rank." />
+    <div className="product-lanes-grid product-lanes-grid-single">
       <Link className="product-lane-card product-lane-card-featured" href="/bid-the-moment">
         <div className="product-lane-top"><span className="product-lane-icon"><Gavel size={20} /></span><span className="status-chip status-active">Preview now</span></div>
         <div><h3>Bid the Moment</h3><p>Reserve a transparent spotlight when the right audience is gathering. The existing Boost flow measures delivery separately and never changes organic rank.</p></div>
         <div className="product-lane-footer"><span>Open the preview</span><ArrowRight size={16} /></div>
       </Link>
-      <Link className="product-lane-card" href="/fanward">
-        <div className="product-lane-top"><span className="product-lane-icon product-lane-icon-muted"><HeartHandshake size={20} /></span><span className="status-chip status-completed">Coming soon</span></div>
-        <div><h3>Fanward</h3><p>A future fan and creator layer for measurable attention. This surface stays in waitlist mode while the product rules are being finalized.</p></div>
-        <div className="product-lane-footer"><span>See the preview</span><ArrowRight size={16} /></div>
-      </Link>
     </div>
   </div></section>;
 }
 
-export function HomeClient({ initialSites, heroPulse, categories, isDemo, initialWindow = "live", initialCategory = "all", initialQuery = "", turnstileSiteKey }: { initialSites: DemoSite[]; heroPulse: TimeseriesPoint[]; categories: CategoryInfo[]; isDemo: boolean; initialWindow?: string; initialCategory?: string; initialQuery?: string; turnstileSiteKey?: string }) {
+export function FanwardDiscovery() {
+  return <section className="section fanward-home-section" aria-labelledby="fanward-home-title"><div className="container"><div className="fanward-home-card">
+    <div className="fanward-home-copy"><span className="fanward-home-icon" aria-hidden="true"><UserRound size={22} /></span><h2 id="fanward-home-title">Creators, backed by a verified site.</h2><p>Fanward is an approved creator directory built around evidence. Each public profile connects to one verified primary site and explains the site-derived Impact Score without estimating followers, payouts, or conversion claims.</p><div className="fanward-home-points"><span><ShieldCheck size={14} /> Moderated profiles</span><span><ShieldCheck size={14} /> Explainable site evidence</span><span><ShieldCheck size={14} /> No pay-to-rank ordering</span></div></div>
+    <div className="fanward-home-action"><strong>Discover the newest approved creators.</strong><p>The directory is ordered by approval date, not by score.</p><Link className="button button-coral" href="/fanward">Explore Fanward <ArrowRight size={16} /></Link><Link className="text-link" href="/dashboard/fanward">Create a creator profile</Link></div>
+  </div></div></section>;
+}
+
+export function HomeClient({ initialSites, heroPulse, categories, isDemo, fanwardEnabled, initialWindow = "live", initialCategory = "all", initialQuery = "", turnstileSiteKey }: { initialSites: DemoSite[]; heroPulse: TimeseriesPoint[]; categories: CategoryInfo[]; isDemo: boolean; fanwardEnabled: boolean; initialWindow?: string; initialCategory?: string; initialQuery?: string; turnstileSiteKey?: string }) {
   const router = useRouter();
   const [activeWindow, setActiveWindow] = useState(initialWindow);
   const [activeCategory, setActiveCategory] = useState(initialCategory);
@@ -169,6 +171,8 @@ export function HomeClient({ initialSites, heroPulse, categories, isDemo, initia
     </div></section>
 
     <RankMomentumShowcase sites={sites} isDemo={isDemo} />
+
+    {fanwardEnabled ? <FanwardDiscovery /> : null}
 
     {commercialUiEnabled ? <section className="section section-tight" aria-label="Sponsored distribution"><div className="container"><SectionHeading title="Sponsored distribution" description="A separate paid lane. Qualified delivery is reported independently from the organic board." /><SponsoredBoostCard placement="homepage_boosted" /></div></section> : null}
 

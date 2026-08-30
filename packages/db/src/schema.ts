@@ -10,6 +10,7 @@
 import {
   bigint,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -152,6 +153,8 @@ export const boostRefundStatusEnum = pgEnum("boost_refund_status", ["requested",
 export const boostDisputeStatusEnum = pgEnum("boost_dispute_status", ["open", "won", "lost", "closed"]);
 export const revenueSourceEnum = pgEnum("revenue_source", ["woocommerce", "stripe_boost", "ga4_ecommerce", "manual"]);
 export const revenueStatusEnum = pgEnum("revenue_status", ["connected", "stale", "unavailable", "error"]);
+export const creatorProfileStatusEnum = pgEnum("creator_profile_status", ["draft", "pending", "active", "suspended", "rejected"]);
+export const creatorRevisionStatusEnum = pgEnum("creator_revision_status", ["draft", "pending", "published", "rejected", "superseded"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
@@ -353,6 +356,76 @@ export const siteVerification = pgTable("site_verification", {
   evidence: jsonb("evidence").$type<Record<string, unknown>>(),
   ...timestamps,
 });
+
+/* ─────────────────────────── Fanward creators ─────────────────────────── */
+
+/**
+ * Stable creator identity. Public copy lives in immutable-ish revisions so
+ * an owner can edit a draft without changing the currently published page.
+ */
+export const creatorProfile = pgTable(
+  "creator_profile",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    primarySiteId: uuid("primary_site_id")
+      .notNull()
+      .references(() => site.id, { onDelete: "cascade" }),
+    status: creatorProfileStatusEnum("status").notNull().default("draft"),
+    createdAt: timestamps.createdAt,
+    updatedAt: timestamps.updatedAt,
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    unique("creator_profile_owner_unique").on(t.ownerUserId),
+    unique("creator_profile_slug_unique").on(t.slug),
+    unique("creator_profile_primary_site_unique").on(t.primarySiteId),
+    index("creator_profile_public_idx").on(t.status, t.updatedAt),
+    check("creator_profile_slug_length_check", sql`char_length(${t.slug}) between 3 and 80`),
+  ],
+);
+
+/**
+ * Moderated creator copy. Partial uniqueness makes concurrent owner/admin
+ * requests unable to create two live drafts, reviews, or publications.
+ */
+export const creatorProfileRevision = pgTable(
+  "creator_profile_revision",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    creatorProfileId: uuid("creator_profile_id")
+      .notNull()
+      .references(() => creatorProfile.id, { onDelete: "cascade" }),
+    displayName: text("display_name").notNull(),
+    headline: text("headline").notNull().default(""),
+    bio: text("bio").notNull().default(""),
+    categoryId: uuid("category_id").references(() => category.id, { onDelete: "set null" }),
+    status: creatorRevisionStatusEnum("status").notNull().default("draft"),
+    createdByUserId: text("created_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true, mode: "date" }),
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+    reviewedByUserId: text("reviewed_by_user_id").references(() => user.id, { onDelete: "set null" }),
+    reviewReason: text("review_reason"),
+    createdAt: timestamps.createdAt,
+    updatedAt: timestamps.updatedAt,
+  },
+  (t) => [
+    uniqueIndex("creator_revision_one_draft_idx").on(t.creatorProfileId).where(sql`${t.status} = 'draft'`),
+    uniqueIndex("creator_revision_one_pending_idx").on(t.creatorProfileId).where(sql`${t.status} = 'pending'`),
+    uniqueIndex("creator_revision_one_published_idx").on(t.creatorProfileId).where(sql`${t.status} = 'published'`),
+    index("creator_revision_profile_time_idx").on(t.creatorProfileId, t.createdAt),
+    index("creator_revision_review_queue_idx").on(t.status, t.submittedAt),
+    index("creator_revision_public_idx").on(t.status, t.publishedAt, t.creatorProfileId),
+    check("creator_revision_display_name_length_check", sql`char_length(${t.displayName}) between 2 and 80`),
+    check("creator_revision_headline_length_check", sql`char_length(${t.headline}) between 8 and 160`),
+    check("creator_revision_bio_length_check", sql`char_length(${t.bio}) between 40 and 2000`),
+    check("creator_revision_review_reason_length_check", sql`${t.reviewReason} is null or char_length(${t.reviewReason}) between 3 and 500`),
+  ],
+);
 
 export const trackerKey = pgTable(
   "tracker_key",

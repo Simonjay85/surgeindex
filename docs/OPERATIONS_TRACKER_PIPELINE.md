@@ -54,22 +54,23 @@ Use environment-based hostnames such as app-staging.example.com, cdn-staging.exa
 
 No Cloudflare, Tinybird, or staging credentials were used for Batch 3 local validation. Wrangler configurations are prepared but deployment is not claimed.
 
-## Deterministic staging read-back
+## Exact-SHA staging read-back
 
-The repository-side probe is intentionally read-only:
+The legacy `scripts/staging-readback.mjs` probe is deprecated: it does not pin
+the target origin and application SHA strongly enough for credentialed release
+evidence. Do not supply it with Basic Auth or an application cookie.
+
+Use the exact-SHA, origin-pinned probe from the active release runbook. For the
+Fanward release:
 
 ```bash
-STAGING_BASE_URL='https://<approved-staging-host>' \
-STAGING_READBACK_EVIDENCE_FILE='output/staging-readback.json' \
-pnpm staging:readback
+pnpm fanward:readback
 ```
 
-It checks liveness and production readiness, and optionally reads the protected
-traffic, job-health, and scoring projections when an approved admin cookie is
-provided through the secret manager as `STAGING_ADMIN_COOKIE`. It records only
-status codes, safe request IDs, counts, timestamps, and redacted projections;
-the cookie is never printed or written. It does not generate traffic or call a
-mutation endpoint.
+Follow `docs/FANWARD_MVP_RELEASE_RUNBOOK.md` for the root-owned transient
+credential file, deployment/origin binding, tool and target SHAs, protected
+projections, and evidence cleanup. The read-back does not generate traffic or
+call a mutation endpoint.
 
 The controlled staging procedure must then bind one event window to each
 read-back stage in order:

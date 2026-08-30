@@ -117,19 +117,18 @@ kill switch stops package availability/serving without changing organic rank.
    `RELEASE_DB_SMOKE_DISPOSABLE=YES` in addition to
    `RELEASE_DB_SMOKE_ALLOW_SCHEMA_RESET=true`; the smoke guard refuses remote
    or production/live-looking targets.
-2. Run the read-only staging probe when an approved host exists:
+2. Run only the exact-SHA, origin-pinned probe named by the active release
+   runbook. For Fanward this is:
 
    ```bash
-   STAGING_BASE_URL='https://<approved-staging-host>' \
-   STAGING_READBACK_EVIDENCE_FILE='output/staging-readback.json' \
-   pnpm staging:readback
+   pnpm fanward:readback
    ```
 
-   If an approved admin session is needed, provide `STAGING_ADMIN_COOKIE`
-   through the secret manager; the probe records only a boolean indicating
-   that a session was supplied and never prints or writes the cookie. The
-   probe remains `PENDING` until the controlled tracker event chain is read
-   back.
+   Follow `docs/FANWARD_MVP_RELEASE_RUNBOOK.md` for the root-owned transient
+   environment, pinned staging origin, tool/target SHA, and ephemeral admin
+   session. The legacy `scripts/staging-readback.mjs` probe is deprecated and
+   must not receive credentials or be used as release evidence. The tracker
+   gate remains `PENDING` until the controlled event chain is read back.
 3. Run the production build, deploy to a versioned release directory, run
    `pnpm db:migrate`, and read back readiness before symlink promotion.
 4. Confirm all systemd timers/services use bundled Node artifacts, documented

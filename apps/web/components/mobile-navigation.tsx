@@ -15,7 +15,7 @@ const baseLinks = [
   ["Submit site", "/submit"],
 ] as const;
 
-export function MobileNavigation({ radarEnabled }: { radarEnabled: boolean }) {
+export function MobileNavigation({ fanwardEnabled, radarEnabled }: { fanwardEnabled: boolean; radarEnabled: boolean }) {
   const pathname = usePathname();
   // Derive the open state from the pathname so a route change closes the
   // drawer without a synchronous setState call from an effect. This also
@@ -78,6 +78,7 @@ export function MobileNavigation({ radarEnabled }: { radarEnabled: boolean }) {
         <nav aria-label="Mobile primary navigation" className="mobile-nav-links">
           {baseLinks.map(([label, href]) => <Link key={href} href={href} onClick={closeDrawer}>{label === "Search" ? <><Search size={16} />{label}</> : label}</Link>)}
           {radarEnabled ? <Link href="/radar" onClick={closeDrawer}>Radar</Link> : null}
+          {fanwardEnabled ? <Link href="/fanward" onClick={closeDrawer}>Fanward</Link> : null}
           <span className="mobile-nav-divider" />
           <Link href="/dashboard" onClick={closeDrawer}>Dashboard / Sign in</Link>
         </nav>
