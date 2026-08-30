@@ -57,6 +57,21 @@ function reportFor(file, reportPath) {
   }
 }
 
+function reportFailureSummary(testResult) {
+  const assertionResults = Array.isArray(testResult?.assertionResults) ? testResult.assertionResults : [];
+  return assertionResults
+    .filter((item) => item?.status !== "passed" || (Array.isArray(item.failureMessages) && item.failureMessages.length > 0))
+    .map((item) => ({
+      fullName: typeof item.fullName === "string" ? item.fullName.slice(0, 300) : null,
+      status: typeof item.status === "string" ? item.status : "unknown",
+      messages: (Array.isArray(item.failureMessages) ? item.failureMessages : [])
+        .map((message) => redactEnvironment(String(message)).slice(0, 4000))
+        .filter(Boolean)
+        .slice(0, 3),
+    }))
+    .slice(0, 10);
+}
+
 function pendingSuite() {
   return { result: "PENDING", exitCode: null, testCount: 0, pendingCount: 0, reportStatus: "not_run", logFile: null, durationMs: 0 };
 }
@@ -93,21 +108,27 @@ try {
     for (const [index, suite] of suites.entries()) {
       const reportPath = join(reportDir, `${index}.json`);
       const started = Date.now();
-      const command = ["-F", suite.workspace, "exec", "vitest", "run", suite.file, "--reporter=json", `--outputFile=${reportPath}`];
+      const command = ["-F", suite.workspace, "exec", "vitest", "run", suite.file, "--reporter=verbose", "--reporter=json", `--outputFile=${reportPath}`];
       const result = spawnSync("pnpm", command, {
         encoding: "utf8",
         maxBuffer: 20 * 1024 * 1024,
         env: process.env,
       });
-      const output = `${typeof result.stdout === "string" ? result.stdout : ""}${result.stderr ? `\n${result.stderr}` : ""}`;
+      const output = `${typeof result.stdout === "string" ? result.stdout : ""}${result.stderr ? `\n${result.stderr}` : ""}${result.error?.message ? `\n${result.error.message}` : ""}`;
       const logName = `${suite.workspace.replace(/[^a-z0-9]+/gi, "-")}-${suite.file.replace(/[^a-z0-9]+/gi, "-")}.log`;
-      mkdirSync(evidenceDir, { recursive: true });
-      writeFileSync(join(evidenceDir, logName), redactEnvironment(output), "utf8");
       const parsed = reportFor(suite.file, reportPath);
       const testResult = parsed?.testResult;
       const assertionResults = Array.isArray(testResult?.assertionResults) ? testResult.assertionResults : [];
       const pendingCount = assertionResults.filter((item) => item.status !== "passed").length;
       const testCount = assertionResults.length;
+      const failureSummary = reportFailureSummary(testResult);
+      const reportDiagnostics = JSON.stringify({
+        reportSuccess: parsed?.report?.success ?? null,
+        suiteStatus: testResult?.status ?? "missing",
+        failures: failureSummary,
+      });
+      mkdirSync(evidenceDir, { recursive: true });
+      writeFileSync(join(evidenceDir, logName), `${redactEnvironment(output)}\nVitest report diagnostics: ${reportDiagnostics}\n`, "utf8");
       const resultCode = typeof result.status === "number" ? result.status : 1;
       const passed = resultCode === 0
         && parsed?.report?.success === true
@@ -121,11 +142,12 @@ try {
         testCount,
         pendingCount,
         reportStatus: testResult?.status ?? "missing",
+        failureSummary,
         logFile: logName,
         durationMs: Date.now() - started,
       };
       if (!passed) {
-        console.error(`FAIL database suite ${suite.file}: file was missing, failed, or had skipped/pending tests.`);
+        console.error(`FAIL database suite ${suite.file}: file was missing, failed, or had skipped/pending tests. Diagnostics: ${reportDiagnostics}`);
         process.exitCode = 1;
         break;
       }
