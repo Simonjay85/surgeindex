@@ -4,6 +4,17 @@ import { dirname, resolve } from "node:path";
 const stagingBaseUrl = process.env.STAGING_BASE_URL;
 const evidenceFile = process.env.STAGING_READBACK_EVIDENCE_FILE;
 const adminCookie = process.env.STAGING_ADMIN_COOKIE;
+const basicAuthInput = process.env.STAGING_BASIC_AUTH?.trim();
+
+function basicAuthHeader(value) {
+  if (!value || value.length > 4096 || /[\r\n]/.test(value)) return null;
+  if (/^Basic\s+/i.test(value)) return value;
+  return `Basic ${Buffer.from(value, "utf8").toString("base64")}`;
+}
+
+// The secret is read once and only the derived Authorization header is sent to
+// the staging origin. Never include the value or the header in evidence.
+const basicAuth = basicAuthHeader(basicAuthInput);
 
 function fail(message) {
   console.error(`staging-readback: ${message}`);
@@ -32,7 +43,11 @@ function safeProjection(value, key = "", depth = 0) {
 async function getJson(baseUrl, path) {
   const url = new URL(path, baseUrl);
   const headers = { accept: "application/json", "user-agent": "surgeindex-staging-readback/1" };
+  // Basic Auth belongs to the staging edge only. It is deliberately not used
+  // as application authentication; admin endpoints still require the
+  // Better-Auth session supplied by STAGING_ADMIN_COOKIE below.
   if (adminCookie) headers.cookie = adminCookie;
+  if (basicAuth) headers.authorization = basicAuth;
   try {
     const response = await fetch(url, { headers, redirect: "manual" });
     const text = await response.text();
@@ -88,6 +103,10 @@ if (!stagingBaseUrl) {
     ];
 
     const adminChecks = ["/api/admin/traffic/summary", "/api/admin/jobs/health", "/api/admin/scoring/health"].map(async (path) => {
+      // Basic Auth only crosses the staging edge (for example Nginx). It is
+      // deliberately not an application admin session and must not turn an
+      // admin read-back into a false PASS/FAIL. Keep these checks pending
+      // until an explicit Better Auth admin cookie is supplied.
       if (!adminCookie) return { name: path, result: "PENDING", status: null, requestId: null, data: null, errorType: "admin_session_not_supplied" };
       return checkResult(path, await getJson(baseUrl, path), (response) => response.ok);
     });
@@ -118,6 +137,7 @@ if (!stagingBaseUrl) {
       commitSha: process.env.GITHUB_SHA ?? "unknown",
       stagingOrigin: baseUrl.origin,
       adminSessionProvided: Boolean(adminCookie),
+      basicAuthProvided: Boolean(basicAuth),
       secretsPrinted: false,
       checks,
       pipeline: externalPipeline,

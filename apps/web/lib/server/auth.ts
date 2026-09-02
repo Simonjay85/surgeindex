@@ -13,6 +13,7 @@ export interface CurrentUser {
   id: string;
   name: string;
   email: string;
+  emailVerified: boolean;
   role: "user" | "admin";
   isDemo: boolean;
 }
@@ -21,6 +22,7 @@ const DEMO_USER: CurrentUser = {
   id: "demo-user",
   name: "Demo Workspace",
   email: "demo@surgeindex.local",
+  emailVerified: true,
   role: "admin",
   isDemo: true,
 };
@@ -97,7 +99,7 @@ export function getAuth(): ReturnType<typeof createAuth> {
 async function loadUser(userId: string): Promise<CurrentUser | null> {
   const db = getPostgresDb();
   const [record] = await db
-    .select({ id: user.id, name: user.name, email: user.email, role: user.role, isDemo: user.isDemo })
+    .select({ id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified, role: user.role, isDemo: user.isDemo })
     .from(user)
     .where(eq(user.id, userId))
     .limit(1);

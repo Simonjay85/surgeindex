@@ -6,7 +6,7 @@ import { createClaim, completeClaim, getClaimForUser, getPostgresDb, recordClaim
 import { fetchPublicMetadata, extractMetaVerificationToken } from "./ssrf";
 
 export class ClaimServiceError extends Error {
-  constructor(public readonly code: "site_not_found" | "ownership_conflict" | "claim_not_found" | "claim_expired" | "claim_not_pending" | "verification_failed" | "attempt_limit", message: string) {
+  constructor(public readonly code: "site_not_found" | "site_not_active" | "ownership_conflict" | "claim_not_found" | "claim_expired" | "claim_not_pending" | "verification_failed" | "attempt_limit", message: string) {
     super(message);
     this.name = "ClaimServiceError";
   }
@@ -24,6 +24,7 @@ export async function startOwnershipClaim(input: { siteId: string; userId: strin
     expiresAt: new Date(Date.now() + CLAIM_TTL_MS),
   });
   if (!result.ok && result.reason === "site_not_found") throw new ClaimServiceError("site_not_found", "Site was not found.");
+  if (!result.ok && result.reason === "site_not_active") throw new ClaimServiceError("site_not_active", "Only an active public listing can be claimed.");
   if (!result.ok && result.reason === "ownership_conflict") throw new ClaimServiceError("ownership_conflict", "This site already has another verified owner and needs admin review.");
   if (!result.claim) throw new ClaimServiceError("claim_not_found", "Could not create a verification challenge.");
   return { claimId: result.claim.id, method: input.method, token: result.claim.token, expiresAt: result.claim.expiresAt };
@@ -70,6 +71,7 @@ export async function verifyOwnershipClaim(input: { claimId: string; userId: str
   }
   const result = await completeClaim(db, claim.id, input.userId);
   if (!result.ok && result.reason === "ownership_conflict") throw new ClaimServiceError("ownership_conflict", "Another verified owner was found. An admin must review this conflict.");
+  if (!result.ok && result.reason === "site_not_active") throw new ClaimServiceError("site_not_active", "This listing is no longer active and cannot be claimed.");
   if (!result.ok && result.reason === "expired") throw new ClaimServiceError("claim_expired", "This verification challenge has expired.");
   if (!result.ok && result.reason === "not_pending") throw new ClaimServiceError("claim_not_pending", "This verification challenge is no longer pending.");
   if (!result.ok) throw new ClaimServiceError("claim_not_found", "Verification challenge was not found.");

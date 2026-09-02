@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ArrowRight, Check, LoaderCircle } from "lucide-react";
-import { TurnstileField } from "./turnstile-field";
+import { TurnstileField, type TurnstileState } from "./turnstile-field";
 
 type WaitlistTopic = "fanward" | "brand campaigns";
 
@@ -12,11 +12,19 @@ export function WaitlistForm({ topic, turnstileSiteKey }: { topic: WaitlistTopic
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileState, setTurnstileState] = useState<TurnstileState>(turnstileSiteKey ? "loading" : "ready");
+  const [turnstileResetNonce, setTurnstileResetNonce] = useState(0);
+  const turnstileReady = !turnstileSiteKey || (turnstileState === "verified" && Boolean(turnstileToken));
 
   async function join(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError(null);
+    if (!turnstileReady) {
+      setError("Complete the anti-bot verification before joining the waitlist.");
+      setBusy(false);
+      return;
+    }
     try {
       const response = await fetch("/api/waitlist", {
         method: "POST",
@@ -33,10 +41,12 @@ export function WaitlistForm({ topic, turnstileSiteKey }: { topic: WaitlistTopic
       setError("The waitlist request failed. Check your connection and try again.");
     } finally {
       setBusy(false);
+      setTurnstileToken("");
+      setTurnstileResetNonce((current) => current + 1);
     }
   }
 
   if (joined) return <div className="waitlist-success"><span><Check size={16} /></span><div><strong>You’re on the list.</strong><p>We’ll send one useful note when {topic} opens up.</p></div></div>;
   const inputId = `waitlist-${topic.replaceAll(" ", "-")}`;
-  return <><form className="waitlist-form" onSubmit={join}><label className="sr-only" htmlFor={inputId}>Email address</label><input id={inputId} value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="you@company.com" required /><button className="button button-dark" disabled={busy} type="submit">{busy ? <>Saving <LoaderCircle className="spin" size={15} /></> : <>Join waitlist <ArrowRight size={15} /></>}</button></form><TurnstileField siteKey={turnstileSiteKey} action="waitlist" onToken={setTurnstileToken} />{error ? <p className="form-message form-error" role="alert">{error}</p> : null}</>;
+  return <><form className="waitlist-form" onSubmit={join}><label className="sr-only" htmlFor={inputId}>Email address</label><input id={inputId} value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="you@company.com" required /><button className="button button-dark" disabled={busy || !turnstileReady} type="submit">{busy ? <>Saving <LoaderCircle className="spin" size={15} /></> : !turnstileReady ? <>Verify to join <ArrowRight size={15} /></> : <>Join waitlist <ArrowRight size={15} /></>}</button></form><TurnstileField siteKey={turnstileSiteKey} action="waitlist" onToken={setTurnstileToken} onStateChange={setTurnstileState} resetNonce={turnstileResetNonce} />{error ? <p className="form-message form-error" role="alert">{error}</p> : null}</>;
 }

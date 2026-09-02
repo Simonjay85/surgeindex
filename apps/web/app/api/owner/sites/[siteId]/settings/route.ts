@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { and, eq, or } from "drizzle-orm";
-import { adminAuditLog, category, getPostgresDb, site, siteOwner, siteTag } from "@surge/db";
+import { adminAuditLog, category, getPostgresDb, site, siteOwner, siteTag, trackerKey } from "@surge/db";
 import { getServerEnv } from "@surge/config";
 import { normalizeDomain } from "@surge/shared";
-import { requireApiUser } from "../../../../../../lib/server/authorization";
+import { requireVerifiedApiUser } from "../../../../../../lib/server/authorization";
 import { assertSameOrigin, jsonError, jsonOk, requestId } from "../../../../../../lib/server/http";
+import { authorizeSiteSettingsChange } from "../../../../../../lib/server/site-settings-policy";
 import { verifyTurnstile } from "../../../../../../lib/server/turnstile";
 
 export const runtime = "nodejs";
@@ -49,6 +50,13 @@ function cleanAliases(aliases: string[]): string[] | null {
   return result;
 }
 
+function sameDomainSet(left: string[], right: string[]): boolean {
+  const normalize = (values: string[]) => [...new Set(values)].sort();
+  const normalizedLeft = normalize(left);
+  const normalizedRight = normalize(right);
+  return normalizedLeft.length === normalizedRight.length && normalizedLeft.every((value, index) => value === normalizedRight[index]);
+}
+
 async function canEditSite(siteId: string, userId: string, role: "user" | "admin") {
   if (role === "admin") return true;
   const [membership] = await getPostgresDb()
@@ -60,7 +68,7 @@ async function canEditSite(siteId: string, userId: string, role: "user" | "admin
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ siteId: string }> }) {
-  const auth = await requireApiUser(request);
+  const auth = await requireVerifiedApiUser(request);
   if ("response" in auth) return auth.response;
   if (getServerEnv().DATA_PROVIDER !== "postgres") return jsonError(request, 409, "demo_mode", "Listing settings are read-only in demo mode.");
   const parsedParams = paramsSchema.safeParse(await params);
@@ -83,12 +91,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ site
 export async function PATCH(request: Request, { params }: { params: Promise<{ siteId: string }> }) {
   const origin = assertSameOrigin(request);
   if (!origin.ok) return origin.response;
-  const auth = await requireApiUser(request);
+  const auth = await requireVerifiedApiUser(request);
   if ("response" in auth) return auth.response;
   if (getServerEnv().DATA_PROVIDER !== "postgres") return jsonError(request, 409, "demo_mode", "Listing settings are read-only in demo mode.");
   const parsedParams = paramsSchema.safeParse(await params);
   if (!parsedParams.success) return jsonError(request, 422, "invalid_site", "The site was not found.");
-  if (!await canEditSite(parsedParams.data.siteId, auth.user.id, auth.user.role)) return jsonError(request, 403, "site_owner_required", "Owner access is required to edit this listing.");
   const parsed = settingsSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError(request, 422, "invalid_settings", "Review the listing fields and try again.");
   const aliases = cleanAliases(parsed.data.permittedAliases);
@@ -100,16 +107,41 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ si
   try {
     const result = await getPostgresDb().transaction(async (tx) => {
       const [before] = await tx
-        .select({ id: site.id, updatedAt: site.updatedAt, name: site.name, description: site.description, categoryId: site.categoryId, logoUrl: site.logoUrl, faviconUrl: site.faviconUrl, permittedAliases: site.permittedAliases, publicRevenueVisible: site.publicRevenueVisible, publicPageMetricsVisible: site.publicPageMetricsVisible })
+        .select({ id: site.id, domain: site.domain, updatedAt: site.updatedAt, name: site.name, description: site.description, categoryId: site.categoryId, logoUrl: site.logoUrl, faviconUrl: site.faviconUrl, permittedAliases: site.permittedAliases, publicRevenueVisible: site.publicRevenueVisible, publicPageMetricsVisible: site.publicPageMetricsVisible })
         .from(site)
         .where(eq(site.id, parsedParams.data.siteId))
         .limit(1)
         .for("update");
       if (!before) return { kind: "not_found" as const };
+      let membershipRole: "owner" | "editor" | "admin" | "none" = auth.user.role === "admin" ? "admin" : "none";
+      if (auth.user.role !== "admin") {
+        const [membership] = await tx
+          .select({ role: siteOwner.role })
+          .from(siteOwner)
+          .where(and(eq(siteOwner.siteId, before.id), eq(siteOwner.userId, auth.user.id)))
+          .limit(1)
+          .for("update");
+        if (!membership) return { kind: "not_authorized" as const };
+        membershipRole = membership.role;
+      }
+      const aliasesChanged = !sameDomainSet(before.permittedAliases, aliases);
+      const privacyChanged = before.publicRevenueVisible !== parsed.data.publicRevenueVisible || before.publicPageMetricsVisible !== parsed.data.publicPageMetricsVisible;
+      const authorization = authorizeSiteSettingsChange(membershipRole, { aliasesChanged, privacyChanged });
+      if (authorization === "not_authorized") return { kind: "not_authorized" as const };
+      if (authorization === "owner_required") return { kind: "owner_required" as const };
       if (before.updatedAt.getTime() !== new Date(parsed.data.expectedUpdatedAt).getTime()) return { kind: "conflict" as const, updatedAt: before.updatedAt.toISOString() };
       const [selectedCategory] = await tx.select({ id: category.id }).from(category).where(eq(category.id, parsed.data.categoryId)).limit(1);
       if (!selectedCategory) return { kind: "category_not_found" as const };
+      // Keep the mutation lock order consistent with tracker-key operations:
+      // site -> membership -> tracker key. This prevents a settings update
+      // from racing a key rotation while aliases are being propagated.
+      await tx
+        .select({ id: trackerKey.id })
+        .from(trackerKey)
+        .where(and(eq(trackerKey.siteId, before.id), or(eq(trackerKey.status, "active"), eq(trackerKey.status, "stale"))))
+        .for("update");
       const [updated] = await tx.update(site).set({ name: parsed.data.name, description: parsed.data.description, categoryId: parsed.data.categoryId, logoUrl: parsed.data.logoUrl, faviconUrl: parsed.data.faviconUrl, permittedAliases: aliases, publicRevenueVisible: parsed.data.publicRevenueVisible, publicPageMetricsVisible: parsed.data.publicPageMetricsVisible, updatedAt: new Date() }).where(eq(site.id, before.id)).returning({ updatedAt: site.updatedAt });
+      await tx.update(trackerKey).set({ allowedDomains: [before.domain, ...aliases.filter((alias) => alias !== before.domain)] }).where(and(eq(trackerKey.siteId, before.id), or(eq(trackerKey.status, "active"), eq(trackerKey.status, "stale"))));
       await tx.delete(siteTag).where(eq(siteTag.siteId, before.id));
       if (tags.length) await tx.insert(siteTag).values(tags.map((tag) => ({ siteId: before.id, tag })));
       await tx.insert(adminAuditLog).values({
@@ -126,6 +158,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ si
       return { kind: "updated" as const, updatedAt: updated?.updatedAt.toISOString() ?? new Date().toISOString() };
     });
     if (result.kind === "not_found") return jsonError(request, 404, "site_not_found", "The site was not found.");
+    if (result.kind === "not_authorized") return jsonError(request, 403, "site_owner_required", "Owner access is required to edit this listing.");
+    if (result.kind === "owner_required") return jsonError(request, 403, "owner_required", "Only the verified site owner can change tracker domains or public disclosure settings.");
     if (result.kind === "category_not_found") return jsonError(request, 422, "category_not_found", "Choose a valid category.");
     if (result.kind === "conflict") return jsonError(request, 409, "edit_conflict", `This listing changed since you opened it. Reload before saving. Current version: ${result.updatedAt}`);
     return jsonOk(request, result);

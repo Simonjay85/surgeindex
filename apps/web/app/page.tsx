@@ -26,5 +26,5 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     provider.getCategories(),
   ]);
   const heroPulse = sites[0] ? await provider.getTimeseries(sites[0].slug, "visitors") : [];
-  return <AppShell><HomeClient key={`${activeWindow}:${activeCategory}:${query}`} initialSites={sites} heroPulse={heroPulse} categories={categories} isDemo={provider.source === "demo"} initialWindow={activeWindow} initialCategory={activeCategory} initialQuery={query} turnstileSiteKey={env.TURNSTILE_SITE_KEY} /></AppShell>;
+  return <AppShell><HomeClient key={`${activeWindow}:${activeCategory}:${query}`} initialSites={sites} heroPulse={heroPulse} categories={categories} isDemo={provider.source === "demo"} fanwardEnabled={env.FEATURE_CREATORS} initialWindow={activeWindow} initialCategory={activeCategory} initialQuery={query} turnstileSiteKey={env.TURNSTILE_SITE_KEY} /></AppShell>;
 }

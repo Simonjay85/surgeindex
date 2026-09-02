@@ -14,14 +14,22 @@ sudo nft list ruleset
 
 The application ignores `X-Forwarded-For`. In direct-Nginx mode, Nginx
 overwrites `X-Real-IP` from the connected peer and the app uses that value only
-after `TRUSTED_PROXY_MODE=direct_nginx` is explicitly set. If Cloudflare is
-added, first allowlist Cloudflare's current published CIDRs in Nginx's
-`real_ip` configuration, then use `TRUSTED_PROXY_MODE=cloudflare_nginx`.
-Do not enable that mode with a blanket `set_real_ip_from 0.0.0.0/0` rule.
+after `TRUSTED_PROXY_MODE=direct_nginx` is explicitly set. The Fanward release
+checker deliberately rejects every active Nginx `real_ip` directive. Moving
+behind Cloudflare therefore requires a separately reviewed CIDR-aware release
+contract and checker change; changing only `TRUSTED_PROXY_MODE` is invalid.
 
 Include `nginx-http-hardening.conf` from the main `http{}` block. It provides
-the anonymous `limit_req` zone used by the vhost. Confirm the effective config
-with `sudo nginx -t` and `sudo nginx -T`.
+the anonymous mutation zone plus a URI map and separate
+`surgeindex_fanward_public` zone. Apply the Fanward `limit_req`, 429, and
+explicit dry-run-off directives at server scope in both canonical TLS vhosts;
+an empty map key leaves unrelated routes unaccounted and preserves the existing
+production/staging routing and staging Basic Auth. The protected URI set covers
+`/fanward`, `/creators`, dynamic `/sitemap.xml`, both public/admin Fanward APIs,
+and owner/admin Fanward pages. Confirm the active map, both TLS servers, their
+catch-all upstreams (`3211` production, `3212` staging), auth inheritance, and
+absence of diverting child locations or real-IP rewriting with `sudo nginx -t`,
+`sudo nginx -T`, and `pnpm nginx:release-check`.
 
 Production runs as one self-hosted Next.js process behind the existing panel
 Nginx, with a dedicated PostgreSQL container bound to localhost only.

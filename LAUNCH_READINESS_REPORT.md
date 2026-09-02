@@ -57,7 +57,7 @@ preserved and are not part of this launch-readiness PR.
 | CI evidence | PASS | [Run 32853837023](https://github.com/Simonjay85/surgeindex/actions/runs/32853837023) passed `checks` and `migrations`; [launch-readiness-evidence](https://github.com/Simonjay85/surgeindex/actions/runs/32853837023/artifacts/9565486677) and [migration-evidence](https://github.com/Simonjay85/surgeindex/actions/runs/32853837023/artifacts/9565375919) were uploaded. |
 | Release manifest | Implemented | `RELEASE_EVIDENCE.md` contains the authoritative gate states, branch-protection instructions, launch-state rules, and final decision boundary. |
 | Auth smoke | Implemented | `docs/AUTH_PRODUCTION_SMOKE.md` covers real Turnstile, hostname/action checks, mailbox timestamps, verification, resend, reset token cases, rate limits, and non-enumeration. |
-| Tracker staging read-back | Implemented | `scripts/staging-readback.mjs` is read-only, redacts sensitive projections, and refuses to infer the event chain from health alone. |
+| Tracker staging read-back | Superseded | The legacy generic probe is deprecated and cannot serve as exact-SHA/origin evidence; the active release must use its pinned read-back (`pnpm fanward:readback` for Fanward). |
 | VPS readiness | Implemented | `scripts/vps-readiness.sh` is read-only by default and does not install, restart, reload, or alter firewall/database state. |
 | Commercial review | Implemented | `docs/COMMERCIAL_LAUNCH_CHECKLIST.md` covers privacy, terms, AUP, tracker/GA4/OAuth, sponsored advertising, refunds, underdelivery, disputes, Stripe, taxes, and jurisdiction review. |
 

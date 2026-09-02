@@ -550,8 +550,13 @@ export async function createPendingSite(
         submittedByUserId: input.submittedByUserId,
         isDemo: false,
       })
+      .onConflictDoNothing({ target: site.domain })
       .returning({ id: site.id, slug: site.slug });
-    if (!created) throw new Error("site_insert_failed");
+    if (!created) {
+      const [raced] = await tx.select({ id: site.id }).from(site).where(eq(site.domain, input.domain)).limit(1);
+      if (raced) return { duplicate: true as const, siteId: raced.id };
+      throw new Error("site_insert_failed");
+    }
     if (input.categoryId) {
       await tx.insert(siteCategory).values({ siteId: created.id, categoryId: input.categoryId }).onConflictDoNothing();
     }
@@ -588,7 +593,7 @@ export async function moderateSite(
   const nextStatus = { approve: "active", reject: "rejected", suspend: "suspended", restore: "active" }[input.action] as "active" | "rejected" | "suspended";
   const activityType = { approve: "site_approved", reject: "site_rejected", suspend: "site_suspended", restore: "site_restored" }[input.action] as "site_approved" | "site_rejected" | "site_suspended" | "site_restored";
   return db.transaction(async (tx) => {
-    const [before] = await tx.select({ status: site.status }).from(site).where(eq(site.id, input.siteId)).limit(1);
+    const [before] = await tx.select({ status: site.status }).from(site).where(eq(site.id, input.siteId)).limit(1).for("update");
     if (!before) return false;
     await tx.update(site).set({ status: nextStatus, updatedAt: new Date() }).where(eq(site.id, input.siteId));
     await tx.insert(activityEvent).values({ type: activityType, siteId: input.siteId, detail: input.reason, isDemo: false });
@@ -602,9 +607,16 @@ export async function createClaim(
   input: { siteId: string; userId: string; method: "meta_tag" | "dns_txt"; token: string; expiresAt: Date },
 ) {
   return db.transaction(async (tx) => {
-    const [target] = await tx.select({ id: site.id, domain: site.domain, ownership: site.ownership }).from(site).where(eq(site.id, input.siteId)).limit(1);
+    // Lock the site before checking its status and current owners so a
+    // concurrent moderation action cannot suspend a site between this check
+    // and the claim challenge creation.
+    const [target] = await tx.select({ id: site.id, domain: site.domain, status: site.status }).from(site).where(and(eq(site.id, input.siteId), isNull(site.deletedAt))).limit(1).for("update");
     if (!target) return { ok: false as const, reason: "site_not_found" as const };
-    const owners = await tx.select({ userId: siteOwner.userId, role: siteOwner.role }).from(siteOwner).where(eq(siteOwner.siteId, input.siteId));
+    if (target.status !== "active") return { ok: false as const, reason: "site_not_active" as const };
+    // Claim mutations use the same site -> membership lock order as owner
+    // settings and tracker-key mutations. The site lock above serializes
+    // moderation; this membership lock serializes owner-role changes.
+    const owners = await tx.select({ userId: siteOwner.userId, role: siteOwner.role }).from(siteOwner).where(eq(siteOwner.siteId, input.siteId)).for("update");
     if (owners.some((owner) => owner.role === "owner" && owner.userId !== input.userId)) {
       await tx.insert(siteClaim).values({ ...input, status: "failed", lastError: "ownership_conflict", usedAt: new Date() });
       return { ok: false as const, reason: "ownership_conflict" as const };
@@ -617,7 +629,7 @@ export async function createClaim(
 
 export async function getClaimForUser(db: Repository, claimId: string, userId: string) {
   const [claim] = await db
-    .select({ id: siteClaim.id, siteId: siteClaim.siteId, userId: siteClaim.userId, method: siteClaim.method, token: siteClaim.token, status: siteClaim.status, attempts: siteClaim.attempts, expiresAt: siteClaim.expiresAt, domain: site.domain })
+    .select({ id: siteClaim.id, siteId: siteClaim.siteId, userId: siteClaim.userId, method: siteClaim.method, token: siteClaim.token, status: siteClaim.status, attempts: siteClaim.attempts, expiresAt: siteClaim.expiresAt, domain: site.domain, siteStatus: site.status })
     .from(siteClaim)
     .innerJoin(site, eq(siteClaim.siteId, site.id))
     .where(and(eq(siteClaim.id, claimId), eq(siteClaim.userId, userId)))
@@ -664,23 +676,30 @@ export async function completeClaim(db: Repository, claimId: string, userId: str
     if (claim.status !== "pending") return { ok: false as const, reason: "not_pending" as const };
     const now = new Date();
     if (claim.expiresAt <= now) {
-      await tx.update(siteClaim).set({ status: "expired", lastError: "challenge_expired", attempts: sql`${siteClaim.attempts} + 1` }).where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")));
+      await tx.update(siteClaim).set({ status: "expired", lastError: "challenge_expired", attempts: sql`LEAST(${siteClaim.attempts} + 1, 5)` }).where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")));
       return { ok: false as const, reason: "expired" as const };
     }
     // Serialize all claim completions for one site, including different claim
     // rows, before checking or creating its single owner.
-    await tx.select({ id: site.id }).from(site).where(eq(site.id, claim.siteId)).limit(1).for("update");
-    const [existingOwner] = await tx.select({ userId: siteOwner.userId, role: siteOwner.role }).from(siteOwner).where(and(eq(siteOwner.siteId, claim.siteId), eq(siteOwner.role, "owner"))).limit(1);
+    const [lockedSite] = await tx.select({ id: site.id, status: site.status }).from(site).where(and(eq(site.id, claim.siteId), isNull(site.deletedAt))).limit(1).for("update");
+    if (!lockedSite) return { ok: false as const, reason: "not_found" as const };
+    if (lockedSite.status !== "active") return { ok: false as const, reason: "site_not_active" as const };
+    const [existingOwner] = await tx
+      .select({ userId: siteOwner.userId, role: siteOwner.role })
+      .from(siteOwner)
+      .where(and(eq(siteOwner.siteId, claim.siteId), eq(siteOwner.role, "owner")))
+      .limit(1)
+      .for("update");
     if (existingOwner && existingOwner.userId !== userId) {
       await tx
         .update(siteClaim)
-        .set({ status: "failed", usedAt: now, lastError: "ownership_conflict", attempts: sql`${siteClaim.attempts} + 1` })
+        .set({ status: "failed", usedAt: now, lastError: "ownership_conflict", attempts: sql`LEAST(${siteClaim.attempts} + 1, 5)` })
         .where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")));
       return { ok: false as const, reason: "ownership_conflict" as const };
     }
     const [transitioned] = await tx
       .update(siteClaim)
-      .set({ status: "verified", verifiedAt: now, usedAt: now, lastError: null, attempts: sql`${siteClaim.attempts} + 1` })
+      .set({ status: "verified", verifiedAt: now, usedAt: now, lastError: null, attempts: sql`LEAST(${siteClaim.attempts} + 1, 5)` })
       .where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")))
       .returning({ siteId: siteClaim.siteId });
     if (!transitioned) return { ok: false as const, reason: "not_pending" as const };

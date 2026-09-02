@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getServerEnv } from "@surge/config";
-import { requireApiUser } from "../../../../../lib/server/authorization";
+import { requireVerifiedApiUser } from "../../../../../lib/server/authorization";
 import { assertSameOrigin, jsonError, jsonOk } from "../../../../../lib/server/http";
 import { ClaimServiceError, verifyOwnershipClaim } from "../../../../../lib/server/claim-service";
 import { checkRateLimit } from "../../../../../lib/server/rate-limit";
@@ -15,7 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cla
   const origin = assertSameOrigin(request);
   if (!origin.ok) return origin.response;
   if (getServerEnv().DATA_PROVIDER !== "postgres") return jsonError(request, 409, "demo_mode", "Ownership claims are disabled in demo mode.");
-  const auth = await requireApiUser(request);
+  const auth = await requireVerifiedApiUser(request);
   if ("response" in auth) return auth.response;
   const rate = await checkRateLimit("claim-verify", auth.user.id, 30, 60 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", `Too many verification attempts. Try again in ${rate.retryAfterSeconds} seconds.`);
@@ -30,7 +30,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cla
     return jsonOk(request, result);
   } catch (error) {
     if (error instanceof ClaimServiceError) {
-      const status = error.code === "claim_not_found" ? 404 : error.code === "ownership_conflict" ? 409 : 422;
+      const status = error.code === "claim_not_found" ? 404 : error.code === "ownership_conflict" ? 409 : error.code === "site_not_active" ? 409 : 422;
       return jsonError(request, status, error.code, error.message);
     }
     return jsonError(request, 500, "claim_verify_failed", "The verification could not be completed.");

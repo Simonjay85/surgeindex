@@ -71,6 +71,7 @@ const commands = [
   ["GA4 fixture", "pnpm", ["ga4:fixture"]],
   ["Stripe fixture", "pnpm", ["stripe:test-webhook"]],
   ["placement inventory", "pnpm", ["boost:placement-check"]],
+  ["Fanward Nginx release boundary", "pnpm", ["nginx:release-check"]],
   ["secret scan", "pnpm", ["security:scan"]],
   ["production job artifacts", "pnpm", ["jobs:build"]],
   ["job artifact smoke", "pnpm", ["jobs:smoke"]],

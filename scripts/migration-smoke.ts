@@ -7,7 +7,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 
 const migrationDir = join(process.cwd(), "packages/db/drizzle");
-const expectedMigrationCount = Number(process.env.EXPECTED_MIGRATION_COUNT ?? 14);
+const expectedMigrationCount = Number(process.env.EXPECTED_MIGRATION_COUNT ?? 15);
 const evidenceFile = process.env.MIGRATION_EVIDENCE_FILE;
 
 type MigrationEvidence = {
@@ -167,8 +167,8 @@ async function main(): Promise<void> {
     expectedMigrationCount,
     target: { databaseName: null, host: null, port: null, disposableGuard: "PENDING" },
     postgres: { version: null, serverAddress: null, serverPort: null },
-    fresh: { result: "PENDING", migrationCount: null, path: "0000 -> 0013" },
-    batch6Upgrade: { result: "PENDING", baselineMigrationCount: null, finalMigrationCount: null, path: "0000 -> 0010; 0011 -> 0012 -> 0013" },
+    fresh: { result: "PENDING", migrationCount: null, path: "0000 -> 0014" },
+    batch6Upgrade: { result: "PENDING", baselineMigrationCount: null, finalMigrationCount: null, path: "0000 -> 0010; 0011 -> 0012 -> 0013 -> 0014" },
   };
 
   let pool: Pool | null = null;
@@ -201,7 +201,7 @@ async function main(): Promise<void> {
     const oldCount = await appliedCount(pool);
     evidence.batch6Upgrade.baselineMigrationCount = oldCount;
     if (oldCount !== 11) throw new Error(`Batch 6 baseline migration expected 11 rows, found ${oldCount}.`);
-    console.log(`PASS migration upgrade baseline: ${oldCount} journal entries applied before 0011/0012/0013.`);
+    console.log(`PASS migration upgrade baseline: ${oldCount} journal entries applied before 0011/0012/0013/0014.`);
     await migrate(drizzle(pool), { migrationsFolder: migrationDir });
     const finalCount = await appliedCount(pool);
     evidence.batch6Upgrade.finalMigrationCount = finalCount;
@@ -231,8 +231,8 @@ void main().catch(async (error: unknown) => {
     expectedMigrationCount,
     target: { databaseName: null, host: null, port: null, disposableGuard: "FAIL" },
     postgres: { version: null, serverAddress: null, serverPort: null },
-    fresh: { result: "PENDING", migrationCount: null, path: "0000 -> 0013" },
-    batch6Upgrade: { result: "PENDING", baselineMigrationCount: null, finalMigrationCount: null, path: "0000 -> 0010; 0011 -> 0012 -> 0013" },
+    fresh: { result: "PENDING", migrationCount: null, path: "0000 -> 0014" },
+    batch6Upgrade: { result: "PENDING", baselineMigrationCount: null, finalMigrationCount: null, path: "0000 -> 0010; 0011 -> 0012 -> 0013 -> 0014" },
     failure: safeError(error),
   };
   await writeEvidence(fallback);

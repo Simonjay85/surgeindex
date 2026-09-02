@@ -98,22 +98,21 @@ Turnstile, or token evidence may be added to this manifest.
 
 | Gate | Result | Evidence / read-back | External action required |
 | --- | --- | --- | --- |
-| Tracker staging | `PENDING` | `scripts/staging-readback.mjs` is read-only and reports health/admin projections without printing credentials. | Install a real staging tracker key on a controlled page and attach safe event/request IDs. |
+| Tracker staging | `PENDING` | The legacy `scripts/staging-readback.mjs` probe is deprecated and is not admissible exact-SHA or admin evidence. Use the pinned release-specific read-back named by the active runbook. | Install a real staging tracker key on a controlled page and attach safe event/request IDs. |
 | Tracker chain | `PENDING` | Required chain: tracker JS -> collector -> fraud decision -> active session -> aggregation -> scoring -> ranking -> breakout -> `system_job_run` -> freshness/readiness. | Read back each stage from the same controlled event window. |
 | Traffic-lane separation | `PENDING` | Tracker traffic must remain distinct from GA4, `paid_surgedindex_referral`, and demo traffic. | Compare source/origin fields and organic score inputs in staging. |
 
-Suggested read-only probe:
+For Fanward, use the dedicated pinned probe through the root-owned transient
+environment procedure in `docs/FANWARD_MVP_RELEASE_RUNBOOK.md`:
 
 ```bash
-STAGING_BASE_URL='https://<approved-staging-host>' \
-STAGING_READBACK_EVIDENCE_FILE='output/staging-readback.json' \
-pnpm staging:readback
+pnpm fanward:readback
 ```
 
-When an approved admin session is available, pass it through the environment
-secret manager as `STAGING_ADMIN_COOKIE`; the script never prints or persists
-that value. A successful health endpoint is not by itself tracker pipeline
-proof.
+Do not pass a cookie or Basic Auth to the deprecated generic script. The active
+runbook pins the deployment/origin, exact target and tool SHAs, release tree,
+schema count, and secret transport before any authenticated request. A
+successful health endpoint is not by itself tracker pipeline proof.
 
 ## GA4
 

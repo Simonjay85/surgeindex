@@ -67,6 +67,9 @@ const serverEnvSchema = z.object({
   NEXT_PUBLIC_COMMERCIAL_ENABLED: z
     .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())
     .default(false),
+  NEXT_PUBLIC_RADAR_ENABLED: z
+    .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())
+    .default(false),
   DATABASE_URL: z.string().optional(),
   DATABASE_URL_UNPOOLED: z.string().optional(),
   DB_DRIVER: z.enum(["pg", "neon"]).default("pg"),
@@ -125,7 +128,7 @@ const serverEnvSchema = z.object({
   TRACKER_EVENT_MAX_BODY_BYTES: z.coerce.number().int().min(4096).max(1_048_576).default(64 * 1024),
   EVENT_RETENTION_DAYS: z.coerce.number().int().min(1).max(730).default(90),
   SCORE_VERSION: z.string().default("v1"),
-  EXPECTED_MIGRATION_COUNT: z.coerce.number().int().min(1).max(10_000).default(14),
+  EXPECTED_MIGRATION_COUNT: z.coerce.number().int().min(1).max(10_000).default(15),
   TRUSTED_PROXY_MODE: z.enum(["none", "direct_nginx", "cloudflare_nginx"]).default("none"),
   TURNSTILE_REQUIRED: z
     .preprocess((value) => value === true || value === "true" || value === "1", z.boolean())
@@ -259,6 +262,9 @@ export function getServerEnv(): ServerEnv {
   }
   if (values.NEXT_PUBLIC_COMMERCIAL_ENABLED && (!values.BOOST_ENABLED || !values.STRIPE_ENABLED)) {
     configurationIssues.push("  - NEXT_PUBLIC_COMMERCIAL_ENABLED: public commercial UI requires BOOST_ENABLED=true and STRIPE_ENABLED=true");
+  }
+  if (values.NEXT_PUBLIC_RADAR_ENABLED && !values.CLOUDFLARE_RADAR_API_TOKEN) {
+    configurationIssues.push("  - CLOUDFLARE_RADAR_API_TOKEN: required when NEXT_PUBLIC_RADAR_ENABLED=true");
   }
   if (values.BOOST_LIVE_MODE_ENABLED || values.STRIPE_ENABLED) {
     if (!values.STRIPE_SECRET_KEY) configurationIssues.push("  - STRIPE_SECRET_KEY: required when Stripe/Boost live mode is enabled");
