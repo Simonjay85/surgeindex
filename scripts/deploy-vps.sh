@@ -108,7 +108,7 @@ sudo systemctl restart surgeindex.service
 
 ok=0
 for i in $(seq 1 30); do
-  if curl -fsS -o /dev/null http://127.0.0.1:3211/ && curl -fsS http://127.0.0.1:3211/api/trends | head -c 1 | grep -q '{'; then ok=1; break; fi
+  if curl -fsS -o /dev/null http://127.0.0.1:3211/ && curl -fsS -o /tmp/surgeindex-health.json http://127.0.0.1:3211/api/trends && head -c 1 /tmp/surgeindex-health.json | grep -q '{'; then ok=1; break; fi
   sleep 2
 done
 
