@@ -49,7 +49,7 @@ export default async function StoryPage({ params }: { params: Promise<{ slug: st
       <JsonLd data={live ? storyLiveBlogJsonLd(story, live.file) : storyArticleJsonLd(story)} />
       <JsonLd data={storyBreadcrumbJsonLd(story)} />
       <JsonLd data={storyFaqJsonLd(story)} />
-      <StoryView story={story} live={live} />
+      <StoryView story={story} live={live} tipSiteKey={process.env.TURNSTILE_SITE_KEY || undefined} />
     </TrendShell>
   );
 }

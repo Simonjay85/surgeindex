@@ -26,6 +26,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       entries.push({ url: `${base}${story.url}`, lastModified: new Date(`${story.last_updated}T12:00:00+07:00`), changeFrequency: story.live ? "hourly" : "weekly", priority: 0.7 });
     }
   }
+  entries.push({ url: `${base}/vn/gui-tin`, changeFrequency: "monthly", priority: 0.3 });
   for (const date of dates) {
     for (const s of sources) {
       entries.push({ url: `${base}/top-10/${s.key}/${date}`, lastModified: new Date(`${date}T23:59:59Z`), changeFrequency: "daily", priority: 0.6 });

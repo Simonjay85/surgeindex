@@ -127,6 +127,7 @@ describe("live Surge Story", () => {
     expect(screen.getAllByText("Đang cập nhật").length).toBeGreaterThan(0);
     expect(screen.getByText("Chưa có cập nhật trực tiếp mới.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Báo chí đang nói gì" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Bạn có thông tin? Gửi cho chúng tôi" })).toBeInTheDocument();
     unmount();
     render(
       <StoryView

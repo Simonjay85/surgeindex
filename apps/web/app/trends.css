@@ -564,6 +564,37 @@ body:has(.t-root)::before { display: none; }
 .t-live-press-empty, .t-live-press-note { margin-top: 12px !important; font-size: 13px; line-height: 1.6; color: var(--t-muted); }
 .t-live-press-note a { color: var(--story-accent); }
 
+/* ── Reader tips (Gửi tin nóng) ─────────────────────────────────────────── */
+.t-tip-section .t-kicker { display: inline-flex; align-items: center; gap: 7px; }
+.t-tip-card { margin-top: 24px; padding: 26px; border-radius: 24px; border: 1px solid var(--t-line-strong); background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.014)); }
+.t-tip-section > .t-tip-form { margin-top: 22px; }
+.t-tip-form { display: flex; flex-direction: column; gap: 16px; }
+.t-tip-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.t-field { display: flex; flex-direction: column; gap: 7px; }
+.t-field > span { font-size: 13px; font-weight: 600; color: var(--t-soft); }
+.t-field em { font-style: normal; color: #ff7a3d; }
+.t-field small { font-weight: 400; color: var(--t-dim); }
+.t-field input, .t-field textarea { width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--t-line-strong); background: rgba(6, 7, 10, .55); color: var(--t-text); font: inherit; font-size: 15px; line-height: 1.5; transition: border-color .2s, box-shadow .2s; }
+.t-field textarea { resize: vertical; min-height: 92px; }
+.t-field input::placeholder, .t-field textarea::placeholder { color: #6f6b64; }
+.t-field input:focus, .t-field textarea:focus { outline: none; border-color: rgba(255, 122, 61, .7); box-shadow: 0 0 0 4px rgba(255, 122, 61, .14); }
+.t-tip-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.t-tip-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.t-tip-foot p { flex: 1 1 260px; font-size: 12.5px; line-height: 1.55; color: var(--t-dim); }
+.t-tip-submit { display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 22px; border: 0; border-radius: 999px; background: var(--t-text); color: #0a0a0c; font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; transition: transform .2s, box-shadow .2s, opacity .2s; }
+.t-tip-submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 34px rgba(255, 122, 61, .3); }
+.t-tip-submit:disabled { opacity: .45; cursor: not-allowed; }
+.t-tip-error { padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(255, 97, 112, .35); background: rgba(255, 97, 112, .08); color: #ffb3bb; font-size: 13.5px; }
+.t-tip-done { display: flex; gap: 14px; padding: 20px; border-radius: 18px; border: 1px solid rgba(63, 220, 122, .3); background: rgba(63, 220, 122, .07); color: var(--t-up); }
+.t-tip-done strong { display: block; font-size: 16px; color: var(--t-text); }
+.t-tip-done p { margin-top: 6px !important; font-size: 14px; line-height: 1.6; color: var(--t-soft); }
+.t-tip-again { margin-top: 12px; padding: 0; border: 0; background: none; color: var(--story-accent, #ffa27a); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.t-tip-rules { display: flex; flex-direction: column; gap: 10px; margin: 22px 0 0; padding: 0; list-style: none; }
+.t-tip-rules li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.55; color: var(--t-soft); }
+.t-tip-rules svg { flex-shrink: 0; margin-top: 2px; color: var(--t-up); }
+.t-root .turnstile-status { margin-top: 6px; font-size: 12.5px; color: var(--t-dim); }
+.t-root .turnstile-status .text-link { margin-left: 8px; padding: 0; border: 0; background: none; color: #ffa27a; font: inherit; cursor: pointer; text-decoration: underline; }
+
 /* ── News board source chips ────────────────────────────────────────────── */
 .t-news-srcs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
 .t-news-srcs a, .t-news-srcs .is-more { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); background: color-mix(in srgb, var(--brand) 8%, transparent); font-size: 12px; font-weight: 560; color: var(--t-soft); transition: color .2s, border-color .2s; }
@@ -576,6 +607,8 @@ body:has(.t-root)::before { display: none; }
   .t-live-list { padding-left: 22px; }
   .t-live-tick { left: -22px; }
   .t-live-list::before { left: 4px; }
+  .t-tip-card { padding: 18px 16px; border-radius: 20px; }
+  .t-tip-grid { grid-template-columns: minmax(0, 1fr); }
   .t-story-status .t-live-badge + .t-story-badge { margin-left: 0; }
 }
 

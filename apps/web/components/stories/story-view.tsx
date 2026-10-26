@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ArrowUpRight, BellRing, ExternalLink } from "lucide-react";
+import { ArrowUpRight, BellRing, ExternalLink, Megaphone } from "lucide-react";
 import { brandStyle } from "../trends/ui";
 import { formatViDate } from "../../lib/stories";
 import { PHASE_LABELS, PLATFORM_COLORS, type Story, type StorySource } from "../../lib/stories/schema";
 import type { LiveFile, PressFile } from "../../lib/live/types";
+import { TipForm } from "../tips/tip-form";
 import { LiveBadge, LiveBlog } from "./live-blog";
 
 /** External links on story pages: never pass ranking signals, never leak opener. */
@@ -24,9 +25,10 @@ export interface StoryViewProps {
   story: Story;
   /** Runtime live-blog data when story.live is true. */
   live?: { file: LiveFile; press: PressFile | null };
+  tipSiteKey?: string;
 }
 
-export function StoryView({ story, live }: StoryViewProps) {
+export function StoryView({ story, live, tipSiteKey }: StoryViewProps) {
   const signals = [...story.signals].sort((a, b) => a.order - b.order);
   const firstSignal = signals.find((s) => s.platform === story.first_signal_platform);
   return (
@@ -243,6 +245,19 @@ export function StoryView({ story, live }: StoryViewProps) {
             ))}
           </ol>
         </section>
+
+        {live ? (
+          <section className="t-story-section t-tip-section" aria-labelledby="gui-tin">
+            <span className="t-kicker">
+              <Megaphone size={13} aria-hidden="true" /> Gửi tin nóng
+            </span>
+            <h2 id="gui-tin" className="t-story-h2">
+              Bạn có thông tin? Gửi cho chúng tôi
+            </h2>
+            <p className="t-story-intro">Gửi kèm link nguồn (bài báo, bài đăng công khai). Mọi tin được kiểm tra thủ công trước khi trở thành một cập nhật; không có gì được đăng tự động.</p>
+            <TipForm siteKey={tipSiteKey} page={story.url} compact />
+          </section>
+        ) : null}
 
         <section className="t-story-cta" aria-labelledby="ban-tin">
           <span className="t-story-cta-icon" aria-hidden="true">

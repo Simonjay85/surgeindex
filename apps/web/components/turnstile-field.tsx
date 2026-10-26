@@ -23,12 +23,35 @@ type TurnstileFieldProps = {
   onStateChange?: (state: TurnstileState) => void;
   /** Increment to force a fresh widget and discard the previous token. */
   resetNonce?: number;
+  /** UI language for the status line (default English). */
+  locale?: "en" | "vi";
 };
 
 const SCRIPT_SELECTOR = 'script[data-surgeindex-turnstile="true"]';
 const SCRIPT_URL = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 
-export function TurnstileField({ siteKey, action, onToken, onStateChange, resetNonce = 0 }: TurnstileFieldProps) {
+const LABELS = {
+  en: {
+    loading: "Loading anti-bot verification…",
+    ready: "Complete the anti-bot verification to continue.",
+    verified: "Anti-bot verification complete.",
+    expired: "Verification expired. Try again.",
+    error: "Anti-bot verification could not load.",
+    retry: "Retry verification",
+    group: "Anti-bot verification",
+  },
+  vi: {
+    loading: "Đang tải bước xác minh chống bot…",
+    ready: "Hoàn tất bước xác minh chống bot để gửi.",
+    verified: "Đã xác minh.",
+    expired: "Xác minh đã hết hạn. Thử lại nhé.",
+    error: "Không tải được bước xác minh.",
+    retry: "Thử xác minh lại",
+    group: "Xác minh chống bot",
+  },
+} as const;
+
+export function TurnstileField({ siteKey, action, onToken, onStateChange, resetNonce = 0, locale = "en" }: TurnstileFieldProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<string | null>(null);
   const tokenHandlerRef = useRef(onToken);
@@ -136,16 +159,11 @@ export function TurnstileField({ siteKey, action, onToken, onStateChange, resetN
   }, [action, resetNonce, retryNonce, siteKey]);
 
   if (!siteKey) return null;
-  const stateLabel = {
-    loading: "Loading anti-bot verification…",
-    ready: "Complete the anti-bot verification to continue.",
-    verified: "Anti-bot verification complete.",
-    expired: "Verification expired. Try again.",
-    error: "Anti-bot verification could not load.",
-  }[state];
+  const labels = LABELS[locale];
+  const stateLabel = labels[state];
 
   return <div className="turnstile-field">
-    <div ref={containerRef} role="group" aria-label="Anti-bot verification" />
-    <div className={`turnstile-status turnstile-status-${state}`} role="status" aria-live="polite">{stateLabel}{state === "error" || state === "expired" ? <button type="button" className="text-link" onClick={() => setRetryNonce((current) => current + 1)}>Retry verification</button> : null}</div>
+    <div ref={containerRef} role="group" aria-label={labels.group} />
+    <div className={`turnstile-status turnstile-status-${state}`} role="status" aria-live="polite">{stateLabel}{state === "error" || state === "expired" ? <button type="button" className="text-link" onClick={() => setRetryNonce((current) => current + 1)}>{labels.retry}</button> : null}</div>
   </div>;
 }

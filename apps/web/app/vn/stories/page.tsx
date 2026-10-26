@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { StoryStatusBadge } from "../../../components/stories/story-view";
 import { LiveBadge } from "../../../components/stories/live-blog";
+import { TipForm } from "../../../components/tips/tip-form";
 import { JsonLd, TrendShell } from "../../../components/trends/ui";
 import { listStories } from "../../../lib/stories";
 import { siteBase } from "../../../lib/stories/seo";
@@ -76,6 +77,16 @@ export default function StoriesIndexPage() {
               </li>
             ))}
           </ul>
+          <section className="t-tip-section t-story-section" aria-labelledby="gui-tin-nong">
+            <span className="t-kicker">Gửi tin nóng</span>
+            <h2 id="gui-tin-nong" className="t-story-h2">
+              Thấy một câu chuyện đang lan? <em>Báo cho chúng tôi.</em>
+            </h2>
+            <p className="t-story-intro">Gửi chủ đề kèm link nguồn. Mọi tin được kiểm tra thủ công trước khi trở thành Surge Story — không có gì được đăng tự động.</p>
+            <div className="t-tip-card">
+              <TipForm siteKey={process.env.TURNSTILE_SITE_KEY || undefined} page="/vn/stories" />
+            </div>
+          </section>
         </div>
       </div>
     </TrendShell>

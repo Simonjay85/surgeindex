@@ -82,6 +82,7 @@ export function TrendFooter() {
             <span className="t-footer-label">SurgeIndex</span>
             <Link href="/top-10">All boards</Link>
             <Link href="/vn/stories">Surge Story · VN</Link>
+            <Link href="/vn/gui-tin" lang="vi">Gửi tin nóng</Link>
             <Link href="/methodology">Methodology</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>
