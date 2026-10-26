@@ -73,7 +73,7 @@ ln -sfn "$RELEASE" /opt/surgeindex/current
 sudo systemctl restart surgeindex.service
 sudo systemctl status surgeindex.service --no-pager
 curl -sI http://127.0.0.1:3211/ | head -1                    # 200
-curl -s  http://127.0.0.1:3211/api/trends | head -c 200      # JSON snapshot
+curl -s  http://127.0.0.1:3211/api/trends | head -c 200      # compact JSON snapshot (full: /api/trends/full)
 curl -s  http://127.0.0.1:3211/sitemap.xml | grep -c "<loc>" # > 10
 ```
 
@@ -142,7 +142,8 @@ nothing else reads it.
 - `/top-10` — board index
 - `/top-10/[source]` — `google-trends`, `youtube`, `reddit`, `hackernews`, `github` (`x` is a noindex "coming soon")
 - `/top-10/[source]/[YYYY-MM-DD]` — daily archive (UTC), ISR 30 min
-- `/api/trends` — latest snapshot JSON
+- `/api/trends` — latest snapshot JSON (compact: every board and item, no thumbnails / why-lines / rank history; stays well under 64 KB so the deploy health check `curl | head -c 1` under `pipefail` keeps passing)
+- `/api/trends/full` — full latest snapshot JSON
 - `/sitemap.xml` — now built from snapshots only (no database query)
 
 Legacy routes (`/rankings`, `/dashboard`, `/boost`, `/claim`, `/pricing`, `/creators`, `/campaigns`, …) still exist in code but are removed from navigation, the home page and the sitemap, and disallowed in `robots.txt`.

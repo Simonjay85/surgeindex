@@ -229,3 +229,36 @@ export interface TrendSnapshot {
 export function boardId(source: TrendSource, region: TrendRegion): string {
   return region === "global" ? source : `${source}-${region}`;
 }
+
+/* ───────────────────────────── Public API ───────────────────────────── */
+
+export type CompactTrendItem = Pick<TrendItem, "id" | "rank" | "prevRank" | "movement" | "title" | "url" | "metric" | "velocityPerHour" | "heat">;
+
+export interface CompactTrendBoard extends Omit<TrendBoard, "items"> {
+  items: CompactTrendItem[];
+}
+
+export interface CompactTrendSnapshot extends Omit<TrendSnapshot, "boards"> {
+  format: "compact";
+  /** Path of the full snapshot (thumbnails, why-lines, rank history, tags). */
+  full: string;
+  boards: CompactTrendBoard[];
+}
+
+/**
+ * The default /api/trends payload: every board and item, without the heavy
+ * presentation fields. Keeps the response small (well under 64 KB with every
+ * board live) so cheap `curl | head` health checks and clients stay fast.
+ */
+export function compactSnapshot(snapshot: TrendSnapshot, fullPath = "/api/trends/full"): CompactTrendSnapshot {
+  return {
+    version: snapshot.version,
+    generatedAt: snapshot.generatedAt,
+    format: "compact",
+    full: fullPath,
+    boards: snapshot.boards.map(({ items, ...board }) => ({
+      ...board,
+      items: items.map((i) => ({ id: i.id, rank: i.rank, prevRank: i.prevRank, movement: i.movement, title: i.title, url: i.url, metric: i.metric, velocityPerHour: i.velocityPerHour, heat: i.heat })),
+    })),
+  };
+}

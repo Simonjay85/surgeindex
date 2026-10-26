@@ -128,3 +128,25 @@ describe("boards without growth history", () => {
     expect(board.items[0]!.heat).toBeGreaterThan(70);
   });
 });
+
+describe("public api payload", () => {
+  it("keeps the compact /api/trends snapshot under 64 KB with every board live", async () => {
+    const { compactSnapshot, TREND_SOURCES, boardId } = await import("../lib/trends/types");
+    // Pessimistic but realistic: real items average ~60-char titles and URLs.
+    const long = "x".repeat(90);
+    const boards = TREND_SOURCES.flatMap((s) => s.regions.map((region) => ({
+      id: boardId(s.key, region), source: s.key, region, status: "live" as const, fetchedAt: new Date(T0).toISOString(), via: "fixture",
+      items: Array.from({ length: 10 }, (_, k) => ({
+        id: `${s.key}-${region}-${k}-${long.slice(0, 16)}`, title: long, url: `https://example.com/${long.slice(0, 70)}`, metric: 123_456, rank: k + 1, prevRank: k + 2,
+        movement: "up" as const, rankHistory: Array(24).fill(5), velocityPerHour: 1234.5, velocityMeasured: true, heat: 77, why: long, thumbnail: `https://img.example.com/${long}`, discussionUrl: `https://example.com/d/${long}`, tags: [long],
+      })),
+    })));
+    const full = { version: 1 as const, generatedAt: new Date(T0).toISOString(), boards };
+    const compact = compactSnapshot(full);
+    const size = Buffer.byteLength(JSON.stringify(compact));
+    expect(compact.boards).toHaveLength(boards.length);
+    expect(compact.boards[0]!.items[0]).not.toHaveProperty("rankHistory");
+    expect(size).toBeLessThan(50_000);
+    expect(Buffer.byteLength(JSON.stringify(full))).toBeGreaterThan(size * 2);
+  });
+});

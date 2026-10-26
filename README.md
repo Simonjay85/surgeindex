@@ -8,7 +8,7 @@
 > - Ingest: `pnpm trends:ingest` (`scripts/ingest-trends.ts` → `apps/web/lib/trends/`) writes JSON snapshots to
 >   `TRENDS_DATA_DIR` (default `apps/web/data/trends`): `latest.json`, `history/` (7 days), `daily/` (archive).
 > - Pages: `/`, `/top-10`, `/top-10/[source]`, `/top-10/[source]/[date]`, `/methodology`, `/privacy`, `/terms`,
->   `/api/trends`. ISR every 5 minutes; no database needed for these routes.
+>   `/api/trends` (compact) and `/api/trends/full`. ISR every 5 minutes; no database needed for these routes.
 > - Legacy directory, claim, boost, dashboard, billing, creators, campaigns and pricing code is kept but hidden
 >   from navigation, the home page, the sitemap and robots.
 > - Deployment: see [`DEPLOY_TRENDS.md`](DEPLOY_TRENDS.md).
