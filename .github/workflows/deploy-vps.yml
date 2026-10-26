@@ -42,8 +42,13 @@ jobs:
 
       - name: Deploy
         run: |
+          set -o pipefail
           ssh -i ~/.ssh/id_deploy -o ServerAliveInterval=30 "$VPS_USER@$VPS_HOST" \
-            "bash /tmp/surgeindex-deploy-vps.sh '${{ github.sha }}' '${{ github.ref_name }}'"
+            "bash /tmp/surgeindex-deploy-vps.sh '${{ github.sha }}' '${{ github.ref_name }}'" 2>&1 | tee deploy.log
+      - name: Surface deploy log on failure
+        if: failure()
+        run: |
+          tail -n 25 deploy.log 2>/dev/null | sed 's/%/%25/g' | while IFS= read -r l; do echo "::warning::$l"; done
 
       - name: Public smoke test
         run: |
