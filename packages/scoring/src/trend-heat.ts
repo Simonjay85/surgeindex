@@ -19,7 +19,9 @@ export const TREND_HEAT_WEIGHTS = {
 
 /**
  * Per-hour growth rate that counts as "fully hot" on each platform. Anything
- * at or above the reference scores 1.0 on the velocity dimension.
+ * at or above the reference scores 1.0 on the velocity dimension. `null`
+ * means the platform exposes no growth metric at all (e.g. a deals page), so
+ * heat is built from chart position and momentum only.
  */
 export const TREND_VELOCITY_REFERENCE = {
   reddit: 4_000, // upvotes per hour
@@ -27,8 +29,12 @@ export const TREND_VELOCITY_REFERENCE = {
   "google-trends": 20_000, // searches per hour (approximate traffic buckets)
   github: 100, // stars per hour (2,400 / day)
   youtube: 300_000, // views per hour
+  wikipedia: 25_000, // pageviews per hour (600K / day)
+  amazon: 400, // % sales-rank gain per hour (9,600% / 24h on Movers & Shakers)
+  ebay: null, // trending deals expose price and discount, not growth
+  shopee: null,
   x: 10_000,
-} as const;
+} as const satisfies Record<string, number | null>;
 
 export type TrendPlatform = keyof typeof TREND_VELOCITY_REFERENCE;
 
@@ -64,7 +70,8 @@ function clamp(n: number, min: number, max: number): number {
 /** Log-normalize a per-hour rate against the platform reference (0..1). */
 export function normalizeVelocity(platform: TrendPlatform, velocityPerHour: number | null): number {
   if (velocityPerHour === null || !Number.isFinite(velocityPerHour) || velocityPerHour <= 0) return 0;
-  const reference = TREND_VELOCITY_REFERENCE[platform];
+  const reference: number | null = TREND_VELOCITY_REFERENCE[platform];
+  if (reference === null) return 0;
   const winsorized = Math.min(velocityPerHour, reference);
   return clamp(Math.log1p(winsorized) / Math.log1p(reference), 0, 1);
 }
@@ -78,7 +85,9 @@ export function computeTrendHeat(input: TrendHeatInput): TrendHeatResult {
     : input.rankDelta === null
       ? 0.4
       : clamp(0.5 + input.rankDelta / 10, 0, 1);
-  const withoutVelocity = input.velocityAvailable === false;
+  // No metric this read, or a platform without any growth metric: drop the
+  // velocity term and renormalize instead of scoring it as zero.
+  const withoutVelocity = input.velocityAvailable === false || TREND_VELOCITY_REFERENCE[input.platform] === null;
   const raw = withoutVelocity
     ? (TREND_HEAT_WEIGHTS.position * position + TREND_HEAT_WEIGHTS.momentum * momentum) /
       (TREND_HEAT_WEIGHTS.position + TREND_HEAT_WEIGHTS.momentum)

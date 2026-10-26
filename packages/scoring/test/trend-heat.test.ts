@@ -33,4 +33,18 @@ describe("trend heat", () => {
     const first = computeTrendHeat({ platform: "reddit", velocityPerHour: null, rank: 1, boardSize: 10, rankDelta: null, isNew: false, velocityAvailable: false });
     expect(first.score).toBeGreaterThan(70);
   });
+
+  it("builds heat from position and momentum for platforms without a growth metric", () => {
+    expect(normalizeVelocity("ebay", 1_000)).toBe(0);
+    const first = computeTrendHeat({ platform: "ebay", velocityPerHour: 50, rank: 1, boardSize: 10, rankDelta: null, isNew: false });
+    const last = computeTrendHeat({ platform: "ebay", velocityPerHour: 50, rank: 10, boardSize: 10, rankDelta: null, isNew: false });
+    expect(first.score).toBeGreaterThan(70);
+    expect(first.score).toBeGreaterThan(last.score);
+  });
+
+  it("normalizes Wikipedia and Amazon velocity on their own scales", () => {
+    expect(normalizeVelocity("wikipedia", 25_000)).toBe(1);
+    expect(normalizeVelocity("amazon", 400)).toBe(1);
+    expect(normalizeVelocity("wikipedia", 400)).toBeLessThan(normalizeVelocity("amazon", 400));
+  });
 });
