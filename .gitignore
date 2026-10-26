@@ -40,3 +40,7 @@ apps/web/.demo/
 .DS_Store
 *.log
 .turbo/
+
+# trend ingest runtime files (snapshots themselves are committed as seed data)
+apps/web/data/trends/.ingest.lock
+apps/web/data/trends/**/*.tmp

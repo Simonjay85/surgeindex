@@ -201,19 +201,16 @@ describe("Fanward server projection", () => {
     expect(mocks.listPublicFanwardSitemapEntries).not.toHaveBeenCalled();
   });
 
-  it("builds all Fanward sitemap URLs with one specialized service query", async () => {
-    mocks.listPublicFanwardSitemapEntries.mockResolvedValue([
-      { slug: "creator-one", publishedAt: new Date("2026-08-30T01:02:03.000Z") },
-      { slug: "creator-two", publishedAt: new Date("2026-08-29T01:02:03.000Z") },
-    ]);
+  it("keeps hidden Fanward routes out of the Top 10 sitemap even when the feature is enabled", async () => {
+    // Phase 1 (trends-pivot) hides creators/Fanward from the public surface; the
+    // sitemap is built from trend snapshots only and never queries the database.
+    mocks.env.FEATURE_CREATORS = true;
 
     const entries = await sitemap();
 
-    expect(mocks.listPublicFanwardSitemapEntries).toHaveBeenCalledOnce();
-    expect(entries.filter((entry) => entry.url.includes("/fanward/"))).toEqual([
-      expect.objectContaining({ url: "https://surgeindex.test/fanward/creator-one", lastModified: "2026-08-30T01:02:03.000Z" }),
-      expect.objectContaining({ url: "https://surgeindex.test/fanward/creator-two", lastModified: "2026-08-29T01:02:03.000Z" }),
-    ]);
+    expect(mocks.listPublicFanwardSitemapEntries).not.toHaveBeenCalled();
+    expect(entries.some((entry) => entry.url.includes("/fanward"))).toBe(false);
+    expect(entries.some((entry) => entry.url.endsWith("/top-10"))).toBe(true);
   });
 
   it("does not query or expose Fanward sitemap routes while the feature is disabled", async () => {

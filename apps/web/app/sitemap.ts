@@ -1,25 +1,26 @@
 import type { MetadataRoute } from "next";
 import { getServerEnv } from "@surge/config";
-import { listPublicFanwardSitemapEntries } from "../lib/server/fanward-service";
-import { getPublicDataProvider } from "../lib/server/public-provider";
+import { getLatestSnapshot, listArchiveDates } from "../lib/trends/read";
+import { TREND_SOURCES } from "../lib/trends/types";
 
-// The production sitemap reflects the live PostgreSQL catalog. Generate it at
-// request time so an immutable release can be built before database promotion.
+// Built from the trend snapshots on disk; no database access.
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const env = getServerEnv();
-  const base = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
-  const commercialEnabled = env.NEXT_PUBLIC_COMMERCIAL_ENABLED;
-  const [sites, fanwardCreators] = await Promise.all([
-    getPublicDataProvider().getLeaderboard({ window: "live", limit: 5000 }),
-    env.FEATURE_CREATORS ? listPublicFanwardSitemapEntries() : Promise.resolve([]),
-  ]);
-  const commercialRoutes = commercialEnabled ? ["/boost", "/bid-the-moment", "/pricing"] : [];
-  const staticPaths = ["", "/rankings", "/breakouts", "/categories", "/live", "/radar", "/methodology", "/submit", "/privacy", "/terms", "/acceptable-use", ...commercialRoutes, ...(env.FEATURE_CREATORS ? ["/fanward"] : [])];
-  const entries: MetadataRoute.Sitemap = staticPaths.map((path) => ({ url: `${base}${path}`, lastModified: new Date(), changeFrequency: "daily", priority: path === "" ? 1 : .8 }));
-  entries.push(...sites.map((site) => ({ url: `${base}/site/${site.slug}`, lastModified: new Date(), changeFrequency: "hourly" as const, priority: .7 })));
-  entries.push(...fanwardCreators.map((creator) => ({ url: `${base}/fanward/${creator.slug}`, lastModified: creator.publishedAt, changeFrequency: "daily" as const, priority: .7 })));
-
+  const base = getServerEnv().NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  const [snapshot, dates] = await Promise.all([getLatestSnapshot(), listArchiveDates()]);
+  const updated = snapshot ? new Date(snapshot.generatedAt) : new Date();
+  const sources = TREND_SOURCES.filter((s) => !s.comingSoon);
+  const entries: MetadataRoute.Sitemap = [
+    { url: `${base}/`, lastModified: updated, changeFrequency: "hourly", priority: 1 },
+    { url: `${base}/top-10`, lastModified: updated, changeFrequency: "hourly", priority: 0.9 },
+    ...sources.map((s) => ({ url: `${base}/top-10/${s.key}`, lastModified: updated, changeFrequency: "hourly" as const, priority: 0.9 })),
+    ...["/methodology", "/privacy", "/terms"].map((p) => ({ url: `${base}${p}`, changeFrequency: "monthly" as const, priority: 0.4 })),
+  ];
+  for (const date of dates) {
+    for (const s of sources) {
+      entries.push({ url: `${base}/top-10/${s.key}/${date}`, lastModified: new Date(`${date}T23:59:59Z`), changeFrequency: "daily", priority: 0.6 });
+    }
+  }
   return entries;
 }

@@ -5,3 +5,4 @@ export * from "./ranking";
 export * from "./breakout";
 export * from "./source-policy";
 export * from "./fanward-impact";
+export * from "./trend-heat";

@@ -1,18 +1,73 @@
-import Link from "next/link";
-import { Activity, ArrowRight, CircleAlert, Gauge, ShieldCheck, Sparkles } from "lucide-react";
-import { AppShell } from "../../components/app-shell";
+import type { Metadata } from "next";
+import { ProsePage } from "../../components/trends/prose-page";
+import { TREND_VELOCITY_REFERENCE, TREND_HEAT_WEIGHTS } from "@surge/scoring";
+import { formatCompact } from "../../lib/trends/format";
 
-export const metadata = { title: "Methodology" };
+export const metadata: Metadata = {
+  title: "Methodology — how the Top 10 and Heat Score work",
+  description: "Where every SurgeIndex Top 10 comes from, how often it refreshes, and exactly how Heat Score measures growth velocity per platform.",
+  alternates: { canonical: "/methodology" },
+};
+
+const REF_ROWS: Array<{ key: keyof typeof TREND_VELOCITY_REFERENCE; name: string; unit: string; source: string }> = [
+  { key: "google-trends", name: "Google Trends", unit: "searches / hour", source: "Official daily trending RSS (geo=US and geo=VN). Ranked by approximate search volume, then recency." },
+  { key: "youtube", name: "YouTube", unit: "views / hour", source: "YouTube Data API v3 Most Popular chart (regionCode US and VN)." },
+  { key: "reddit", name: "Reddit", unit: "upvotes / hour", source: "r/all hot listing. Uses the public JSON or OAuth API for vote counts; falls back to the public RSS feed, which has no counts." },
+  { key: "hackernews", name: "Hacker News", unit: "points / hour", source: "Official Hacker News Firebase API, top stories." },
+  { key: "github", name: "GitHub", unit: "stars / hour", source: "github.com/trending (daily, all languages). Stars gained today ÷ 24." },
+];
 
 export default function MethodologyPage() {
-  return <AppShell><div className="container page-hero"><div className="page-hero-grid"><div><div className="eyebrow">THE RULES OF THE BOARD</div><h1>Make the signal legible.</h1><p>SurgeIndex helps people discover websites earning attention without turning the organic board into a pay-to-rank contest.</p></div><div className="page-hero-aside"><span>current score version</span><strong>Heat v1</strong><span>Last reviewed · Aug 2026</span></div></div><div className="section-tight"><div className="methodology-grid"><aside className="methodology-index"><span>On this page</span><a href="#score">Heat Score</a><a href="#baseline">Baselines</a><a href="#states">Eligibility & states</a><a href="#leagues">Leagues</a><a href="#rank">Organic rank</a><a href="#breakouts">Breakouts</a><a href="#verify">Verification</a><a href="#limits">Known limits</a></aside><article className="methodology-copy">
-    <section className="methodology-block" id="score"><h2>Heat Score</h2><p>Heat Score is a deterministic 0–100 signal for current attention relative to a site’s own history. Five explainable components are normalized before they enter the formula.</p><div className="methodology-callout"><strong>35% growth · 25% live acceleration · 20% volume · 10% engagement · 10% confidence</strong><span>Relative growth is paired with absolute lift and a base-support term, so a jump from 1 visitor to 20 cannot automatically beat a credible move from 50,000 to 90,000.</span></div><div className="dashboard-list"><div className="dashboard-list-row"><div><strong>Growth velocity</strong><span>Relative lift, absolute lift, and baseline support.</span></div><Gauge size={17} color="#ef7359" /></div><div className="dashboard-list-row"><div><strong>Live acceleration</strong><span>Current active visitors compared with the site’s typical level.</span></div><Activity size={17} color="#2f8b62" /></div><div className="dashboard-list-row"><div><strong>Traffic scale</strong><span>Log-normalized accepted volume, not paid impressions.</span></div><Sparkles size={17} color="#847b75" /></div></div></section>
-    <section className="methodology-block" id="baseline"><h2>Baselines and missing data</h2><p>Each site receives a persisted baseline built from accepted historical aggregates. The engine first looks for the same weekday and hour, then the same hour, then a recent rolling window. Median and median absolute deviation keep one anomalous spike from redefining normal.</p><ul><li>New sites show building baseline until there is enough history.</li><li>Missing engagement is shown as unavailable and receives a neutral subscore with lower confidence.</li><li>Historical records remain when a tracker becomes stale; the live ranking state changes instead.</li></ul></section>
-    <section className="methodology-block" id="states"><h2>Eligibility and score states</h2><p>Score state is separate from the displayed number. A provisional score can be useful for discovery while history and confidence grow, but it is capped and kept distinct from fully eligible organic ranking.</p><div className="dashboard-list"><div className="dashboard-list-row"><div><strong>Building baseline</strong><span>Accepted history is not yet sufficient for a calibrated score.</span></div><span className="status-chip">not ranked globally</span></div><div className="dashboard-list-row"><div><strong>Provisional</strong><span>Enough evidence for a bounded league view, but not the full-confidence board.</span></div><span className="status-chip">bounded</span></div><div className="dashboard-list-row"><div><strong>Eligible</strong><span>Fresh, sufficiently observed, accepted traffic with confidence for the organic board.</span></div><span className="status-chip status-completed">rankable</span></div><div className="dashboard-list-row"><div><strong>Stale / fraud review</strong><span>Historical data remains visible, but the site is removed from misleading public rank views.</span></div><span className="status-chip">restricted</span></div></div></section>
-    <section className="methodology-block" id="leagues"><h2>Leagues</h2><p>New, Emerging, and Established leagues compare sites with a more appropriate amount of history and scale. League changes use hysteresis so a site does not bounce between labels because of one update.</p><p>League membership never changes the underlying formula and is not a way to buy visibility. It only controls the comparison set shown to users.</p></section>
-    <section className="methodology-block" id="rank"><h2>Organic rank</h2><p>Public pages read transactionally published current rankings. The deterministic ordering is displayed score, smoothed score, confidence, accepted visitor volume, calculation time, domain, and site ID. Rank movement comes from persisted snapshots, not a client-side guess.</p><ul><li>Global, league, category, category-and-league, new, and breakout scopes are separate views.</li><li>Smoothing and breakout persistence reduce noisy oscillation while allowing large genuine changes to move quickly.</li><li>Sponsored placements remain separate from the organic ranking record.</li></ul></section>
-    <section className="methodology-block" id="breakouts"><h2>Breakouts</h2><p>A breakout requires multiple signals: meaningful relative lift, meaningful absolute lift, live acceleration where supported, fresh accepted traffic, adequate confidence, and persistence across evaluation windows. Entry and exit thresholds are different, and cooldown prevents repeated alert spam.</p><div className="methodology-callout"><strong>Paid boosts never affect organic rank or Heat Score.</strong><span>Breakout explanations describe observed traffic only. SurgeIndex does not claim a social, news, Reddit, TikTok, or creator cause without actual attribution.</span></div></section>
-    <section className="methodology-block" id="verify"><h2>Verification and sponsored reach</h2><p>Traffic proof and ownership proof are separate. Tracker and GA4 labels identify the measurement source; claimed ownership does not turn unverified traffic into verified traffic.</p><div className="dashboard-list"><div className="dashboard-list-row"><div><strong>Tracker verified</strong><span>First-party accepted events and active heartbeats where available.</span></div><ShieldCheck size={17} color="#2f8b62" /></div><div className="dashboard-list-row"><div><strong>GA4 verified</strong><span>Imported aggregates from a connected Google Analytics property.</span></div><ShieldCheck size={17} color="#3977bd" /></div><div className="dashboard-list-row"><div><strong>Unverified</strong><span>Listed metadata without independently connected traffic.</span></div><CircleAlert size={17} color="#847b75" /></div></div><div className="methodology-callout"><strong>Boost is not a score input.</strong><span>Sponsored opportunities, rendered/qualified impressions, clicks, spend, paid referrals, refunds, and campaign state are reported in a separate product lane. They never combine with tracker or GA4 metrics, never buy a rank, and never create breakout status.</span></div></section>
-    <section className="methodology-block" id="limits"><h2>Versioning and known limits</h2><p>Every persisted score stores its version, calculation window, baseline reference, components, penalties, confidence, and state. The current release is Heat v1. Historical versions remain auditable when the formula changes.</p><p>Production quality still depends on source freshness, provider availability, baseline history, and traffic classification. The system is not bot-proof, does not claim scientific validation, and does not infer causality from a breakout.</p><Link className="button button-coral" href="/submit">Submit a site <ArrowRight size={15} /></Link></section>
-  </article></div></div></div></AppShell>;
+  return (
+    <ProsePage kicker="Methodology" title={<>Heat, <em>not hype.</em></>} lede="Every board is a real platform chart, refreshed hourly. Heat Score adds one thing the charts do not tell you: how fast each item is moving.">
+      <section>
+        <h2>1 · The boards</h2>
+        <p>Each board is the platform&apos;s own Top 10 — we never invent, pad or estimate rows. If a platform cannot be reached, the board keeps its last good snapshot and is marked <strong>Delayed</strong>, or says <strong>Unavailable</strong>. Boards that need paid access (X) are shown as <strong>Coming soon</strong> with no data.</p>
+        <div className="t-table-wrap">
+          <table className="t-table">
+            <thead>
+              <tr>
+                <th scope="col">Platform</th>
+                <th scope="col">Source</th>
+                <th scope="col">Velocity unit</th>
+                <th scope="col">“Fully hot” at</th>
+              </tr>
+            </thead>
+            <tbody>
+              {REF_ROWS.map((r) => (
+                <tr key={r.key}>
+                  <th scope="row">{r.name}</th>
+                  <td>{r.source}</td>
+                  <td>{r.unit}</td>
+                  <td className="is-num">{formatCompact(TREND_VELOCITY_REFERENCE[r.key])}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section>
+        <h2>2 · Hourly refresh</h2>
+        <p>A single lightweight job runs at the top of every hour. It reads each source one after another, compares the new chart with the previous hour, and writes a JSON snapshot. Hourly snapshots are kept for seven days; the last snapshot of each UTC day becomes that day&apos;s archive page.</p>
+      </section>
+      <section>
+        <h2>3 · Heat Score (trend-v1)</h2>
+        <p>Heat Score runs from 0 to 99 and blends three signals:</p>
+        <ul>
+          <li><strong>Growth velocity — {Math.round(TREND_HEAT_WEIGHTS.velocity * 100)}%.</strong> How fast the item&apos;s own metric is rising per hour. When we saw the item an hour ago, this is measured directly (for example, upvotes gained since the last refresh). For a first sighting we use its lifetime average rate (metric ÷ hours since it was posted). Velocity is log-normalized against the platform&apos;s “fully hot” rate above and capped there, so 300,000 YouTube views and 150 Hacker News points per hour both count as blazing on their own turf.</li>
+          <li><strong>Chart position — {Math.round(TREND_HEAT_WEIGHTS.position * 100)}%.</strong> The platform&apos;s own ranking, from #1 (full credit) to #10.</li>
+          <li><strong>Momentum — {Math.round(TREND_HEAT_WEIGHTS.momentum * 100)}%.</strong> Places climbed or lost since the previous hour. Newcomers get a strong momentum signal.</li>
+        </ul>
+        <p>When a source exposes no counts at all (Reddit&apos;s RSS fallback), velocity is left out and the other two weights are rescaled, rather than pretending velocity is zero.</p>
+      </section>
+      <section>
+        <h2>4 · Movement and history</h2>
+        <p>▲ and ▼ show places gained or lost since the previous refresh; <strong>NEW</strong> marks an item that was not on the board an hour ago. The sparkline shows the item&apos;s rank over its last 24 refreshes, with the top line representing #1.</p>
+      </section>
+      <section>
+        <h2>5 · “Why it&apos;s hot”</h2>
+        <p>The one-line explanation under each item is generated from the data alone — velocity, comments, age, stars today, the headline Google attaches to a search spike — with no AI writing involved.</p>
+      </section>
+    </ProsePage>
+  );
 }

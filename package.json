@@ -15,6 +15,7 @@
     "lint": "pnpm -F web lint",
     "test": "pnpm -r --parallel test",
     "test:e2e": "pnpm -F web test:e2e",
+    "trends:ingest": "tsx scripts/ingest-trends.ts",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "db:generate": "pnpm -F @surge/db generate",

@@ -1,19 +1,35 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Instrument_Serif, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import { getServerEnv } from "@surge/config";
 import "./globals.css";
+import "./trends.css";
 
 const env = getServerEnv();
 
+const display = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"], variable: "--font-display", display: "swap" });
+const sans = Inter_Tight({ subsets: ["latin", "vietnamese"], variable: "--font-sans", display: "swap" });
+const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "600"], variable: "--font-mono", display: "swap", preload: false });
+
+const TITLE = "SurgeIndex — The internet's Top 10, updated every hour";
+const DESCRIPTION = "Hourly Top 10s from Google Trends, YouTube, Reddit, Hacker News and GitHub, ranked by Heat Score — how fast each item is surging right now.";
+
 export const metadata: Metadata = {
   metadataBase: new URL(env.NEXT_PUBLIC_APP_URL),
-  title: { default: "SurgeIndex — the live leaderboard of internet attention", template: "%s · SurgeIndex" },
-  description: "Watch websites go viral in real time through verified traffic, live activity, and transparent attention metrics.",
-  openGraph: { title: "SurgeIndex — the live leaderboard of internet attention", description: "Earn attention. Keep the rank honest.", type: "website", images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "SurgeIndex — the live leaderboard of internet attention" }] },
-  twitter: { card: "summary_large_image", title: "SurgeIndex — the live leaderboard of internet attention", description: "Watch websites go viral in real time.", images: ["/opengraph-image"] },
+  title: { default: TITLE, template: "%s · SurgeIndex" },
+  description: DESCRIPTION,
+  applicationName: "SurgeIndex",
+  openGraph: { title: TITLE, description: DESCRIPTION, type: "website", siteName: "SurgeIndex", images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: TITLE }] },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: ["/opengraph-image"] },
   icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }], shortcut: "/icon.svg" },
   robots: { index: true, follow: true },
 };
 
+export const viewport: Viewport = { themeColor: "#06070a", colorScheme: "dark" };
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" data-scroll-behavior="smooth"><body>{children}</body></html>;
+  return (
+    <html lang="en" data-scroll-behavior="smooth" className={`${display.variable} ${sans.variable} ${mono.variable}`}>
+      <body>{children}</body>
+    </html>
+  );
 }

@@ -1,5 +1,18 @@
 # SurgeIndex
 
+> **Branch `trends-pivot` — Phase 1: "The internet's Top 10, updated every hour."**
+> The public site is now a set of hourly Top 10 boards (Google Trends US/VN, Reddit r/all, Hacker News,
+> GitHub Trending, YouTube Most Popular US/VN when `YOUTUBE_API_KEY` is set, X as "coming soon"),
+> ranked by a per-platform Heat Score (`packages/scoring/src/trend-heat.ts`).
+>
+> - Ingest: `pnpm trends:ingest` (`scripts/ingest-trends.ts` → `apps/web/lib/trends/`) writes JSON snapshots to
+>   `TRENDS_DATA_DIR` (default `apps/web/data/trends`): `latest.json`, `history/` (7 days), `daily/` (archive).
+> - Pages: `/`, `/top-10`, `/top-10/[source]`, `/top-10/[source]/[date]`, `/methodology`, `/privacy`, `/terms`,
+>   `/api/trends`. ISR every 5 minutes; no database needed for these routes.
+> - Legacy directory, claim, boost, dashboard, billing, creators, campaigns and pricing code is kept but hidden
+>   from navigation, the home page, the sitemap and robots.
+> - Deployment: see [`DEPLOY_TRENDS.md`](DEPLOY_TRENDS.md).
+
 SurgeIndex is a production-minded MVP for discovering websites that are gaining attention. The public experience is a warm, fast directory with live-style rankings, breakout signals, explainable Heat Scores, source-aware metrics, claim flow, referral tracking, and a clearly separated sponsored distribution lane.
 
 The repository is intentionally runnable in `APP_MODE=demo` with `DATA_PROVIDER=demo`: the public app has deterministic fictional sites so the product can be reviewed without database, GA4, Tinybird, Stripe, or Cloudflare credentials. The production path requires `APP_MODE=production`, `DATA_PROVIDER=postgres`, a database, and a Better Auth secret. There is no silent fallback between modes or providers.
