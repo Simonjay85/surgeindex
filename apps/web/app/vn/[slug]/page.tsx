@@ -5,6 +5,7 @@ import { JsonLd, TrendShell } from "../../../components/trends/ui";
 import { getStory } from "../../../lib/stories";
 import { storyArticleJsonLd, storyBreadcrumbJsonLd, storyFaqJsonLd, storyLiveBlogJsonLd } from "../../../lib/stories/seo";
 import { readLiveFile, readPressFile } from "../../../lib/live/store";
+import { getDonateConfig } from "../../../lib/donate";
 
 // Surge Stories are built from apps/web/content/stories. Live stories also read
 // <LIVE_DATA_DIR>/<slug>(.press).json, so the page renders per request (two
@@ -49,7 +50,7 @@ export default async function StoryPage({ params }: { params: Promise<{ slug: st
       <JsonLd data={live ? storyLiveBlogJsonLd(story, live.file) : storyArticleJsonLd(story)} />
       <JsonLd data={storyBreadcrumbJsonLd(story)} />
       <JsonLd data={storyFaqJsonLd(story)} />
-      <StoryView story={story} live={live} tipSiteKey={process.env.TURNSTILE_SITE_KEY || undefined} />
+      <StoryView story={story} live={live} tipSiteKey={process.env.TURNSTILE_SITE_KEY || undefined} donateEnabled={getDonateConfig().enabled} />
     </TrendShell>
   );
 }

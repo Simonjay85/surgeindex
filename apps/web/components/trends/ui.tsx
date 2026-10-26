@@ -5,6 +5,7 @@ import { formatCompact, formatFull, formatUtcTime } from "../../lib/trends/forma
 import { formatMetricValue, getSourceMeta, TREND_SOURCES, type SourceMeta, type TrendBoard, type TrendItem, type TrendSource } from "../../lib/trends/types";
 import { PlatformIcon } from "./platform-icon";
 import { UpdatedPulse } from "./client";
+import { getDonateConfig } from "../../lib/donate";
 
 const EXT = { target: "_blank", rel: "noopener noreferrer nofollow" } as const;
 
@@ -59,6 +60,7 @@ export function TrendHeader({ generatedAt }: { generatedAt?: string | null }) {
 }
 
 export function TrendFooter() {
+  const donate = getDonateConfig().enabled;
   return (
     <footer className="t-footer">
       <div className="t-wrap t-footer-grid">
@@ -83,6 +85,11 @@ export function TrendFooter() {
             <Link href="/top-10">All boards</Link>
             <Link href="/vn/stories">Surge Story · VN</Link>
             <Link href="/vn/gui-tin" lang="vi">Gửi tin nóng</Link>
+            {donate ? (
+              <Link href="/vn/ung-ho" lang="vi">
+                Ủng hộ SurgeIndex
+              </Link>
+            ) : null}
             <Link href="/methodology">Methodology</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>

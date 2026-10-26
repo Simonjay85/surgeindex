@@ -3,6 +3,7 @@ import { getServerEnv } from "@surge/config";
 import { getLatestSnapshot, listArchiveDates } from "../lib/trends/read";
 import { TREND_SOURCES } from "../lib/trends/types";
 import { listStories } from "../lib/stories";
+import { getDonateConfig } from "../lib/donate";
 
 // Built from the trend snapshots on disk; no database access.
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
   entries.push({ url: `${base}/vn/gui-tin`, changeFrequency: "monthly", priority: 0.3 });
+  if (getDonateConfig().enabled) entries.push({ url: `${base}/vn/ung-ho`, changeFrequency: "monthly", priority: 0.3 });
   for (const date of dates) {
     for (const s of sources) {
       entries.push({ url: `${base}/top-10/${s.key}/${date}`, lastModified: new Date(`${date}T23:59:59Z`), changeFrequency: "daily", priority: 0.6 });

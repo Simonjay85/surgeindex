@@ -31,7 +31,7 @@ if ! command -v pnpm >/dev/null; then
 fi
 
 # --- one-time dirs -----------------------------------------------------
-sudo mkdir -p "$RELEASES" "$DATA" /var/log/surgeindex
+sudo mkdir -p "$RELEASES" "$DATA" "$SHARED/live" "$SHARED/tips" /var/log/surgeindex
 sudo chown -R ubuntu:ubuntu "$RELEASES" "$SHARED" /var/log/surgeindex
 
 # --- disk guard (VPS has run near-full before) -------------------------
@@ -73,14 +73,21 @@ load_env() {
   done < <(sudo cat "$f")
   log "loaded env $(basename "$f")"
 }
-# merge optional API keys pushed by GitHub Actions into trends.env
+# merge optional keys pushed by GitHub Actions. Ingest keys go to trends.env
+# (cron); keys the web process needs at runtime (live-blog admin token,
+# donate channels) go to surgeindex.env, which surgeindex.service loads.
 if [ -s /tmp/surgeindex-keys.env ]; then
   sudo touch /etc/surgeindex/trends.env
   while IFS= read -r kv; do
     k="${kv%%=*}"
-    sudo sed -i "/^${k}=/d" /etc/surgeindex/trends.env
-    printf '%s\n' "$kv" | sudo tee -a /etc/surgeindex/trends.env >/dev/null
-    log "updated $k in trends.env"
+    [[ "$k" =~ ^[A-Z_][A-Z0-9_]*$ ]] || continue
+    case "$k" in
+      LIVE_ADMIN_TOKEN|DONATE_*|TIPS_NOTIFY_EMAIL) target=/etc/surgeindex/surgeindex.env ;;
+      *) target=/etc/surgeindex/trends.env ;;
+    esac
+    sudo sed -i "/^${k}=/d" "$target"
+    printf '%s\n' "$kv" | sudo tee -a "$target" >/dev/null
+    log "updated $k in $(basename "$target")"
   done < /tmp/surgeindex-keys.env
   grep -q '^TRENDS_DATA_DIR=' <(sudo cat /etc/surgeindex/trends.env) || echo "TRENDS_DATA_DIR=$DATA" | sudo tee -a /etc/surgeindex/trends.env >/dev/null
   sudo chown root:ubuntu /etc/surgeindex/trends.env; sudo chmod 0640 /etc/surgeindex/trends.env

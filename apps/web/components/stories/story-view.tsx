@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, BellRing, ExternalLink, Megaphone } from "lucide-react";
+import { ArrowUpRight, BellRing, ExternalLink, HeartHandshake, Megaphone } from "lucide-react";
 import { brandStyle } from "../trends/ui";
 import { formatViDate } from "../../lib/stories";
 import { PHASE_LABELS, PLATFORM_COLORS, type Story, type StorySource } from "../../lib/stories/schema";
@@ -26,9 +26,10 @@ export interface StoryViewProps {
   /** Runtime live-blog data when story.live is true. */
   live?: { file: LiveFile; press: PressFile | null };
   tipSiteKey?: string;
+  donateEnabled?: boolean;
 }
 
-export function StoryView({ story, live, tipSiteKey }: StoryViewProps) {
+export function StoryView({ story, live, tipSiteKey, donateEnabled = false }: StoryViewProps) {
   const signals = [...story.signals].sort((a, b) => a.order - b.order);
   const firstSignal = signals.find((s) => s.platform === story.first_signal_platform);
   return (
@@ -257,6 +258,16 @@ export function StoryView({ story, live, tipSiteKey }: StoryViewProps) {
             <p className="t-story-intro">Gửi kèm link nguồn (bài báo, bài đăng công khai). Mọi tin được kiểm tra thủ công trước khi trở thành một cập nhật; không có gì được đăng tự động.</p>
             <TipForm siteKey={tipSiteKey} page={story.url} compact />
           </section>
+        ) : null}
+
+        {donateEnabled ? (
+          <Link href="/vn/ung-ho" className="t-donate-strip">
+            <HeartHandshake size={18} aria-hidden="true" />
+            <span>
+              <strong>Ủng hộ SurgeIndex</strong> — giúp chúng tôi tiếp tục theo dõi, kiểm chứng và ghi lại các câu chuyện như thế này.
+            </span>
+            <ArrowUpRight size={15} aria-hidden="true" />
+          </Link>
         ) : null}
 
         <section className="t-story-cta" aria-labelledby="ban-tin">
