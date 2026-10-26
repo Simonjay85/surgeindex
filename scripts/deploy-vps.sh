@@ -60,6 +60,10 @@ pnpm install --frozen-lockfile --reporter=append-only
 set -a
 # shellcheck disable=SC1090
 source <(sudo cat /etc/surgeindex/surgeindex.env)
+# same optional env files the systemd unit loads
+for f in /etc/surgeindex/turnstile.production.env /etc/surgeindex/resend.env; do
+  sudo test -f "$f" && source <(sudo cat "$f")
+done
 [ -f /etc/surgeindex/trends.env ] && source <(sudo cat /etc/surgeindex/trends.env)
 set +a
 export TRENDS_DATA_DIR="$DATA"
