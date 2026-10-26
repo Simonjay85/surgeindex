@@ -4,7 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { cache } from "react";
 import { bundledTrendsDataDir, DAILY_DIR, LATEST_FILE, resolveTrendsDataDir } from "./paths";
-import { boardId, TREND_SOURCES, type TrendBoard, type TrendItem, type TrendRegion, type TrendSnapshot, type TrendSource } from "./types";
+import { boardId, primaryRegion, TREND_SOURCES, type TrendBoard, type TrendItem, type TrendRegion, type TrendSnapshot, type TrendSource } from "./types";
 
 async function readSnapshot(file: string): Promise<TrendSnapshot | null> {
   try {
@@ -74,7 +74,7 @@ export interface FeaturedItem {
 export function leadersOf(snapshot: TrendSnapshot | null, region: TrendRegion = "global"): FeaturedItem[] {
   const out: FeaturedItem[] = [];
   for (const meta of TREND_SOURCES) {
-    const board = findBoard(snapshot, meta.key, meta.regions.includes(region) ? region : "global");
+    const board = findBoard(snapshot, meta.key, meta.regions.includes(region) ? region : primaryRegion(meta));
     const first = board?.items[0];
     if (board && first) out.push({ item: first, board });
   }
