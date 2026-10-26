@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# One-shot release deploy for surgeindex.lol on the VPS.
+# Runs ON the VPS as the `ubuntu` user (GitHub Actions calls it over SSH).
+# Usage: deploy-vps.sh <git-sha> [branch]
+set -euo pipefail
+
+SHA="${1:?usage: deploy-vps.sh <git-sha> [branch]}"
+BRANCH="${2:-trends-pivot}"
+REPO="https://github.com/Simonjay85/surgeindex.git"
+ROOT=/opt/surgeindex
+RELEASES="$ROOT/releases"
+SHARED="$ROOT/shared"
+DATA="$SHARED/trends"
+ID="$(date -u +%Y%m%d%H%M%S)-${SHA:0:7}"
+RELEASE="$RELEASES/$ID"
+PREV="$(readlink -f "$ROOT/current" 2>/dev/null || true)"
+LOCK=/tmp/surgeindex-deploy.lock
+
+exec 9>"$LOCK"
+flock -n 9 || { echo "[deploy] another deploy is running"; exit 1; }
+
+log() { echo "[deploy $(date -u +%H:%M:%S)] $*"; }
+
+# --- tools -------------------------------------------------------------
+export PATH="$HOME/.local/share/pnpm:$HOME/.npm-global/bin:/usr/local/bin:$PATH"
+command -v node >/dev/null || { log "node not found"; exit 1; }
+if ! command -v pnpm >/dev/null; then
+  log "installing pnpm via corepack"
+  corepack enable --install-directory "$HOME/.local/bin" pnpm 2>/dev/null || npm i -g pnpm@11.22.0 --prefix "$HOME/.npm-global"
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# --- one-time dirs -----------------------------------------------------
+sudo mkdir -p "$RELEASES" "$DATA" /var/log/surgeindex
+sudo chown -R ubuntu:ubuntu "$RELEASES" "$SHARED" /var/log/surgeindex
+
+# --- disk guard (VPS has run near-full before) -------------------------
+FREE_MB=$(df -Pm "$ROOT" | awk 'NR==2{print $4}')
+if [ "$FREE_MB" -lt 2500 ]; then
+  log "only ${FREE_MB}MB free; pruning old releases first"
+fi
+# keep current + 2 newest others
+for d in $(ls -1dt "$RELEASES"/* 2>/dev/null | tail -n +4); do
+  [ "$(readlink -f "$d")" = "$PREV" ] && continue
+  rm -rf "$d"
+done
+
+# --- fetch -------------------------------------------------------------
+log "cloning $BRANCH @ $SHA -> $RELEASE"
+git clone --quiet --branch "$BRANCH" "$REPO" "$RELEASE"
+git -C "$RELEASE" checkout --quiet "$SHA"
+printf 'BUILD_SHA=%s\n' "$SHA" > "$RELEASE/release.env"
+chmod 0644 "$RELEASE/release.env"
+
+cd "$RELEASE"
+log "pnpm install"
+pnpm install --frozen-lockfile --reporter=append-only
+
+# --- env ---------------------------------------------------------------
+set -a
+# shellcheck disable=SC1090
+source <(sudo cat /etc/surgeindex/surgeindex.env)
+[ -f /etc/surgeindex/trends.env ] && source <(sudo cat /etc/surgeindex/trends.env)
+set +a
+export TRENDS_DATA_DIR="$DATA"
+grep -q '^TRENDS_DATA_DIR=' <(sudo cat /etc/surgeindex/surgeindex.env) || \
+  echo "TRENDS_DATA_DIR=$DATA" | sudo tee -a /etc/surgeindex/surgeindex.env >/dev/null
+
+# --- data + build ------------------------------------------------------
+log "seeding trends snapshot"
+NODE_OPTIONS=--max-old-space-size=256 pnpm trends:ingest || log "ingest returned non-zero (boards may show Delayed)"
+
+log "next build"
+NODE_OPTIONS=--max-old-space-size=1536 pnpm build
+
+# --- switch ------------------------------------------------------------
+log "switching current -> $RELEASE"
+ln -sfn "$RELEASE" "$ROOT/current"
+sudo systemctl restart surgeindex.service
+
+ok=0
+for i in $(seq 1 30); do
+  if curl -fsS -o /dev/null http://127.0.0.1:3211/ && curl -fsS http://127.0.0.1:3211/api/trends | head -c 1 | grep -q '{'; then ok=1; break; fi
+  sleep 2
+done
+
+if [ "$ok" -ne 1 ]; then
+  log "health check FAILED"
+  if [ -n "$PREV" ] && [ -d "$PREV" ]; then
+    log "rolling back to $PREV"
+    ln -sfn "$PREV" "$ROOT/current"
+    sudo systemctl restart surgeindex.service
+  fi
+  exit 1
+fi
+
+# --- hourly ingest cron (idempotent) -----------------------------------
+CRON_LINE="5 * * * * cd $ROOT/current && TRENDS_ENV_FILE=/etc/surgeindex/trends.env TRENDS_DATA_DIR=$DATA NODE_OPTIONS=--max-old-space-size=256 /usr/bin/flock -n /tmp/surgeindex-trends.lock timeout 300 node_modules/.bin/tsx scripts/ingest-trends.ts >> /var/log/surgeindex/trends-ingest.log 2>&1"
+( crontab -l 2>/dev/null | grep -v 'scripts/ingest-trends.ts' ; echo "$CRON_LINE" ) | crontab -
+
+log "deployed $SHA ($ID) OK"

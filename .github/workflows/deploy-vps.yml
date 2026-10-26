@@ -1,0 +1,52 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [trends-pivot]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST || '51.79.53.190' }}
+      VPS_USER: ${{ secrets.VPS_USER || 'ubuntu' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check SSH key secret
+        run: |
+          if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
+            echo "::error::Missing repo secret VPS_SSH_KEY (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -T 15 -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload deploy script
+        run: |
+          scp -i ~/.ssh/id_deploy scripts/deploy-vps.sh "$VPS_USER@$VPS_HOST:/tmp/surgeindex-deploy-vps.sh"
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/id_deploy -o ServerAliveInterval=30 "$VPS_USER@$VPS_HOST" \
+            "bash /tmp/surgeindex-deploy-vps.sh '${{ github.sha }}' '${{ github.ref_name }}'"
+
+      - name: Public smoke test
+        run: |
+          sleep 5
+          curl -fsS -o /dev/null -w "%{http_code}\n" https://surgeindex.lol/
+          curl -fsS https://surgeindex.lol/api/trends | head -c 300; echo
