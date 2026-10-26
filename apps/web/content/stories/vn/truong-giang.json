@@ -212,6 +212,9 @@
     "status": "coming-soon",
     "label": "Sắp ra mắt"
   },
+  "live": true,
+  "live_keywords": ["Trường Giang", "2 ngày 1 đêm"],
+  "live_started_at": "2026-10-27T02:00:00+07:00",
   "exclude_from_boards": true,
   "show_heat_score": false
 }

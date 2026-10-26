@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { StoryStatusBadge } from "../../../components/stories/story-view";
+import { LiveBadge } from "../../../components/stories/live-blog";
 import { JsonLd, TrendShell } from "../../../components/trends/ui";
 import { listStories } from "../../../lib/stories";
 import { siteBase } from "../../../lib/stories/seo";
@@ -54,7 +55,10 @@ export default function StoriesIndexPage() {
               <li key={s.url}>
                 <Link href={s.url} className="t-story-card">
                   <div className="t-story-card-head">
-                    <StoryStatusBadge story={s} size="sm" />
+                    <span className="t-story-card-badges">
+                      {s.live ? <LiveBadge resolved={false} size="sm" /> : null}
+                      <StoryStatusBadge story={s} size="sm" />
+                    </span>
                     <span className="t-story-card-cat">{s.category_label}</span>
                   </div>
                   <h2>{s.name}</h2>

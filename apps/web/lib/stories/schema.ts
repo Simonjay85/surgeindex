@@ -16,6 +16,9 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD");
 const httpsUrl = z.url({ protocol: /^https$/ });
 const text = z.string().trim().min(1);
 
+/** /vn/<slug> paths used by fixed pages. */
+export const RESERVED_SLUGS = ["stories", "gui-tin", "ung-ho"];
+
 export const STORY_STATUSES = ["hot", "past-peak", "echo", "ended", "archived"] as const;
 export const SIGNAL_PHASES = ["first", "follow", "echo"] as const;
 export const SIGNAL_PLATFORMS = ["threads", "news-vn", "youtube-vn", "google-trends-vn", "tiktok-vn", "facebook-vn", "tv-show", "other"] as const;
@@ -65,7 +68,7 @@ export const signalSchema = z.object({
 
 export const storySchema = z
   .object({
-    slug: z.string().regex(/^[a-z0-9-]+$/).refine((s) => s !== "stories", "slug 'stories' is reserved for the index"),
+    slug: z.string().regex(/^[a-z0-9-]+$/).refine((s) => !RESERVED_SLUGS.includes(s), "slug is reserved for a /vn page (stories, gui-tin, ung-ho)"),
     url: z.string().startsWith("/"),
     region: z.enum(["vn"]),
     name: text,
@@ -100,6 +103,15 @@ export const storySchema = z
     sources_note: text.optional(),
     related_entities: z.array(text).default([]),
     newsletter: z.object({ title: text, status: z.literal("coming-soon"), label: text }),
+    /**
+     * Live blog mode ("Cập nhật trực tiếp"). Updates live outside the repo in
+     * <LIVE_DATA_DIR>/<slug>.json and are posted through /api/live/<slug>.
+     */
+    live: z.boolean().default(false),
+    /** Headline keywords used by the hourly ingest to attach "Báo chí đang nói gì". */
+    live_keywords: z.array(text).default([]),
+    /** When live coverage started (LiveBlogPosting coverageStartTime), with offset. */
+    live_started_at: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})$/, "expected ISO date-time with offset").optional(),
     exclude_from_boards: z.literal(true),
     show_heat_score: z.literal(false),
   })
@@ -117,6 +129,8 @@ export const storySchema = z
     if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["timeline"], message: "milestone ids must be unique" });
     const orders = story.signals.map((s) => s.order);
     if (new Set(orders).size !== orders.length) ctx.addIssue({ code: "custom", path: ["signals"], message: "signal order values must be unique" });
+    if (story.live && !story.live_keywords.length) ctx.addIssue({ code: "custom", path: ["live_keywords"], message: "a live story needs at least one keyword for press matching" });
+    if (story.live && !story.live_started_at) ctx.addIssue({ code: "custom", path: ["live_started_at"], message: "a live story needs live_started_at (e.g. 2026-10-27T09:00:00+07:00)" });
     if (story.last_updated < story.published) ctx.addIssue({ code: "custom", path: ["last_updated"], message: "last_updated cannot be before published" });
   });
 

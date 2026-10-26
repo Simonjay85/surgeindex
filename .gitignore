@@ -44,3 +44,7 @@ apps/web/.demo/
 # trend ingest runtime files (snapshots themselves are committed as seed data)
 apps/web/data/trends/.ingest.lock
 apps/web/data/trends/**/*.tmp
+
+# runtime data written by the app / ingest (VPS uses /opt/surgeindex/shared)
+apps/web/data/live/
+apps/web/data/tips/

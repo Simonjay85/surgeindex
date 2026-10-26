@@ -2,15 +2,16 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { StoryView } from "../../../components/stories/story-view";
 import { JsonLd, TrendShell } from "../../../components/trends/ui";
-import { getStory, listStories } from "../../../lib/stories";
-import { storyArticleJsonLd, storyBreadcrumbJsonLd, storyFaqJsonLd } from "../../../lib/stories/seo";
+import { getStory } from "../../../lib/stories";
+import { storyArticleJsonLd, storyBreadcrumbJsonLd, storyFaqJsonLd, storyLiveBlogJsonLd } from "../../../lib/stories/seo";
+import { readLiveFile, readPressFile } from "../../../lib/live/store";
 
-// Surge Stories are static archive pages built from apps/web/content/stories.
-export const dynamicParams = false;
-
-export function generateStaticParams() {
-  return listStories("vn").map((s) => ({ slug: s.slug }));
-}
+// Surge Stories are built from apps/web/content/stories. Live stories also read
+// <LIVE_DATA_DIR>/<slug>(.press).json, so the page renders per request (two
+// small JSON reads): a POST to /api/live/<slug> shows up immediately, no rebuild.
+// Unknown slugs hit notFound(). (ISR + revalidatePath, or dynamicParams=false,
+// both 404 a dynamically rendered story on Next 16.)
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -42,12 +43,13 @@ export default async function StoryPage({ params }: { params: Promise<{ slug: st
   const { slug } = await params;
   const story = getStory("vn", slug);
   if (!story) notFound();
+  const live = story.live ? { file: await readLiveFile(story.slug), press: await readPressFile(story.slug) } : undefined;
   return (
     <TrendShell>
-      <JsonLd data={storyArticleJsonLd(story)} />
+      <JsonLd data={live ? storyLiveBlogJsonLd(story, live.file) : storyArticleJsonLd(story)} />
       <JsonLd data={storyBreadcrumbJsonLd(story)} />
       <JsonLd data={storyFaqJsonLd(story)} />
-      <StoryView story={story} />
+      <StoryView story={story} live={live} />
     </TrendShell>
   );
 }

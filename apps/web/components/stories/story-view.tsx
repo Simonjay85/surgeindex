@@ -3,6 +3,8 @@ import { ArrowUpRight, BellRing, ExternalLink } from "lucide-react";
 import { brandStyle } from "../trends/ui";
 import { formatViDate } from "../../lib/stories";
 import { PHASE_LABELS, PLATFORM_COLORS, type Story, type StorySource } from "../../lib/stories/schema";
+import type { LiveFile, PressFile } from "../../lib/live/types";
+import { LiveBadge, LiveBlog } from "./live-blog";
 
 /** External links on story pages: never pass ranking signals, never leak opener. */
 export const STORY_EXT = { target: "_blank", rel: "nofollow noopener noreferrer" } as const;
@@ -18,7 +20,13 @@ export function StoryStatusBadge({ story, size = "md" }: { story: Story; size?: 
   );
 }
 
-export function StoryView({ story }: { story: Story }) {
+export interface StoryViewProps {
+  story: Story;
+  /** Runtime live-blog data when story.live is true. */
+  live?: { file: LiveFile; press: PressFile | null };
+}
+
+export function StoryView({ story, live }: StoryViewProps) {
   const signals = [...story.signals].sort((a, b) => a.order - b.order);
   const firstSignal = signals.find((s) => s.platform === story.first_signal_platform);
   return (
@@ -51,6 +59,7 @@ export function StoryView({ story }: { story: Story }) {
           ) : null}
 
           <div className="t-story-status">
+            {live ? <LiveBadge resolved={Boolean(live.file.resolved)} /> : null}
             <StoryStatusBadge story={story} />
             <p>{story.badge.explanation}</p>
           </div>
@@ -96,6 +105,8 @@ export function StoryView({ story }: { story: Story }) {
           <p>{story.quick_answer}</p>
         </section>
         <p className="t-story-disclaimer">{story.disclaimer}</p>
+
+        {live ? <LiveBlog story={story} live={live.file} press={live.press} /> : null}
 
         <section className="t-story-section" aria-labelledby="ban-do-tin-hieu">
           <span className="t-kicker">Bản đồ tín hiệu</span>

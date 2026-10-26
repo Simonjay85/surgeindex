@@ -23,7 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (stories.length) {
     entries.push({ url: `${base}/vn/stories`, lastModified: new Date(`${stories[0]!.last_updated}T12:00:00+07:00`), changeFrequency: "weekly", priority: 0.6 });
     for (const story of stories) {
-      entries.push({ url: `${base}${story.url}`, lastModified: new Date(`${story.last_updated}T12:00:00+07:00`), changeFrequency: "weekly", priority: 0.7 });
+      entries.push({ url: `${base}${story.url}`, lastModified: new Date(`${story.last_updated}T12:00:00+07:00`), changeFrequency: story.live ? "hourly" : "weekly", priority: 0.7 });
     }
   }
   for (const date of dates) {

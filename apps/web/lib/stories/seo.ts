@@ -56,3 +56,31 @@ export function storyFaqJsonLd(story: Story) {
     mainEntity: story.faq.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
   };
 }
+
+/**
+ * LiveBlogPosting for stories in live mode. Updates come from the runtime
+ * live file (never rewritten); coverageEndTime is set once resolved.
+ */
+export function storyLiveBlogJsonLd(story: Story, live: { updates: Array<{ id: string; time: string; text: string; sources: Array<{ url: string }> }>; resolved: { time: string; summary: string } | null; updated_at: string | null }, base = siteBase()) {
+  const url = `${base}${story.url}`;
+  const article = storyArticleJsonLd(story, base);
+  const updates = [
+    ...(live.resolved ? [{ id: "ket-qua", time: live.resolved.time, text: live.resolved.summary, sources: [] as Array<{ url: string }> }] : []),
+    ...live.updates,
+  ];
+  return {
+    ...article,
+    "@type": "LiveBlogPosting",
+    dateModified: live.updated_at ?? article.dateModified,
+    coverageStartTime: story.live_started_at,
+    ...(live.resolved ? { coverageEndTime: live.resolved.time } : {}),
+    liveBlogUpdate: updates.slice(0, 50).map((u) => ({
+      "@type": "BlogPosting",
+      headline: u.text.length > 110 ? `${u.text.slice(0, 107).trimEnd()}…` : u.text,
+      articleBody: u.text,
+      datePublished: u.time,
+      url: `${url}#${u.id}`,
+      ...(u.sources.length ? { citation: u.sources.map((s) => s.url) } : {}),
+    })),
+  };
+}

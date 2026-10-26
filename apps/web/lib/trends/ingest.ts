@@ -12,7 +12,11 @@ import path from "node:path";
 import { computeTrendHeat, type TrendPlatform } from "@surge/scoring";
 import { formatAge, formatCompact } from "./format";
 import { DAILY_DIR, HISTORY_DIR, LATEST_FILE } from "./paths";
-import { carryOver, clusterArticles, clusterToRaw, fetchAllNews, formatVnTime } from "./news";
+import { carryOver, clusterArticles, clusterToRaw, fetchAllNews, formatVnTime, type NewsArticle } from "./news";
+import { buildPressFile } from "../live/press";
+import { readPressFile, writePressFile } from "../live/store";
+import { resolveLiveDataDir } from "../live/paths";
+import { listStories } from "../stories";
 import {
   fetchAmazon,
   fetchEbayTrending,
@@ -52,9 +56,12 @@ interface BoardSpec {
 /** Minimum fresh articles before the news board trusts a run (else keep the last good board). */
 const NEWS_MIN_ARTICLES = 40;
 
+/** Articles read by the latest news run, reused to feed live stories' press matches. */
+let lastNewsArticles: NewsArticle[] = [];
 
 export async function fetchNewsVn(now: number, prev?: TrendBoard, fetcher: typeof fetchAllNews = fetchAllNews): Promise<FetchResult> {
   const { articles, reports } = await fetcher();
+  lastNewsArticles = articles;
   const okFeeds = reports.filter((r) => r.ok);
   const failed = reports.filter((r) => !r.ok);
   for (const f of failed) console.warn(`[trends] news feed ${f.feed} failed: ${f.error ?? "unknown"}`);
@@ -242,6 +249,21 @@ async function pruneHistory(dir: string, now: number): Promise<number> {
   return removed;
 }
 
+/** Match this run's news articles to every live story's keywords ("Báo chí đang nói gì"). */
+export async function updateLivePress(articles: NewsArticle[], now: number, log: (line: string) => void = console.log, dir = resolveLiveDataDir()): Promise<void> {
+  for (const story of listStories()) {
+    if (!story.live || !story.live_keywords.length) continue;
+    try {
+      const previous = await readPressFile(story.slug, dir);
+      const file = buildPressFile(story.slug, story.live_keywords, articles, previous, now);
+      await writePressFile(file, dir);
+      log(`[trends] live ${story.slug}: ${file.items.length} press match(es)`);
+    } catch (e) {
+      log(`[trends] live ${story.slug}: press update failed — ${(e as Error).message}`);
+    }
+  }
+}
+
 export interface IngestLog {
   board: string;
   status: TrendBoard["status"];
@@ -291,6 +313,7 @@ export async function runIngest(dir: string, log: (line: string) => void = conso
     await writeJsonAtomic(path.join(dir, DAILY_DIR, `${iso.slice(0, 10)}.json`), snapshot);
     await writeJsonAtomic(path.join(dir, LATEST_FILE), snapshot);
     const pruned = await pruneHistory(dir, now);
+    if (lastNewsArticles.length) await updateLivePress(lastNewsArticles, now, log);
 
     for (const r of results) log(`[trends] ${r.board.padEnd(18)} ${r.status.padEnd(11)} ${String(r.items).padStart(2)} items${r.via ? ` via ${r.via}` : ""}${r.error ? ` — ${r.error}` : ""}`);
     log(`[trends] wrote ${path.join(dir, LATEST_FILE)} at ${iso}; pruned ${pruned} old history file(s)`);
