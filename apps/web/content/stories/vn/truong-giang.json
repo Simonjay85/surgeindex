@@ -1,0 +1,217 @@
+{
+  "slug": "truong-giang",
+  "url": "/vn/truong-giang",
+  "region": "vn",
+  "name": "Trường Giang",
+  "aliases": ["Mười Khó"],
+  "keywords": ["2 Ngày 1 Đêm", "2N1Đ"],
+  "category": "showbiz-vn",
+  "category_label": "Showbiz VN",
+  "entity_type": "person",
+  "entity_label": "Người — nghệ sĩ hài, MC / thành viên 2 Ngày 1 Đêm",
+  "status": "archived",
+  "status_label": "Đã qua đỉnh — Dư âm",
+  "badge": {
+    "label": "Đã qua đỉnh · Dư âm",
+    "explanation": "Câu chuyện này bùng lên đầu tháng 9/2026, đạt đỉnh quanh ngày 16/9/2026 và hiện chỉ còn dư âm trên YouTube Shorts. Trang này là bản ghi lại, không phải bảng “đang hot” theo giờ."
+  },
+  "peak_window": { "start": "2026-09-01", "peak": "2026-09-16", "end": "2026-10-26" },
+  "peak_window_label": "đầu tháng 9/2026 → 16/9/2026",
+  "peak_label": "Đỉnh: tháng 9/2026",
+  "first_signal_platform": "threads",
+  "published": "2026-10-26",
+  "last_updated": "2026-10-26",
+  "last_updated_label": "26/10/2026",
+  "seo": {
+    "title": "Trường Giang: từ Threads tới 2 Ngày 1 Đêm — Surge Story | SurgeIndex VN",
+    "description": "Timeline Trường Giang tháng 9/2026: clip cũ được đào lại trên Threads, làn sóng tranh luận, thư xin lỗi, thông báo tạm vắng mặt ở 2 Ngày 1 Đêm ngày 16/9, và tập 103 đầu tiên không có anh."
+  },
+  "quick_answer": "Đầu tháng 9/2026, các clip cũ của Trường Giang trong các gameshow nhiều năm trước bắt đầu được chia sẻ lại trên Threads và gây tranh luận về cách tương tác với đồng nghiệp và giới hạn của việc tạo tiếng cười. Sau đó nghệ sĩ đăng thư xin lỗi, nói rằng có lúc mình chưa đủ tinh tế, chưa đủ trưởng thành. Ngày 16/9/2026, Trường Giang thông báo tạm vắng mặt ở buổi quay 2 Ngày 1 Đêm sắp tới để “suy ngẫm và học hỏi thêm”. Tập 103, phát sóng tối 4/10/2026, là tập đầu tiên của hành trình Đồng Tháp không có Trường Giang.",
+  "disclaimer": "Trang này chỉ tóm tắt diễn biến theo nguồn báo chí và link về nguồn. SurgeIndex không kết luận đúng / sai về các clip cũ, và không đăng lại nội dung clip.",
+  "signals_title": "Bản đồ tín hiệu — câu chuyện lan ra sao?",
+  "signals_intro": "Đây là phần làm nên giá trị của Surge Story: không chỉ kể chuyện, mà cho thấy tín hiệu xuất hiện ở đâu trước, ở đâu sau.",
+  "signals": [
+    {
+      "order": 1,
+      "label": "Nổ đầu tiên",
+      "platform": "threads",
+      "platform_label": "Threads",
+      "phase": "first",
+      "note": "Clip cũ được đào lại, tranh luận lan nhanh. Theo bài báo tổng hợp, có ước tính hơn 15.000 post, video, bình luận liên quan chỉ trong vài ngày, và tên Trường Giang lên top trending trên Threads.",
+      "source_url": "https://vietnamnet.vn/truong-giang-rut-khoi-chuong-trinh-2-ngay-1-dem-giua-lum-xum-2555776.html"
+    },
+    {
+      "order": 2,
+      "label": "Báo chí vào cuộc",
+      "platform": "news-vn",
+      "platform_label": "Báo VN",
+      "phase": "follow",
+      "note": "Các báo đưa tin về làn sóng tranh luận, thư xin lỗi, rồi thông báo tạm vắng mặt ở 2 Ngày 1 Đêm."
+    },
+    {
+      "order": 3,
+      "label": "Video lan tiếp",
+      "platform": "youtube-vn",
+      "platform_label": "YouTube / Shorts",
+      "phase": "echo",
+      "note": "Các video tổng hợp, bình luận và Shorts về vụ việc tiếp tục xuất hiện sang tháng 10, nhưng ở mức dư âm, không còn là đỉnh mới."
+    },
+    {
+      "order": 4,
+      "label": "Chương trình lên sóng",
+      "platform": "tv-show",
+      "platform_label": "2 Ngày 1 Đêm",
+      "phase": "follow",
+      "note": "Tập 101 vẫn có Trường Giang vì đã quay trước khi vụ việc nổ ra. Tập 103 (4/10) là tập đầu tiên không có anh trong hành trình Đồng Tháp."
+    }
+  ],
+  "lessons": {
+    "title": "Bài học cho SurgeIndex",
+    "body": "Threads là nơi nổ đầu tiên trong vụ này, báo và YouTube chạy theo sau, Google chạy sau cùng. Nếu chỉ nhìn Google Trends và YouTube, SurgeIndex sẽ thấy câu chuyện này muộn hơn thực tế vài ngày. Đó là lý do board Threads — dù ban đầu chỉ cập nhật thủ công hàng ngày — vẫn đáng làm."
+  },
+  "timeline": [
+    {
+      "id": "threads-dao-lai-clip-cu",
+      "date": "2026-09-01",
+      "date_label": "Đầu tháng 9/2026",
+      "title": "Threads đào lại clip cũ",
+      "points": [
+        "Các video Trường Giang tham gia các chương trình truyền hình nhiều năm trước được chia sẻ lại trên Threads.",
+        "Tranh luận ban đầu xoay quanh cảnh nghệ sĩ ôm bạn diễn nữ trong Ơn giời cậu đây rồi, sau đó lan sang nhiều clip gameshow khác, với các ý kiến về cách tương tác với đồng nghiệp và giới hạn tạo tiếng cười.",
+        "Theo bài báo tổng hợp, làn sóng này bắt đầu sau khi Trường Giang đăng bài ủng hộ sản phẩm mới của ca sĩ Jack (J97)."
+      ],
+      "sources": [
+        { "url": "https://vietnamnet.vn/truong-giang-rut-khoi-chuong-trinh-2-ngay-1-dem-giua-lum-xum-2555776.html", "title": "Nghệ sĩ Trường Giang rút khỏi chương trình '2 ngày 1 đêm' giữa lùm xùm", "publisher": "VietNamNet", "role": "primary" },
+        { "url": "https://tienphong.vn/truong-giang-thong-bao-nong-post1876831.tpo", "title": "Trường Giang rút khỏi '2 ngày 1 đêm'", "publisher": "Tiền Phong", "role": "primary" },
+        { "url": "https://www.vietnam.vn/en/nghe-si-truong-giang-rut-khoi-chuong-trinh-2-ngay-1-dem-giua-lum-xum", "title": "Nghệ sĩ Trường Giang rút khỏi chương trình 2 Ngày 1 Đêm giữa lùm xùm", "publisher": "Vietnam.vn", "role": "secondary" }
+      ]
+    },
+    {
+      "id": "thu-xin-loi",
+      "date": "2026-09-14",
+      "date_label": "Giữa tháng 9/2026",
+      "title": "Thư xin lỗi",
+      "points": [
+        "Trường Giang đăng thư ngỏ xin lỗi khán giả, nói khoảng thời gian im lặng là lúc tự nhìn lại cả công việc và đời sống cá nhân.",
+        "Anh thừa nhận có lúc mình chưa đủ tinh tế, chưa đủ trưởng thành, và xin lỗi những người đã bị tổn thương.",
+        "Anh cũng mong khán giả không tranh cãi hay bênh vực vì thương mình mà gây thêm ồn ào."
+      ],
+      "sources": [
+        { "url": "https://tienphong.vn/truong-giang-thong-bao-nong-post1876831.tpo", "title": "Trường Giang rút khỏi '2 ngày 1 đêm'", "publisher": "Tiền Phong", "role": "primary" },
+        { "url": "https://www.vietnam.vn/en/truong-giang-thong-bao-nong", "title": "Trường Giang thông báo nóng sau ồn ào", "publisher": "Vietnam.vn", "role": "secondary" }
+      ]
+    },
+    {
+      "id": "thong-bao-tam-vang-mat",
+      "date": "2026-09-16",
+      "date_label": "16/9/2026",
+      "title": "Thông báo tạm vắng mặt ở 2 Ngày 1 Đêm",
+      "points": [
+        "Chiều 16/9, Trường Giang đăng thông báo trên trang cá nhân: sau khi trao đổi với nhà sản xuất, anh xin phép vắng mặt ở buổi quay 2 Ngày 1 Đêm sắp tới.",
+        "Lý do anh đưa ra: “suy ngẫm và học hỏi thêm”.",
+        "Nhà sản xuất 2 Ngày 1 Đêm sau đó xác nhận thông tin này với báo chí."
+      ],
+      "note": "Lưu ý: đây là tạm vắng mặt ở buổi quay sắp tới, không phải thông báo rời chương trình vĩnh viễn trong các nguồn đã kiểm tra.",
+      "sources": [
+        { "url": "https://lifestyle.zingnews.vn/truong-giang-thong-bao-tam-rut-khoi-show-2-ngay-1-dem-post1683625.html", "title": "Trường Giang thông báo tạm rút khỏi show '2 ngày 1 đêm'", "publisher": "Znews", "role": "primary" },
+        { "url": "https://vietnamnet.vn/truong-giang-rut-khoi-chuong-trinh-2-ngay-1-dem-giua-lum-xum-2555776.html", "title": "Nghệ sĩ Trường Giang rút khỏi chương trình '2 ngày 1 đêm' giữa lùm xùm", "publisher": "VietNamNet", "role": "primary" },
+        { "url": "https://www.vietnam.vn/en/truong-giang-tam-rut-khoi-2-ngay-1-dem", "title": "Trường Giang tạm rút khỏi 2 Ngày 1 Đêm", "publisher": "Vietnam.vn", "role": "secondary" },
+        { "url": "https://www.vietnam.vn/en/nghe-si-truong-giang-rut-khoi-chuong-trinh-2-ngay-1-dem-giua-lum-xum", "title": "Nghệ sĩ Trường Giang rút khỏi chương trình 2 Ngày 1 Đêm giữa lùm xùm", "publisher": "Vietnam.vn", "role": "secondary" }
+      ]
+    },
+    {
+      "id": "tap-101-van-len-song",
+      "date": "2026-09-21",
+      "date_label": "Cuối tháng 9/2026",
+      "title": "Tập 101 vẫn lên sóng, gây tranh cãi",
+      "points": [
+        "Tập 101 vẫn có Trường Giang đầy đủ, vì tập này đã quay trước khi vụ việc nổ ra trên mạng xã hội.",
+        "Việc anh vẫn xuất hiện trong tập đã quay trước, trong khi đã thông báo vắng mặt ở buổi quay tiếp theo, khiến một bộ phận khán giả thắc mắc.",
+        "Trang này ghi nhận đúng sự khác biệt “quay trước / phát sau” đó, thay vì viết gọn thành “vẫn tham gia” hay “đã rời show”."
+      ],
+      "sources": [
+        { "url": "https://tuoitre.vn/truong-giang-van-len-song-2-ngay-1-dem-khan-gia-tranh-cai-100260921125146601.htm", "title": "Trường Giang vẫn lên sóng 2 ngày 1 đêm, khán giả tranh cãi", "publisher": "Tuổi Trẻ", "role": "primary" },
+        { "url": "https://www.vietnam.vn/en/truong-giang-van-len-song-2-ngay-1-dem-khan-gia-tranh-cai", "title": "Trường Giang vẫn lên sóng 2 Ngày 1 Đêm, khán giả tranh cãi", "publisher": "Vietnam.vn", "role": "secondary" }
+      ]
+    },
+    {
+      "id": "tap-103-khong-co-truong-giang",
+      "date": "2026-10-04",
+      "date_label": "Tối 4/10/2026",
+      "title": "Tập 103, tập đầu tiên không có Trường Giang",
+      "points": [
+        "Tập 103 là hành trình Đồng Tháp, với các thành viên còn lại gồm Dương Lâm, Ngô Kiến Huy, Kiều Minh Tuấn, Cris Phan, HIEUTHUHAI, cùng khách mời.",
+        "Trong tập, khi điểm danh, các thành viên nói Trường Giang vắng mặt vì đi công tác, và HIEUTHUHAI nhắc tới việc Trường Giang có gửi lại một chiếc nhẫn.",
+        "Trang này ghi đúng cả hai cách nói: thông báo chính thức ngày 16/9 là “xin vắng mặt để suy ngẫm”, còn lời thoại trong tập 103 là “đi công tác”. Không tự suy ra mâu thuẫn, không tự kết luận lý do thật."
+      ],
+      "sources": [
+        { "url": "https://hoahoctro.tienphong.vn/2-ngay-1-dem-tap-103-truong-giang-vang-mat-dan-cast-va-khach-moi-xoay-xo-ra-sao-post1882383.tpo", "title": "2 Ngày 1 Đêm tập 103: Trường Giang vắng mặt, dàn cast và khách mời chơi game ra sao?", "publisher": "Hoa Học Trò (Tiền Phong)", "role": "primary" },
+        { "url": "https://www.vietnam.vn/en/2-ngay-1-dem-tap-103-truong-giang-vang-mat-dan-cast-va-khach-moi-xoay-xo-ra-sao", "title": "2 Ngày 1 Đêm tập 103: Trường Giang vắng mặt, dàn cast xoay xở ra sao", "publisher": "Vietnam.vn", "role": "secondary" }
+      ]
+    },
+    {
+      "id": "thang-10-du-am",
+      "date": "2026-10-26",
+      "date_label": "Tháng 10/2026",
+      "title": "Dư âm",
+      "points": [
+        "Các Shorts và video bình luận về vụ việc vẫn xuất hiện, nhưng không tạo thành một đỉnh tranh luận mới như đầu tháng 9.",
+        "Tính tới 26/10/2026, chưa thấy thông báo trở lại 2 Ngày 1 Đêm trong các nguồn đã kiểm tra."
+      ],
+      "source_note": "Mốc này không có bài báo riêng. Nguồn đính kèm là bài gần nhất về chương trình trong các nguồn đã kiểm tra.",
+      "editor_note": "Nếu có thông báo mới: thêm mốc mới, không sửa mốc cũ.",
+      "sources": [
+        { "url": "https://hoahoctro.tienphong.vn/2-ngay-1-dem-tap-103-truong-giang-vang-mat-dan-cast-va-khach-moi-xoay-xo-ra-sao-post1882383.tpo", "title": "2 Ngày 1 Đêm tập 103: Trường Giang vắng mặt, dàn cast và khách mời chơi game ra sao?", "publisher": "Hoa Học Trò (Tiền Phong)", "role": "primary" },
+        { "url": "https://www.vietnam.vn/en/2-ngay-1-dem-tap-103-truong-giang-vang-mat-dan-cast-va-khach-moi-xoay-xo-ra-sao", "title": "2 Ngày 1 Đêm tập 103: Trường Giang vắng mặt, dàn cast xoay xở ra sao", "publisher": "Vietnam.vn", "role": "secondary" }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "q": "Trường Giang rút khỏi 2 Ngày 1 Đêm khi nào?",
+      "a": "Ngày 16/9/2026, Trường Giang thông báo tạm vắng mặt ở buổi quay 2 Ngày 1 Đêm sắp tới, sau khi trao đổi với nhà sản xuất."
+    },
+    {
+      "q": "Vì sao Trường Giang tạm vắng mặt?",
+      "a": "Theo thông báo của chính nghệ sĩ, anh muốn dùng thời gian này để “suy ngẫm và học hỏi thêm”, sau làn sóng tranh luận về các clip cũ được chia sẻ lại trên Threads đầu tháng 9/2026."
+    },
+    {
+      "q": "Tập 103 của 2 Ngày 1 Đêm có Trường Giang không?",
+      "a": "Không. Tập 103, phát sóng tối 4/10/2026, là tập đầu tiên trong hành trình Đồng Tháp không có Trường Giang."
+    },
+    {
+      "q": "Tập 101 có Trường Giang không, dù anh đã thông báo vắng mặt?",
+      "a": "Có, vì tập 101 đã được quay trước khi vụ việc nổ ra trên mạng xã hội, nên vẫn lên sóng với đầy đủ sự xuất hiện của anh."
+    },
+    {
+      "q": "Trường Giang đã trở lại 2 Ngày 1 Đêm chưa?",
+      "a": "Tính tới 26/10/2026, các nguồn đã kiểm tra chưa ghi nhận thông báo trở lại. Trang này sẽ cập nhật khi có thông tin mới từ nhà sản xuất hoặc từ chính nghệ sĩ."
+    }
+  ],
+  "follow_up": [
+    "2 Ngày 1 Đêm — các tập sau tập 103, có hay không có Trường Giang",
+    "Các thông báo mới từ nhà sản xuất hoặc từ trang cá nhân của nghệ sĩ",
+    "Mức độ dư âm trên YouTube Shorts và Threads trong tháng 11/2026"
+  ],
+  "sources": [
+    { "url": "https://vietnamnet.vn/truong-giang-rut-khoi-chuong-trinh-2-ngay-1-dem-giua-lum-xum-2555776.html", "title": "Nghệ sĩ Trường Giang rút khỏi chương trình '2 ngày 1 đêm' giữa lùm xùm", "publisher": "VietNamNet", "date": "2026-09-16", "lang": "vi", "kind": "original" },
+    { "url": "https://tienphong.vn/truong-giang-thong-bao-nong-post1876831.tpo", "title": "Trường Giang rút khỏi '2 ngày 1 đêm'", "publisher": "Tiền Phong", "date": "2026-09-16", "lang": "vi", "kind": "original" },
+    { "url": "https://lifestyle.zingnews.vn/truong-giang-thong-bao-tam-rut-khoi-show-2-ngay-1-dem-post1683625.html", "title": "Trường Giang thông báo tạm rút khỏi show '2 ngày 1 đêm'", "publisher": "Znews", "date": "2026-09-16", "lang": "vi", "kind": "original" },
+    { "url": "https://tuoitre.vn/truong-giang-van-len-song-2-ngay-1-dem-khan-gia-tranh-cai-100260921125146601.htm", "title": "Trường Giang vẫn lên sóng 2 ngày 1 đêm, khán giả tranh cãi", "publisher": "Tuổi Trẻ", "date": "2026-09-21", "lang": "vi", "kind": "original" },
+    { "url": "https://hoahoctro.tienphong.vn/2-ngay-1-dem-tap-103-truong-giang-vang-mat-dan-cast-va-khach-moi-xoay-xo-ra-sao-post1882383.tpo", "title": "2 Ngày 1 Đêm tập 103: Trường Giang vắng mặt, dàn cast và khách mời chơi game ra sao?", "publisher": "Hoa Học Trò (Tiền Phong)", "date": "2026-10-05", "lang": "vi", "kind": "original" },
+    { "url": "https://www.vietnam.vn/en/nghe-si-truong-giang-rut-khoi-chuong-trinh-2-ngay-1-dem-giua-lum-xum", "title": "Nghệ sĩ Trường Giang rút khỏi chương trình 2 Ngày 1 Đêm giữa lùm xùm", "publisher": "Vietnam.vn", "date": "2026-09-16", "lang": "en", "kind": "republished" },
+    { "url": "https://www.vietnam.vn/en/truong-giang-thong-bao-nong", "title": "Trường Giang thông báo nóng sau ồn ào", "publisher": "Vietnam.vn", "date": "2026-09-16", "lang": "en", "kind": "republished" },
+    { "url": "https://www.vietnam.vn/en/truong-giang-van-len-song-2-ngay-1-dem-khan-gia-tranh-cai", "title": "Trường Giang vẫn lên sóng 2 Ngày 1 Đêm, khán giả tranh cãi", "publisher": "Vietnam.vn", "date": "2026-09-21", "lang": "en", "kind": "republished" },
+    { "url": "https://www.vietnam.vn/en/2-ngay-1-dem-tap-103-truong-giang-vang-mat-dan-cast-va-khach-moi-xoay-xo-ra-sao", "title": "2 Ngày 1 Đêm tập 103: Trường Giang vắng mặt, dàn cast xoay xở ra sao", "publisher": "Vietnam.vn", "date": "2026-10-05", "lang": "en", "kind": "republished" },
+    { "url": "https://www.vietnam.vn/en/truong-giang-tam-rut-khoi-2-ngay-1-dem", "title": "Trường Giang tạm rút khỏi 2 Ngày 1 Đêm", "publisher": "Vietnam.vn", "date": "2026-09-16", "lang": "en", "kind": "republished" }
+  ],
+  "sources_note": "Bản tiếng Anh của Vietnam.vn dẫn lại các bài gốc tiếng Việt; trang này ưu tiên link bài gốc và giữ Vietnam.vn làm nguồn phụ.",
+  "related_entities": ["2 Ngày 1 Đêm", "Nhã Phương", "Jack (J97)"],
+  "newsletter": {
+    "title": "Nhận bản tin sáng — VN hot gì hôm nay",
+    "status": "coming-soon",
+    "label": "Sắp ra mắt"
+  },
+  "exclude_from_boards": true,
+  "show_heat_score": false
+}

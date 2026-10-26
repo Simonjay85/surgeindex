@@ -47,6 +47,7 @@ export function TrendHeader({ generatedAt }: { generatedAt?: string | null }) {
               {s.short}
             </Link>
           ))}
+          <Link href="/vn/stories">Surge Story</Link>
           <Link href="/methodology">Methodology</Link>
         </nav>
         <div className="t-header-meta">
@@ -80,6 +81,7 @@ export function TrendFooter() {
           <div>
             <span className="t-footer-label">SurgeIndex</span>
             <Link href="/top-10">All boards</Link>
+            <Link href="/vn/stories">Surge Story · VN</Link>
             <Link href="/methodology">Methodology</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>
