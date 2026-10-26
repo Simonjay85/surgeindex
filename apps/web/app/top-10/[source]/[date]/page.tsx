@@ -4,7 +4,7 @@ import { SourceView } from "../../../../components/trends/source-view";
 import { itemListJsonLd, JsonLd, TrendShell } from "../../../../components/trends/ui";
 import { formatLongDate } from "../../../../lib/trends/format";
 import { findBoard, getDailySnapshot, isArchiveDate, listArchiveDates } from "../../../../lib/trends/read";
-import { getSourceMeta, type TrendBoard } from "../../../../lib/trends/types";
+import { getSourceMeta, primaryRegion, type TrendBoard } from "../../../../lib/trends/types";
 
 // Past days never change; today's archive keeps filling until midnight UTC.
 export const revalidate = 1800;
@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: { params: Promise<{ source: s
   const meta = getSourceMeta(source);
   if (!meta || !isArchiveDate(date)) return {};
   const snapshot = await getDailySnapshot(date);
-  const first = findBoard(snapshot, meta.key)?.items[0];
+  const first = findBoard(snapshot, meta.key, primaryRegion(meta))?.items[0];
   const title = `Top 10 on ${meta.name} — ${formatLongDate(date)}`;
   const description = `What was trending on ${meta.name} on ${formatLongDate(date)}${first ? `, led by “${clip(first.title)}”` : ""}. Daily Top 10 archive with Heat Scores.`;
   return {
@@ -42,7 +42,7 @@ export default async function ArchivePage({ params }: { params: Promise<{ source
   const [snapshot, dates] = await Promise.all([getDailySnapshot(date), listArchiveDates()]);
   if (!snapshot) notFound();
   const boards = meta.regions.map((r) => findBoard(snapshot, meta.key, r)).filter((b): b is TrendBoard => Boolean(b));
-  const shown: TrendBoard[] = boards.length ? boards : [{ id: meta.key, source: meta.key, region: "global", status: meta.comingSoon ? "soon" : "unavailable", fetchedAt: null, items: [] }];
+  const shown: TrendBoard[] = boards.length ? boards : [{ id: meta.key, source: meta.key, region: primaryRegion(meta), status: meta.comingSoon ? "soon" : "unavailable", fetchedAt: null, items: [] }];
   const idx = dates.indexOf(date);
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "https://surgeindex.lol").replace(/\/$/, "");
   const primary = shown[0]!;

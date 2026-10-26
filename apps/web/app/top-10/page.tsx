@@ -5,13 +5,13 @@ import { PlatformIcon } from "../../components/trends/platform-icon";
 import { brandStyle, StatusChip, TrendShell } from "../../components/trends/ui";
 import { formatCompact } from "../../lib/trends/format";
 import { findBoard, getLatestSnapshot } from "../../lib/trends/read";
-import { TREND_SOURCES } from "../../lib/trends/types";
+import { formatMetricValue, primaryRegion, TREND_SOURCES } from "../../lib/trends/types";
 
 export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Every Top 10 board",
-  description: "All SurgeIndex Top 10 boards in one place: Google Trends, YouTube, Reddit, Hacker News, GitHub and more, refreshed every hour.",
+  description: "All SurgeIndex Top 10 boards in one place: Google Trends, YouTube, Wikipedia, Reddit, Hacker News, GitHub, Amazon, eBay and more, refreshed every hour.",
   alternates: { canonical: "/top-10" },
   openGraph: { title: "Every Top 10 board · SurgeIndex", description: "All SurgeIndex Top 10 boards in one place, refreshed every hour.", url: "/top-10", type: "website", images: [{ url: "/opengraph-image", width: 1200, height: 630 }] },
 };
@@ -31,7 +31,7 @@ export default async function BoardsIndexPage() {
       </section>
       <div className="t-wrap t-index-grid">
         {TREND_SOURCES.map((meta) => {
-          const board = findBoard(snapshot, meta.key);
+          const board = findBoard(snapshot, meta.key, primaryRegion(meta));
           const top = board?.items.slice(0, 3) ?? [];
           return (
             <Link key={meta.key} href={`/top-10/${meta.key}`} className="t-index-card" style={brandStyle(meta.color)}>
@@ -50,7 +50,7 @@ export default async function BoardsIndexPage() {
                     <li key={i.id}>
                       <span className="t-index-rank">{i.rank}</span>
                       <span className="t-index-title">{i.title}</span>
-                      {i.metric !== null ? <span className="t-index-metric">{formatCompact(i.metric)}</span> : null}
+                      {i.metric !== null ? <span className="t-index-metric">{formatMetricValue(meta, formatCompact(i.metric))}</span> : null}
                     </li>
                   ))}
                 </ol>

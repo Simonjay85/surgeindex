@@ -6,12 +6,12 @@ import { PlatformIcon } from "../components/trends/platform-icon";
 import { BoardCard, brandStyle, HeatMeter, JsonLd, Ticker, TrendShell, type TickerEntry } from "../components/trends/ui";
 import { formatUtcTime } from "../lib/trends/format";
 import { findBoard, getLatestSnapshot, hottestAcross } from "../lib/trends/read";
-import { getSourceMeta, TREND_SOURCES, type TrendBoard } from "../lib/trends/types";
+import { getSourceMeta, primaryRegion, TREND_SOURCES, type TrendBoard } from "../lib/trends/types";
 
 export const revalidate = 300;
 
 const TITLE = "SurgeIndex — The internet's Top 10, updated every hour";
-const DESCRIPTION = "What is hot on the internet right now: hourly Top 10s from Google Trends, YouTube, Reddit, Hacker News and GitHub, ranked by Heat Score — how fast each item is surging.";
+const DESCRIPTION = "What is hot on the internet right now: hourly Top 10s from Google Trends, YouTube, Wikipedia, Reddit, Hacker News, GitHub, Amazon and eBay, ranked by Heat Score — how fast each item is surging.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
@@ -39,7 +39,7 @@ export default async function HomePage() {
       }
     }
   }
-  const leaders = TREND_SOURCES.map((meta) => ({ meta, board: findBoard(snapshot, meta.key) })).filter((l) => l.board && l.board.items.length);
+  const leaders = TREND_SOURCES.map((meta) => ({ meta, board: findBoard(snapshot, meta.key, primaryRegion(meta)) })).filter((l) => l.board && l.board.items.length);
   const hottest = hottestAcross(snapshot, 3);
 
   const tabs = TREND_SOURCES.map((s) => ({ id: `board-${s.key}`, label: s.short, color: s.color, icon: <PlatformIcon source={s.key} size={14} /> }));
@@ -59,7 +59,7 @@ export default async function HomePage() {
             <br />
             every hour.
           </h1>
-          <p className="t-lede">One glance at what is surging on Google, YouTube, Reddit, Hacker News and GitHub — ranked by how fast it is moving, not just how big it already is.</p>
+          <p className="t-lede">One glance at what is surging on Google, YouTube, Wikipedia, Reddit, Hacker News, GitHub, Amazon and eBay — ranked by how fast it is moving, not just how big it already is.</p>
           </div>
           {leaders.length ? (
             <aside className="t-leaders" aria-labelledby="leaders-title">
@@ -152,12 +152,12 @@ export default async function HomePage() {
                 Ten per platform. <em>No filler.</em>
               </h2>
             </div>
-            <p className="t-section-note">Switch to Vietnam to see local Google searches and YouTube charts. Boards without a local chart stay global.</p>
+            <p className="t-section-note">Switch to Vietnam to see local Google searches, YouTube charts and Vietnamese Wikipedia. Boards without a local chart stay global.</p>
           </div>
           <div className="t-boards">
             {TREND_SOURCES.map((meta) => {
               const bs = meta.regions.map((r) => findBoard(snapshot, meta.key, r)).filter((b): b is TrendBoard => Boolean(b));
-              const fallback: TrendBoard[] = bs.length ? bs : [{ id: meta.key, source: meta.key, region: "global", status: meta.comingSoon ? "soon" : "unavailable", fetchedAt: null, items: [] }];
+              const fallback: TrendBoard[] = bs.length ? bs : [{ id: meta.key, source: meta.key, region: primaryRegion(meta), status: meta.comingSoon ? "soon" : "unavailable", fetchedAt: null, items: [] }];
               return <BoardCard key={meta.key} meta={meta} boards={fallback} />;
             })}
           </div>

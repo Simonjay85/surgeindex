@@ -60,7 +60,8 @@ body:has(.t-root)::before { display: none; }
 .t-header-inner { width: min(var(--t-wrap), calc(100% - 40px)); height: 100%; margin: 0 auto; display: flex; align-items: center; gap: 32px; }
 .t-brand { display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .t-brand-word { font-size: 17px; font-weight: 650; letter-spacing: -.03em; }
-.t-nav { display: flex; align-items: center; gap: 4px; margin-left: auto; font-size: 13.5px; color: var(--t-muted); }
+.t-nav { display: flex; align-items: center; gap: 4px; margin-left: auto; min-width: 0; overflow-x: auto; scrollbar-width: none; font-size: 13.5px; color: var(--t-muted); }
+.t-nav::-webkit-scrollbar { display: none; }
 .t-nav a { padding: 7px 11px; border-radius: 999px; transition: color .2s, background .2s; white-space: nowrap; }
 .t-nav a:hover { color: var(--t-text); background: rgba(255, 255, 255, .05); }
 .t-nav-src::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: var(--brand); vertical-align: 2px; box-shadow: 0 0 10px var(--brand); }

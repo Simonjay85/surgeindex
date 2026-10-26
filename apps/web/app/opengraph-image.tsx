@@ -11,6 +11,9 @@ const PLATFORMS: Array<[string, string]> = [
   ["Reddit", "#ff5a1f"],
   ["Hacker News", "#ff8a1f"],
   ["GitHub", "#3fdc7a"],
+  ["Wikipedia", "#c8ccd4"],
+  ["Amazon", "#ff9900"],
+  ["eBay", "#e53238"],
 ];
 
 export default function OpenGraphImage() {
@@ -25,9 +28,9 @@ export default function OpenGraphImage() {
         <div style={{ fontSize: 104, lineHeight: 1, letterSpacing: -3 }}>The internet&apos;s Top 10,</div>
         <div style={{ fontSize: 104, lineHeight: 1.05, letterSpacing: -3, fontStyle: "italic", color: "#ffb08a" }}>every hour.</div>
       </div>
-      <div style={{ display: "flex", gap: 14, fontFamily: "Arial", fontSize: 22 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontFamily: "Arial", fontSize: 18 }}>
         {PLATFORMS.map(([name, color]) => (
-          <span key={name} style={{ display: "flex", alignItems: "center", gap: 10, border: "1px solid rgba(255,255,255,.18)", borderRadius: 999, padding: "10px 20px", color: "#e9e4da" }}>
+          <span key={name} style={{ display: "flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,.18)", borderRadius: 999, padding: "8px 14px", color: "#e9e4da" }}>
             <span style={{ width: 12, height: 12, borderRadius: 99, background: color, display: "flex" }} />
             {name}
           </span>

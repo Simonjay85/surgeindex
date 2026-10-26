@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { SourceView } from "../../../components/trends/source-view";
 import { itemListJsonLd, JsonLd, TrendShell } from "../../../components/trends/ui";
 import { findBoard, getLatestSnapshot, listArchiveDates } from "../../../lib/trends/read";
-import { getSourceMeta, SOURCE_KEYS, type TrendBoard } from "../../../lib/trends/types";
+import { getSourceMeta, primaryRegion, SOURCE_KEYS, type TrendBoard } from "../../../lib/trends/types";
 
 export const revalidate = 300;
 
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ source: s
   const meta = getSourceMeta(source);
   if (!meta) return {};
   const snapshot = await getLatestSnapshot();
-  const first = findBoard(snapshot, meta.key)?.items[0];
+  const first = findBoard(snapshot, meta.key, primaryRegion(meta))?.items[0];
   const title = `Top 10 trending on ${meta.name} right now`;
   const description = `${meta.description}${first ? ` #1 right now: “${clip(first.title)}”.` : ""} Updated every hour.`;
   return {
@@ -39,7 +39,7 @@ export default async function SourcePage({ params }: { params: Promise<{ source:
   if (!meta) notFound();
   const [snapshot, dates] = await Promise.all([getLatestSnapshot(), listArchiveDates()]);
   const boards = meta.regions.map((r) => findBoard(snapshot, meta.key, r)).filter((b): b is TrendBoard => Boolean(b));
-  const shown: TrendBoard[] = boards.length ? boards : [{ id: meta.key, source: meta.key, region: "global", status: meta.comingSoon ? "soon" : "unavailable", fetchedAt: null, items: [] }];
+  const shown: TrendBoard[] = boards.length ? boards : [{ id: meta.key, source: meta.key, region: primaryRegion(meta), status: meta.comingSoon ? "soon" : "unavailable", fetchedAt: null, items: [] }];
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "https://surgeindex.lol").replace(/\/$/, "");
   const primary = shown[0]!;
   return (

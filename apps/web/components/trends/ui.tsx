@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { ArrowUpRight, Flame, MessageSquare } from "lucide-react";
 import { formatCompact, formatFull, formatUtcTime } from "../../lib/trends/format";
-import { getSourceMeta, TREND_SOURCES, type SourceMeta, type TrendBoard, type TrendItem, type TrendSource } from "../../lib/trends/types";
+import { formatMetricValue, getSourceMeta, TREND_SOURCES, type SourceMeta, type TrendBoard, type TrendItem, type TrendSource } from "../../lib/trends/types";
 import { PlatformIcon } from "./platform-icon";
 import { UpdatedPulse } from "./client";
 
@@ -88,7 +88,7 @@ export function TrendFooter() {
       </div>
       <div className="t-wrap t-footer-bottom">
         <span>© {new Date().getFullYear()} SurgeIndex</span>
-        <span>Data from public Google Trends, YouTube, Reddit, Hacker News and GitHub charts. Not affiliated with any platform.</span>
+        <span>Data from public Google Trends, YouTube, Wikipedia, Reddit, Hacker News, GitHub, Amazon and eBay charts. Not affiliated with any platform.</span>
       </div>
     </footer>
   );
@@ -181,8 +181,7 @@ export function Thumb({ item, meta, size = "sm" }: { item: TrendItem; meta: Sour
 
 function metricText(item: TrendItem, meta: SourceMeta): { value: string; label: string } | null {
   if (item.metric === null) return item.comments ? { value: formatCompact(item.comments), label: "comments" } : null;
-  const plus = meta.key === "google-trends" ? "+" : "";
-  return { value: `${formatCompact(item.metric)}${plus}`, label: meta.metricLabel };
+  return { value: formatMetricValue(meta, formatCompact(item.metric)), label: meta.metricLabel };
 }
 
 /* ───────────────────────────── Rows ───────────────────────────── */
@@ -261,7 +260,7 @@ export function FullRow({ item, meta }: { item: TrendItem; meta: SourceMeta }) {
           ))}
           {item.discussionUrl && item.discussionUrl !== item.url ? (
             <a className="t-tag is-link" href={item.discussionUrl} {...EXT}>
-              <MessageSquare size={12} aria-hidden="true" /> {item.comments ? `${formatCompact(item.comments)} comments` : meta.key === "google-trends" ? "Explore trend" : "Discussion"}
+              <MessageSquare size={12} aria-hidden="true" /> {item.comments ? `${formatCompact(item.comments)} comments` : meta.discussionLabel ?? "Discussion"}
             </a>
           ) : null}
         </div>
@@ -296,8 +295,8 @@ export function ComingSoon({ meta, note }: { meta: SourceMeta; note?: string }) 
         <PlatformIcon source={meta.key} size={28} />
       </span>
       <strong>{meta.name} Top 10 is coming soon</strong>
-      <p>{meta.key === "x" ? "Real-time X trends need the paid X API. We will switch this board on in a later phase — no placeholder data in the meantime." : "We are connecting the official chart. Until then this board stays empty rather than showing anything made up."}</p>
-      {note && meta.key !== "x" ? <span className="t-soon-note">{note}</span> : null}
+      <p>{meta.key === "x" ? "Real-time X trends need the paid X API. We will switch this board on in a later phase — no placeholder data in the meantime." : meta.key === "shopee" ? "Shopee Vietnam does not publish a public best-seller feed we can read reliably. We will switch this board on once there is one — no placeholder data in the meantime." : "We are connecting the official chart. Until then this board stays empty rather than showing anything made up."}</p>
+      {note && meta.key !== "x" && meta.key !== "shopee" ? <span className="t-soon-note">{note}</span> : null}
     </div>
   );
 }
@@ -316,7 +315,7 @@ export function BoardCard({ meta, boards }: { meta: SourceMeta; boards: TrendBoa
           {boards.map((b) => (
             <span key={b.id} className="t-board-region" data-only={multi ? b.region : undefined}>
               {meta.regionLabels[b.region] ?? "Global"}
-              {!multi ? <span className="t-global-hint"> · global only</span> : null}
+              {!multi ? <span className="t-global-hint"> · {b.region === "vn" ? "Vietnam only" : "global only"}</span> : null}
             </span>
           ))}
         </div>
@@ -383,7 +382,7 @@ export function Ticker({ entries }: { entries: TickerEntry[] }) {
             <a href={item.url} tabIndex={hidden ? -1 : undefined} {...EXT}>
               {item.title}
             </a>
-            {item.metric !== null ? <span className="t-ticker-metric">{formatCompact(item.metric)}{source === "google-trends" ? "+" : ""} {meta.metricLabel}</span> : null}
+            {item.metric !== null ? <span className="t-ticker-metric">{formatMetricValue(meta, formatCompact(item.metric))} {meta.metricLabel}</span> : null}
           </li>
         );
       })}

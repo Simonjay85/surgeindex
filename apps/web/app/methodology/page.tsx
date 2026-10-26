@@ -15,6 +15,9 @@ const REF_ROWS: Array<{ key: keyof typeof TREND_VELOCITY_REFERENCE; name: string
   { key: "reddit", name: "Reddit", unit: "upvotes / hour", source: "r/all hot listing. Uses the public JSON or OAuth API for vote counts; falls back to the public RSS feed, which has no counts." },
   { key: "hackernews", name: "Hacker News", unit: "points / hour", source: "Official Hacker News Firebase API, top stories." },
   { key: "github", name: "GitHub", unit: "stars / hour", source: "github.com/trending (daily, all languages). Stars gained today ÷ 24." },
+  { key: "wikipedia", name: "Wikipedia", unit: "views / hour", source: "Official Wikimedia pageviews API, most-read articles of the last full UTC day on English (Global) and Vietnamese (Vietnam) Wikipedia. Main pages, non-article namespaces and obvious bot-driven adult spikes are removed. Daily views ÷ 24." },
+  { key: "amazon", name: "Amazon", unit: "% sales-rank gain / hour", source: "Amazon.com Movers & Shakers (biggest 24-hour sales-rank gains across departments) when Amazon publishes it; otherwise the #1 Best Sellers of each department, interleaved by rank, with no growth metric." },
+  { key: "ebay", name: "eBay", unit: "— (position and momentum only)", source: "ebay.com/deals/trending in eBay's own order. Discounts are shown but are not a growth signal, so velocity is left out and the other weights are renormalized." },
 ];
 
 export default function MethodologyPage() {
@@ -22,7 +25,7 @@ export default function MethodologyPage() {
     <ProsePage kicker="Methodology" title={<>Heat, <em>not hype.</em></>} lede="Every board is a real platform chart, refreshed hourly. Heat Score adds one thing the charts do not tell you: how fast each item is moving.">
       <section>
         <h2>1 · The boards</h2>
-        <p>Each board is the platform&apos;s own Top 10 — we never invent, pad or estimate rows. If a platform cannot be reached, the board keeps its last good snapshot and is marked <strong>Delayed</strong>, or says <strong>Unavailable</strong>. Boards that need paid access (X) are shown as <strong>Coming soon</strong> with no data.</p>
+        <p>Each board is the platform&apos;s own Top 10 — we never invent, pad or estimate rows. If a platform cannot be reached, the board keeps its last good snapshot and is marked <strong>Delayed</strong>, or says <strong>Unavailable</strong>. Boards without a usable public source — X (paid API) and Shopee Vietnam (no public best-seller feed) — are shown as <strong>Coming soon</strong> with no data.</p>
         <div className="t-table-wrap">
           <table className="t-table">
             <thead>
@@ -58,7 +61,7 @@ export default function MethodologyPage() {
           <li><strong>Chart position — {Math.round(TREND_HEAT_WEIGHTS.position * 100)}%.</strong> The platform&apos;s own ranking, from #1 (full credit) to #10.</li>
           <li><strong>Momentum — {Math.round(TREND_HEAT_WEIGHTS.momentum * 100)}%.</strong> Places climbed or lost since the previous hour. Newcomers get a strong momentum signal.</li>
         </ul>
-        <p>When a source exposes no counts at all (Reddit&apos;s RSS fallback), velocity is left out and the other two weights are rescaled, rather than pretending velocity is zero.</p>
+        <p>Velocity is only measured between snapshots for running totals that keep growing through the hour (Reddit upvotes, Hacker News points, YouTube views). Daily figures such as Wikipedia&apos;s most-read counts or Amazon&apos;s 24-hour rank gain keep their own per-hour rate. When a source exposes no growth counts at all (Reddit&apos;s RSS fallback, Amazon Best Sellers, eBay deals), velocity is left out and the other two weights are rescaled, rather than pretending velocity is zero — so brand-new boards score sensibly from their very first refresh.</p>
       </section>
       <section>
         <h2>4 · Movement and history</h2>
