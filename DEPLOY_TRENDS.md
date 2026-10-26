@@ -136,11 +136,33 @@ Point `/opt/surgeindex/current` back at the previous release and restart
 `surgeindex.service`. Remove the cron task. The trend data directory can stay;
 nothing else reads it.
 
+## 8. Live blog, tips, donate (runtime data + secrets)
+
+`scripts/deploy-vps.sh` creates `/opt/surgeindex/shared/live` and
+`/opt/surgeindex/shared/tips` (owned by `ubuntu`, inside the service's
+`ReadWritePaths`). Both are derived from `TRENDS_DATA_DIR`; override with
+`LIVE_DATA_DIR` / `TIPS_DATA_DIR` only if needed.
+
+Optional GitHub repo secrets synced on every deploy (same mechanism as
+`YOUTUBE_API_KEY`). Ingest keys go to `trends.env`; web-runtime keys go to
+`/etc/surgeindex/surgeindex.env` (loaded by `surgeindex.service`):
+
+| Secret | File | Effect when unset |
+| --- | --- | --- |
+| `LIVE_ADMIN_TOKEN` | surgeindex.env | `POST /api/live/<slug>` returns 503 |
+| `DONATE_BANK_BIN` or `DONATE_BANK_CODE`, `DONATE_ACCOUNT_NO`, `DONATE_ACCOUNT_NAME`, `DONATE_BANK_NAME` | surgeindex.env | no bank QR |
+| `DONATE_MOMO_PHONE`, `DONATE_INTL_URL` | surgeindex.env | channel hidden; all unset → "Sắp ra mắt", footer link hidden |
+
+Removing a secret does not delete the old line from the env file; to retire a
+value, set the secret to a new value or remove the line on the VPS.
+Content workflow (posting updates, resolving): `CONTENT_SURGE_STORY.md`.
+
 ## Routes added
 
 - `/` — live Top 10 overview (ticker, spotlight, all boards, Global/Vietnam toggle)
 - `/top-10` — board index
-- `/top-10/[source]` — `google-trends`, `youtube`, `reddit`, `hackernews`, `github` (`x` is a noindex "coming soon")
+- `/top-10/[source]` — `google-trends`, `news` (Báo VN đang nóng, board id `news-vn`), `youtube`, `reddit`, `hackernews`, `github` (`x` is a noindex "coming soon")
+- `/vn/gui-tin` (reader tips), `/vn/ung-ho` (donate), `POST /api/tips`, `GET|POST /api/live/<slug>`
 - `/top-10/[source]/[YYYY-MM-DD]` — daily archive (UTC), ISR 30 min
 - `/api/trends` — latest snapshot JSON (compact: every board and item, no thumbnails / why-lines / rank history; stays well under 64 KB so the deploy health check `curl | head -c 1` under `pipefail` keeps passing)
 - `/api/trends/full` — full latest snapshot JSON

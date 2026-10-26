@@ -69,7 +69,8 @@ Sitemap (`app/sitemap.ts`) and static params pick up registered stories automati
 | `sources[]`, `sources_note` | "Nguồn" list: `{url, title, publisher, date, lang, kind}` with `kind` `original` / `republished`. Links render `rel="nofollow noopener noreferrer"` `target="_blank"`. |
 | `related_entities[]` | Shown as tags; JSON-LD `mentions`. |
 | `newsletter` | `{title, status: "coming-soon", label}` — rendered as a disabled CTA until a backend exists. |
-| `exclude_from_boards`, `show_heat_score` | Must be `true` / `false`. |
+| `live`, `live_keywords[]`, `live_started_at` | Live blog mode (see below). `live: true` requires ≥ 1 keyword and an ISO start time with offset, e.g. `2026-10-27T02:00:00+07:00`. |
+| `exclude_from_boards`, `show_heat_score` | Must be `true` / `false`. Slugs `stories`, `gui-tin`, `ung-ho` are reserved. |
 
 ## Editorial checklist (before publishing)
 
@@ -82,3 +83,98 @@ Sitemap (`app/sitemap.ts`) and static params pick up registered stories automati
 - [ ] **Newsletter CTA** at the bottom (comes from `newsletter`).
 - [ ] Neutral wording; no verdicts; no copied article text; no re-posted clips.
 - [ ] Quotes in quotation marks match the source wording.
+
+## Live blog ("Cập nhật trực tiếp")
+
+A story with `"live": true` shows a pulsing **ĐANG CẬP NHẬT** badge, a running
+list of timestamped updates (newest first), an automatic **"Báo chí đang nói
+gì"** feed and a reader-tip form. Updates are **not** in the repo: they live in
+`<LIVE_DATA_DIR>/<slug>.json` (production: `/opt/surgeindex/shared/live/`,
+derived from `TRENDS_DATA_DIR`; locally `apps/web/data/live/`, git-ignored) and
+are read on every request (the story page is rendered dynamically; open pages
+also refresh themselves every 60 s), so **posting an update never needs a
+rebuild** and shows up immediately.
+
+| What | Where |
+| --- | --- |
+| Turn live mode on | Story JSON: `"live": true`, `"live_keywords": [...]`, `"live_started_at": "…+07:00"` (this part *does* need a commit + deploy) |
+| Updates + resolution | `/opt/surgeindex/shared/live/<slug>.json` — written only by the API |
+| Press matches | `/opt/surgeindex/shared/live/<slug>.press.json` — written by the hourly ingest (minute 5) from the news-vn RSS articles whose **headline** contains a keyword (diacritics ignored, whole phrase) |
+| API | `GET /api/live/<slug>` (public JSON) · `POST /api/live/<slug>` (Bearer `LIVE_ADMIN_TOKEN`) |
+| Code | `lib/live/*`, `components/stories/live-blog.tsx`, `app/api/live/[siteId]/route.ts` (the segment is shared with the legacy site-id route) |
+| JSON-LD | `LiveBlogPosting` with `coverageStartTime`, `coverageEndTime` (once resolved) and `liveBlogUpdate[]` |
+
+Rules (same as the rest of this file, plus):
+
+- Every update: short, neutral text (≤ 800 chars), **≥ 1 https source URL**, a
+  time with `+07:00`. Only post what a source actually says ("theo VnExpress…").
+- **Append only.** The API cannot edit or delete an update. A correction is a
+  *new* update that says what changed ("Đính chính: …"). If something must be
+  removed for legal reasons, edit the JSON file on the server by hand and note
+  it in the next update.
+- Never invent updates to fill the list; an empty list shows an empty state.
+- `LIVE_ADMIN_TOKEN` unset → `POST` returns **503** (feature off). Wrong token → 401.
+
+### Post an update (curl)
+
+```bash
+export SI_TOKEN='<LIVE_ADMIN_TOKEN>'   # never commit or paste it in chat logs
+curl -sS -X POST https://surgeindex.lol/api/live/truong-giang \
+  -H "Authorization: Bearer $SI_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "text": "Theo VnExpress, nhà sản xuất 2 Ngày 1 Đêm xác nhận …",
+        "sources": ["https://vnexpress.net/…html"],
+        "time": "2026-10-27T09:30:00+07:00"
+      }'
+# 201 {"ok":true,"action":"update","entry":{…},"updates":1,"resolved":false}
+```
+
+- `time` is optional (defaults to now, Vietnam time). Use the time the event
+  happened / the source published, with `+07:00`.
+- `sources` accepts plain URLs or objects:
+  `{"url": "https://…", "publisher": "Tuổi Trẻ", "title": "…"}`.
+- `422` lists exactly which field is wrong (e.g. missing source).
+
+### Resolve a story (final "Kết quả / Diễn biến cuối")
+
+```bash
+curl -sS -X POST https://surgeindex.lol/api/live/truong-giang \
+  -H "Authorization: Bearer $SI_TOKEN" -H "Content-Type: application/json" \
+  -d '{"action":"resolve","summary":"Tóm tắt trung lập kết quả cuối cùng …","sources":["https://…"]}'
+```
+
+The badge switches to **ĐÃ KẾT THÚC**, auto-refresh stops, the final section
+appears above the updates and JSON-LD gets `coverageEndTime`. A story can be
+resolved once (`409` afterwards). Afterwards, in a normal commit, consider
+setting `"status": "ended"`, adding the outcome as a timeline milestone and
+setting `"live": false` (the runtime file stays on disk and is simply no
+longer shown).
+
+### Check what is live
+
+```bash
+curl -s https://surgeindex.lol/api/live/truong-giang | jq '{live, updated_at, n: (.updates|length), press: (.press|length)}'
+```
+
+## Reader tips ("Gửi tin nóng")
+
+Form on `/vn/gui-tin`, `/vn/stories` and every live story. Fields: chủ đề
+(required), link nguồn (required URL), ghi chú (≤ 1000), email (optional).
+Turnstile (`TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`, action `tip`), 5
+tips/hour per IP (in-memory), stored as one JSON line per tip in
+`/opt/surgeindex/shared/tips/tips.jsonl` (salted IP hash, never the raw IP),
+plus an email to `TIPS_NOTIFY_EMAIL` (default simonjay0805@gmail.com) through
+the existing Resend setup (`EMAIL_PROVIDER=http`; skipped silently otherwise).
+Tips are **never** published automatically — verify the source, then post a
+live update or a milestone yourself.
+
+## Donate ("Ủng hộ SurgeIndex", `/vn/ung-ho`)
+
+Env-only, nothing hard-coded: `DONATE_BANK_BIN` (or `DONATE_BANK_CODE`),
+`DONATE_ACCOUNT_NO`, `DONATE_ACCOUNT_NAME`, optional `DONATE_BANK_NAME`,
+`DONATE_MOMO_PHONE`, `DONATE_INTL_URL` (https). With none set the page says
+"Sắp ra mắt" and the footer/story links are hidden. The VietQR image is
+`https://img.vietqr.io/image/<bank>-<account>-compact2.png?addInfo=UNG+HO+SURGEINDEX&accountName=…`.
+Set them as GitHub repo secrets; the deploy workflow writes them to
+`/etc/surgeindex/surgeindex.env` and the next deploy picks them up.
