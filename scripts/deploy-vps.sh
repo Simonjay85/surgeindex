@@ -57,15 +57,26 @@ log "pnpm install"
 pnpm install --frozen-lockfile --reporter=append-only
 
 # --- env ---------------------------------------------------------------
-set -a
-# shellcheck disable=SC1090
-source <(sudo cat /etc/surgeindex/surgeindex.env)
-# same optional env files the systemd unit loads
-for f in /etc/surgeindex/turnstile.production.env /etc/surgeindex/resend.env; do
-  sudo test -f "$f" && source <(sudo cat "$f")
+# Parse systemd-style env files literally (values may contain spaces/$/quotes).
+load_env() {
+  local f="$1" line key val
+  sudo test -f "$f" || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
+    [[ "$line" == *=* ]] || continue
+    key="${line%%=*}"; key="${key#export }"; key="${key//[[:space:]]/}"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    val="${line#*=}"
+    if [[ "$val" =~ ^\"(.*)\"$ ]] || [[ "$val" =~ ^\'(.*)\'$ ]]; then val="${BASH_REMATCH[1]}"; fi
+    export "$key=$val"
+  done < <(sudo cat "$f")
+  log "loaded env $(basename "$f")"
+}
+# same env files surgeindex.service loads, plus trends.env
+for f in /etc/surgeindex/surgeindex.env /etc/surgeindex/turnstile.production.env /etc/surgeindex/resend.env /etc/surgeindex/trends.env; do
+  load_env "$f"
 done
-[ -f /etc/surgeindex/trends.env ] && source <(sudo cat /etc/surgeindex/trends.env)
-set +a
 export TRENDS_DATA_DIR="$DATA"
 grep -q '^TRENDS_DATA_DIR=' <(sudo cat /etc/surgeindex/surgeindex.env) || \
   echo "TRENDS_DATA_DIR=$DATA" | sudo tee -a /etc/surgeindex/surgeindex.env >/dev/null
