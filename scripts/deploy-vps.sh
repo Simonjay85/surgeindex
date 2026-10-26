@@ -73,6 +73,19 @@ load_env() {
   done < <(sudo cat "$f")
   log "loaded env $(basename "$f")"
 }
+# merge optional API keys pushed by GitHub Actions into trends.env
+if [ -s /tmp/surgeindex-keys.env ]; then
+  sudo touch /etc/surgeindex/trends.env
+  while IFS= read -r kv; do
+    k="${kv%%=*}"
+    sudo sed -i "/^${k}=/d" /etc/surgeindex/trends.env
+    printf '%s\n' "$kv" | sudo tee -a /etc/surgeindex/trends.env >/dev/null
+    log "updated $k in trends.env"
+  done < /tmp/surgeindex-keys.env
+  grep -q '^TRENDS_DATA_DIR=' <(sudo cat /etc/surgeindex/trends.env) || echo "TRENDS_DATA_DIR=$DATA" | sudo tee -a /etc/surgeindex/trends.env >/dev/null
+  sudo chown root:ubuntu /etc/surgeindex/trends.env; sudo chmod 0640 /etc/surgeindex/trends.env
+fi
+rm -f /tmp/surgeindex-keys.env
 # same env files surgeindex.service loads, plus trends.env
 for f in /etc/surgeindex/surgeindex.env /etc/surgeindex/turnstile.production.env /etc/surgeindex/resend.env /etc/surgeindex/trends.env; do
   load_env "$f"

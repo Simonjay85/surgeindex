@@ -40,6 +40,19 @@ jobs:
         run: |
           scp -i ~/.ssh/id_deploy scripts/deploy-vps.sh "$VPS_USER@$VPS_HOST:/tmp/surgeindex-deploy-vps.sh"
 
+      - name: Upload API keys (optional repo secrets)
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+        run: |
+          umask 077; : > keys.env
+          for k in YOUTUBE_API_KEY REDDIT_CLIENT_ID REDDIT_CLIENT_SECRET; do
+            v="${!k}"; [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> keys.env
+          done
+          scp -i ~/.ssh/id_deploy keys.env "$VPS_USER@$VPS_HOST:/tmp/surgeindex-keys.env"
+          rm -f keys.env
+
       - name: Deploy
         run: |
           set -o pipefail
