@@ -90,7 +90,7 @@ export function TrendFooter() {
       </div>
       <div className="t-wrap t-footer-bottom">
         <span>© {new Date().getFullYear()} SurgeIndex</span>
-        <span>Data from public Google Trends, YouTube, Wikipedia, Reddit, Hacker News, GitHub, Amazon and eBay charts. Not affiliated with any platform.</span>
+        <span>Data from public Google Trends, YouTube, Wikipedia, Reddit, Hacker News, GitHub, Amazon and eBay charts and Vietnamese news RSS feeds. Not affiliated with any platform or publisher.</span>
       </div>
     </footer>
   );
@@ -254,8 +254,21 @@ export function FullRow({ item, meta }: { item: TrendItem; meta: SourceMeta }) {
             )}
           </p>
         ) : null}
+        {item.sources?.length ? (
+          <ul className="t-news-srcs" aria-label="Các bài gốc">
+            {item.sources.slice(0, 8).map((s) => (
+              <li key={s.url}>
+                <a href={s.url} {...EXT} title={s.title}>
+                  {s.outlet}
+                  <ArrowUpRight size={11} aria-hidden="true" />
+                </a>
+              </li>
+            ))}
+            {item.sources.length > 8 ? <li className="is-more">+{item.sources.length - 8}</li> : null}
+          </ul>
+        ) : null}
         <div className="t-frow-foot">
-          {(item.tags ?? []).slice(0, 3).map((t) => (
+          {(item.sources?.length ? [] : item.tags ?? []).slice(0, 3).map((t) => (
             <span key={t} className="t-tag">
               {t}
             </span>

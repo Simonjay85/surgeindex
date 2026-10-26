@@ -12,6 +12,7 @@ import path from "node:path";
 import { computeTrendHeat, type TrendPlatform } from "@surge/scoring";
 import { formatAge, formatCompact } from "./format";
 import { DAILY_DIR, HISTORY_DIR, LATEST_FILE } from "./paths";
+import { carryOver, clusterArticles, clusterToRaw, fetchAllNews, formatVnTime } from "./news";
 import {
   fetchAmazon,
   fetchEbayTrending,
@@ -44,8 +45,23 @@ const NO_VELOCITY_SOURCES = new Set<TrendSource>(["ebay", "shopee"]);
 interface BoardSpec {
   source: TrendSource;
   region: TrendRegion;
-  fetch?: (now: number) => Promise<FetchResult>;
+  fetch?: (now: number, prev?: TrendBoard) => Promise<FetchResult>;
   soonNote?: string;
+}
+
+/** Minimum fresh articles before the news board trusts a run (else keep the last good board). */
+const NEWS_MIN_ARTICLES = 40;
+
+
+export async function fetchNewsVn(now: number, prev?: TrendBoard, fetcher: typeof fetchAllNews = fetchAllNews): Promise<FetchResult> {
+  const { articles, reports } = await fetcher();
+  const okFeeds = reports.filter((r) => r.ok);
+  const failed = reports.filter((r) => !r.ok);
+  for (const f of failed) console.warn(`[trends] news feed ${f.feed} failed: ${f.error ?? "unknown"}`);
+  if (articles.length < NEWS_MIN_ARTICLES) throw new Error(`only ${articles.length} articles from ${okFeeds.length}/${reports.length} feeds`);
+  const clusters = carryOver(clusterArticles(articles, now), prev?.items ?? []).filter((c) => c.outlets >= 2);
+  if (clusters.length < 3) throw new Error(`only ${clusters.length} multi-outlet stories found`);
+  return { items: clusters.slice(0, 10).map(clusterToRaw), via: `${okFeeds.length}/${reports.length} RSS feeds, ${articles.length} articles` };
 }
 
 function boardSpecs(): BoardSpec[] {
@@ -53,6 +69,7 @@ function boardSpecs(): BoardSpec[] {
   return [
     { source: "google-trends", region: "global", fetch: (now) => fetchGoogleTrends("global", now) },
     { source: "google-trends", region: "vn", fetch: (now) => fetchGoogleTrends("vn", now) },
+    { source: "news", region: "vn", fetch: (now, prev) => fetchNewsVn(now, prev) },
     yt
       ? { source: "youtube", region: "global", fetch: (now) => fetchYouTube("global", now) }
       : { source: "youtube", region: "global", soonNote: "YouTube Data API key not configured yet." },
@@ -114,6 +131,10 @@ function whyLine(source: TrendSource, item: RawTrendItem, ctx: { movement: Movem
       if (item.metric) parts.push(`+${formatCompact(item.metric)}% sales rank in 24h`);
       if (item.subtitle) parts.push(item.metric ? item.subtitle.replace(/^Movers & Shakers · /, "") : item.subtitle.replace(/^#(\d+) in /, "#$1 best seller in "));
       if (item.tags?.[0]?.startsWith("$")) parts.push(item.tags[0]);
+      break;
+    case "news":
+      if (item.metric) parts.push(`${item.metric} đầu báo cùng đưa tin`);
+      if (item.publishedAt) parts.push(`xuất hiện lúc ${formatVnTime(item.publishedAt)} (giờ VN)`);
       break;
     case "ebay":
       if (item.metric) parts.push(`${item.metric}% off`);
@@ -248,7 +269,7 @@ export async function runIngest(dir: string, log: (line: string) => void = conso
         continue;
       }
       try {
-        const result = await spec.fetch(now);
+        const result = await spec.fetch(now, prev);
         const board = buildBoard(spec, result, prev, now);
         boards.push(board);
         results.push({ board: id, status: "live", items: board.items.length, via: result.via });

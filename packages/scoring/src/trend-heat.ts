@@ -31,6 +31,7 @@ export const TREND_VELOCITY_REFERENCE = {
   youtube: 300_000, // views per hour
   wikipedia: 25_000, // pageviews per hour (600K / day)
   amazon: 400, // % sales-rank gain per hour (9,600% / 24h on Movers & Shakers)
+  news: 6, // distinct outlets × recency decay (6 fresh outlets = blazing)
   ebay: null, // trending deals expose price and discount, not growth
   shopee: null,
   x: 10_000,

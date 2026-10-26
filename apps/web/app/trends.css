@@ -517,6 +517,12 @@ body:has(.t-root)::before { display: none; }
   .t-story-card h2 { font-size: 34px; }
 }
 
+/* ── News board source chips ────────────────────────────────────────────── */
+.t-news-srcs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+.t-news-srcs a, .t-news-srcs .is-more { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); background: color-mix(in srgb, var(--brand) 8%, transparent); font-size: 12px; font-weight: 560; color: var(--t-soft); transition: color .2s, border-color .2s; }
+.t-news-srcs a:hover { color: var(--t-text); border-color: var(--brand); }
+.t-news-srcs .is-more { color: var(--t-dim); }
+
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 .t-footer { position: relative; z-index: 1; margin-top: 110px; padding: 56px 0 32px; border-top: 1px solid var(--t-line); background: rgba(6,7,10,.6); }
 .t-footer-grid { display: flex; justify-content: space-between; gap: 48px; }

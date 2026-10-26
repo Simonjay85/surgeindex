@@ -4,7 +4,7 @@
  * the Next.js pages share one contract.
  */
 
-export type TrendSource = "google-trends" | "youtube" | "wikipedia" | "reddit" | "hackernews" | "github" | "amazon" | "ebay" | "shopee" | "x";
+export type TrendSource = "google-trends" | "news" | "youtube" | "wikipedia" | "reddit" | "hackernews" | "github" | "amazon" | "ebay" | "shopee" | "x";
 export type TrendRegion = "global" | "vn";
 export type Movement = "up" | "down" | "same" | "new" | "none";
 export type BoardStatus = "live" | "stale" | "unavailable" | "soon";
@@ -44,6 +44,19 @@ export const TREND_SOURCES: SourceMeta[] = [
     tagline: "What the world is typing right now",
     description: "The fastest-rising Google searches from the official daily trending feed, ranked by approximate search volume and how recently the spike began.",
     homepage: "https://trends.google.com/trending",
+  },
+  {
+    key: "news",
+    name: "Báo VN đang nóng",
+    short: "Báo VN",
+    color: "#ffb23f",
+    regions: ["vn"],
+    regionLabels: { vn: "Báo chí Việt Nam" },
+    metricLabel: "đầu báo",
+    discussionLabel: "Nguồn",
+    tagline: "Tin cùng lúc nhiều đầu báo cùng đưa",
+    description: "Mỗi giờ SurgeIndex đọc RSS của VnExpress, Tuổi Trẻ, Thanh Niên, Dân Trí, VietNamNet, Znews và Google News Việt Nam, gom các bài cùng một sự kiện và xếp hạng theo số đầu báo cùng đưa tin, giảm dần theo thời gian.",
+    homepage: "https://news.google.com/home?hl=vi&gl=VN&ceid=VN:vi",
   },
   {
     key: "youtube",
@@ -177,6 +190,14 @@ export function getSourceMeta(key: string): SourceMeta | undefined {
   return TREND_SOURCES.find((s) => s.key === key);
 }
 
+/** One outlet's article inside a news cluster (news board only). */
+export interface NewsSourceLink {
+  outlet: string;
+  url: string;
+  title: string;
+  publishedAt?: string;
+}
+
 /** Raw item as returned by a source fetcher, before ranking and scoring. */
 export interface RawTrendItem {
   id: string;
@@ -194,6 +215,8 @@ export interface RawTrendItem {
   tags?: string[];
   context?: string;
   contextUrl?: string;
+  /** News board: the original articles of every outlet covering the story. */
+  sources?: NewsSourceLink[];
 }
 
 export interface TrendItem extends RawTrendItem {
