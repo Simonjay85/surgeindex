@@ -13,10 +13,13 @@ import { computeTrendHeat, type TrendPlatform } from "@surge/scoring";
 import { formatAge, formatCompact } from "./format";
 import { DAILY_DIR, HISTORY_DIR, LATEST_FILE } from "./paths";
 import {
+  fetchAmazon,
+  fetchEbayTrending,
   fetchGitHubTrending,
   fetchGoogleTrends,
   fetchHackerNews,
   fetchReddit,
+  fetchWikipedia,
   fetchYouTube,
   youtubeConfigured,
   type FetchResult,
@@ -27,6 +30,16 @@ const HISTORY_RETENTION_HOURS = 7 * 24;
 const RANK_HISTORY_POINTS = 24;
 const OFF_BOARD_RANK = 11;
 const LOCK_STALE_MS = 15 * 60_000;
+
+/**
+ * Sources whose metric is a running total that grows between hourly reads, so
+ * velocity can be measured from two snapshots. Daily totals (Wikipedia),
+ * buckets (Google Trends), "today" counters (GitHub) and shop charts keep the
+ * per-item velocity hint instead.
+ */
+const MEASURED_VELOCITY_SOURCES = new Set<TrendSource>(["reddit", "hackernews", "youtube", "x"]);
+/** Sources whose metric is not a growth signal at all (eBay discount %). */
+const NO_VELOCITY_SOURCES = new Set<TrendSource>(["ebay", "shopee"]);
 
 interface BoardSpec {
   source: TrendSource;
@@ -46,9 +59,14 @@ function boardSpecs(): BoardSpec[] {
     yt
       ? { source: "youtube", region: "vn", fetch: (now) => fetchYouTube("vn", now) }
       : { source: "youtube", region: "vn", soonNote: "YouTube Data API key not configured yet." },
+    { source: "wikipedia", region: "global", fetch: (now) => fetchWikipedia("global", now) },
+    { source: "wikipedia", region: "vn", fetch: (now) => fetchWikipedia("vn", now) },
     { source: "reddit", region: "global", fetch: (now) => fetchReddit(now) },
     { source: "hackernews", region: "global", fetch: (now) => fetchHackerNews(now) },
     { source: "github", region: "global", fetch: () => fetchGitHubTrending() },
+    { source: "amazon", region: "global", fetch: () => fetchAmazon() },
+    { source: "ebay", region: "global", fetch: () => fetchEbayTrending() },
+    { source: "shopee", region: "vn", soonNote: "Shopee Vietnam has no public best-seller feed (API returns 403, the chart page is client-rendered)." },
     { source: "x", region: "global", soonNote: "X trends need the paid X API — planned for Phase 3." },
   ];
 }
@@ -89,6 +107,19 @@ function whyLine(source: TrendSource, item: RawTrendItem, ctx: { movement: Movem
       if (v) parts.push(`${v} views/hr`);
       if (age) parts.push(`published ${age} ago`);
       break;
+    case "wikipedia":
+      if (item.metric) parts.push(`${formatCompact(item.metric)} reads in the last full day`);
+      break;
+    case "amazon":
+      if (item.metric) parts.push(`+${formatCompact(item.metric)}% sales rank in 24h`);
+      if (item.subtitle) parts.push(item.metric ? item.subtitle.replace(/^Movers & Shakers · /, "") : item.subtitle.replace(/^#(\d+) in /, "#$1 best seller in "));
+      if (item.tags?.[0]?.startsWith("$")) parts.push(item.tags[0]);
+      break;
+    case "ebay":
+      if (item.metric) parts.push(`${item.metric}% off`);
+      if (item.subtitle) parts.push(item.subtitle.split(" · ")[0]!);
+      if (!item.metric && !item.subtitle) parts.push(`#${ctx.rank} on eBay Trending Deals`);
+      break;
     default:
       break;
   }
@@ -109,7 +140,7 @@ export function buildBoard(spec: BoardSpec, result: FetchResult, prev: TrendBoar
     const movement = movementOf(prevRank, rank, hadPrevBoard);
     let velocity: number | null = raw.velocityHint ?? null;
     let measured = false;
-    if (before && before.metric !== null && raw.metric !== null && hoursSincePrev !== null && hoursSincePrev >= 0.25 && hoursSincePrev <= 6 && raw.metric >= before.metric && spec.source !== "google-trends" && spec.source !== "github") {
+    if (before && before.metric !== null && raw.metric !== null && hoursSincePrev !== null && hoursSincePrev >= 0.25 && hoursSincePrev <= 6 && raw.metric >= before.metric && MEASURED_VELOCITY_SOURCES.has(spec.source)) {
       velocity = (raw.metric - before.metric) / hoursSincePrev;
       measured = true;
     }
@@ -122,7 +153,7 @@ export function buildBoard(spec: BoardSpec, result: FetchResult, prev: TrendBoar
       boardSize: size,
       rankDelta: prevRank === null ? null : prevRank - rank,
       isNew: movement === "new",
-      velocityAvailable: !result.items.every((i) => i.metric === null),
+      velocityAvailable: !NO_VELOCITY_SOURCES.has(spec.source) && !result.items.every((i) => i.metric === null && (i.velocityHint ?? null) === null),
     }).score;
     return {
       ...raw,

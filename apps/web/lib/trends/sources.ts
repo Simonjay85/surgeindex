@@ -378,3 +378,313 @@ export async function fetchYouTube(region: TrendRegion, now: number): Promise<Fe
   if (!items.length) throw new SourceError(`YouTube returned no videos for ${regionCode}`);
   return { items, via: `youtube data api v3 regionCode=${regionCode}` };
 }
+
+/* ──────────────────────────── Wikipedia ──────────────────────────── */
+
+const WIKI_UA = "SurgeIndex/1.0 (https://surgeindex.lol; hourly most-read reader)";
+
+/** Main pages and namespaces (English and Vietnamese) that are not articles. */
+const WIKI_MAIN_PAGES = new Set(["main_page", "trang_chính", "-", "undefined", "null"]);
+const WIKI_NAMESPACE_RE =
+  /^(special|wikipedia|portal|file|image|talk|user|user_talk|template|category|help|module|draft|mediawiki|wp|đặc_biệt|thảo_luận|thành_viên|tập_tin|hình|bản_mẫu|thể_loại|chủ_đề|cổng_thông_tin|trợ_giúp|mô_đun|dự_án|wikipedia_talk)(_talk)?:/i;
+/** Adult titles that bot traffic routinely pushes up the raw chart. */
+const WIKI_BLOCK_RE = /(xxx|porn|xvideos|xnxx|xhamster|hentai|\bsex\b|_sex\b|^sex_|sexual|khiêu_dâm|tình_dục|nude|nudity)/i;
+
+interface WikiTopArticle {
+  article: string;
+  views: number;
+  rank: number;
+}
+
+export function isWikiArticle(title: string): boolean {
+  const t = title.trim();
+  if (!t || WIKI_MAIN_PAGES.has(t.toLowerCase())) return false;
+  if (WIKI_NAMESPACE_RE.test(t)) return false;
+  if (WIKI_BLOCK_RE.test(t)) return false;
+  return true;
+}
+
+export function parseWikiTop(json: unknown): WikiTopArticle[] {
+  const articles = (json as { items?: Array<{ articles?: WikiTopArticle[] }> }).items?.[0]?.articles ?? [];
+  return articles.filter((a) => a && typeof a.article === "string" && typeof a.views === "number" && isWikiArticle(a.article));
+}
+
+function wikiDateParts(now: number, daysBack: number): { path: string; iso: string } {
+  const d = new Date(now - daysBack * 86_400_000);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return { path: `${y}/${m}/${day}`, iso: `${y}-${m}-${day}` };
+}
+
+interface WikiPageInfo {
+  ns?: number;
+  title?: string;
+  missing?: boolean;
+  description?: string;
+  thumbnail?: { source?: string };
+}
+
+/** One batched Action API call: namespace check, short description, thumbnail. Failures are tolerated. */
+async function wikiPageInfo(lang: string, titles: string[]): Promise<Map<string, WikiPageInfo> | null> {
+  if (!titles.length) return new Map();
+  const params = new URLSearchParams({
+    action: "query",
+    prop: "pageimages|description",
+    titles: titles.join("|"),
+    pithumbsize: "240",
+    format: "json",
+    formatversion: "2",
+    redirects: "1",
+    origin: "*",
+  });
+  try {
+    const res = await get(`https://${lang}.wikipedia.org/w/api.php?${params}`, { headers: { "User-Agent": WIKI_UA, Accept: "application/json" } });
+    const json = (await res.json()) as { query?: { normalized?: Array<{ from: string; to: string }>; redirects?: Array<{ from: string; to: string }>; pages?: WikiPageInfo[] } };
+    const q = json.query ?? {};
+    const byTitle = new Map((q.pages ?? []).map((p) => [p.title ?? "", p]));
+    const norm = new Map((q.normalized ?? []).map((n) => [n.from, n.to]));
+    const redir = new Map((q.redirects ?? []).map((n) => [n.from, n.to]));
+    const out = new Map<string, WikiPageInfo>();
+    for (const raw of titles) {
+      const n = norm.get(raw) ?? raw.replace(/_/g, " ");
+      const page = byTitle.get(redir.get(n) ?? n);
+      if (page) out.set(raw, page);
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+function stripQuery(url: string | undefined): string | undefined {
+  const safe = safeHttpUrl(url);
+  if (!safe) return undefined;
+  const u = new URL(safe);
+  u.search = "";
+  return u.toString();
+}
+
+export function mapWikiArticles(lang: string, articles: WikiTopArticle[], info: Map<string, WikiPageInfo> | null): RawTrendItem[] {
+  const project = `${lang}.wikipedia.org`;
+  return articles
+    .filter((a) => {
+      const page = info?.get(a.article);
+      // When the Action API answered, it is the authority on namespaces.
+      return !info || !page || (page.ns === 0 && !page.missing);
+    })
+    .slice(0, BOARD_SIZE)
+    .map((a) => {
+      const page = info?.get(a.article);
+      const title = a.article.replace(/_/g, " ");
+      const path = encodeURIComponent(a.article).replace(/%2F/g, "/");
+      return {
+        id: a.article.toLowerCase(),
+        title,
+        url: `https://${project}/wiki/${path}`,
+        discussionUrl: `https://pageviews.wmcloud.org/?project=${project}&platform=all-access&agent=user&range=latest-30&pages=${encodeURIComponent(a.article)}`,
+        subtitle: page?.description ? page.description.slice(0, 160) : undefined,
+        thumbnail: stripQuery(page?.thumbnail?.source),
+        metric: a.views,
+        velocityHint: a.views / 24,
+        comments: null,
+      } satisfies RawTrendItem;
+    });
+}
+
+export async function fetchWikipedia(region: TrendRegion, now: number): Promise<FetchResult> {
+  const lang = region === "vn" ? "vi" : "en";
+  let top: WikiTopArticle[] | null = null;
+  let day = "";
+  for (const back of [1, 2]) {
+    const { path, iso } = wikiDateParts(now, back);
+    try {
+      const res = await get(`https://wikimedia.org/api/rest_v1/metrics/pageviews/top/${lang}.wikipedia/all-access/${path}`, { headers: { "User-Agent": WIKI_UA, Accept: "application/json" } });
+      top = parseWikiTop(await res.json());
+      day = iso;
+      break;
+    } catch (e) {
+      // Yesterday's file lands a few hours after midnight UTC: fall back one day on 404.
+      if ((e as SourceError).status !== 404 || back === 2) throw e;
+    }
+  }
+  if (!top?.length) throw new SourceError(`Wikimedia returned no ${lang}.wikipedia articles`);
+  const candidates = top.slice(0, BOARD_SIZE + 10);
+  const info = await wikiPageInfo(lang, candidates.map((a) => a.article));
+  const items = mapWikiArticles(lang, candidates, info);
+  if (!items.length) throw new SourceError(`No ${lang}.wikipedia articles left after filtering`);
+  return { items, via: `wikimedia pageviews top ${lang}.wikipedia ${day}` };
+}
+
+/* ─────────────────────────── Shopping pages ─────────────────────────── */
+
+const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+const SHOP_TIMEOUT_MS = 10_000;
+
+async function getShopHtml(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: { "User-Agent": BROWSER_UA, Accept: "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9" },
+    signal: AbortSignal.timeout(SHOP_TIMEOUT_MS),
+    redirect: "follow",
+  });
+  if (!res.ok) throw new SourceError(`${new URL(url).host} responded ${res.status}`, res.status);
+  return res.text();
+}
+
+function stripTags(html: string): string {
+  return decodeEntities(html.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+}
+
+/* ───────────────────────────── Amazon ───────────────────────────── */
+
+export function isAmazonRobotPage(html: string): boolean {
+  return /api-services-support@amazon\.com|\/errors\/validateCaptcha|Type the characters you see in this image|Robot Check<\/title>|To discuss automated access to Amazon data/i.test(html);
+}
+
+export interface AmazonItem extends RawTrendItem {
+  department: string;
+  departmentRank: number;
+  rankGain: number | null;
+}
+
+/**
+ * Parses the department carousels on Amazon's chart landing pages
+ * (/Best-Sellers/zgbs and /gp/movers-and-shakers share the markup).
+ */
+export function parseAmazonCarousels(html: string): AmazonItem[] {
+  const out: AmazonItem[] = [];
+  const sections = html.split(/<h2 class="a-carousel-heading[^"]*">/).slice(1);
+  for (const section of sections) {
+    const heading = stripTags(section.slice(0, section.indexOf("</h2>")));
+    const department = heading.replace(/^(Best Sellers|Movers &(amp;)? Shakers|New Releases) in /i, "").trim() || heading;
+    const cards = section.split(/<li aria-roledescription="slide"[^>]*>/).slice(1);
+    for (const card of cards) {
+      const asin = card.match(/data-asin="([A-Z0-9]{10})"/)?.[1] ?? card.match(/\/dp\/([A-Z0-9]{10})/)?.[1];
+      if (!asin) continue;
+      const rank = int(card.match(/class="zg-bdg-text">#?([\d,]+)</)?.[1]);
+      const titleHtml = card.match(/class="[^"]*p13n-sc-truncate[^"]*"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? card.match(/class="_cDEzb_p13n-sc-css-line-clamp-\d[^"]*">([\s\S]*?)<\/div>/)?.[1];
+      const title = titleHtml ? stripTags(titleHtml) : decodeEntities(card.match(/<img alt="([^"]+)"/)?.[1] ?? "");
+      if (!title) continue;
+      const img = card.match(/<img[^>]*\ssrc="(https:\/\/[^"]+)"/)?.[1];
+      const price = card.match(/p13n-sc-price[^"]*">([^<]+)</)?.[1]?.trim();
+      const rating = card.match(/aria-label="([\d.]+) out of 5 stars, ([\d,]+) ratings"/);
+      const pctRaw = card.match(/zg-(?:carousel|grid)-pct-change[^>]*>([\s\S]*?)<\/(?:span|div)>/)?.[1];
+      const pct = pctRaw ? int(stripTags(pctRaw).match(/([\d,]+)\s*%/)?.[1]) : null;
+      const tags = [price, rating ? `★ ${rating[1]} (${rating[2]})` : undefined].filter((t): t is string => Boolean(t));
+      out.push({
+        id: asin,
+        title: title.length > 140 ? `${title.slice(0, 137).trimEnd()}…` : title,
+        url: `https://www.amazon.com/dp/${asin}`,
+        subtitle: `#${rank ?? "?"} in ${department}`,
+        thumbnail: safeHttpUrl(img ? decodeEntities(img) : undefined),
+        metric: pct,
+        velocityHint: pct !== null ? pct / 24 : null,
+        comments: null,
+        tags: tags.length ? tags : undefined,
+        department,
+        departmentRank: rank ?? 99,
+        rankGain: pct,
+      });
+    }
+  }
+  return out;
+}
+
+function toRaw(item: AmazonItem): RawTrendItem {
+  const raw: RawTrendItem & Partial<Pick<AmazonItem, "department" | "departmentRank" | "rankGain">> = { ...item };
+  delete raw.department;
+  delete raw.departmentRank;
+  delete raw.rankGain;
+  return raw;
+}
+
+/** Movers: biggest rank gains across departments. Best Sellers: department leaders, interleaved by rank. */
+export function pickAmazonTop(items: AmazonItem[], mode: "movers" | "bestsellers"): RawTrendItem[] {
+  const unique = [...new Map(items.map((i) => [i.id, i])).values()];
+  if (mode === "movers") {
+    return unique
+      .filter((i) => i.rankGain !== null)
+      .sort((a, b) => (b.rankGain ?? 0) - (a.rankGain ?? 0) || a.departmentRank - b.departmentRank)
+      .slice(0, BOARD_SIZE)
+      .map((i) => toRaw({ ...i, subtitle: `Movers & Shakers · #${i.departmentRank} in ${i.department}` }));
+  }
+  const depts = [...new Set(unique.map((i) => i.department))];
+  return unique
+    .map((i) => ({ i, d: depts.indexOf(i.department) }))
+    .sort((a, b) => a.i.departmentRank - b.i.departmentRank || a.d - b.d)
+    .slice(0, BOARD_SIZE)
+    .map(({ i }) => toRaw({ ...i, metric: null, velocityHint: null }));
+}
+
+export async function fetchAmazon(): Promise<FetchResult> {
+  const errors: string[] = [];
+  let sawRobot = false;
+  for (const [mode, url] of [
+    ["movers", "https://www.amazon.com/gp/movers-and-shakers"],
+    ["bestsellers", "https://www.amazon.com/Best-Sellers/zgbs"],
+  ] as const) {
+    try {
+      const html = await getShopHtml(url);
+      if (isAmazonRobotPage(html)) {
+        sawRobot = true;
+        errors.push(`${mode}: robot check`);
+        continue;
+      }
+      const items = pickAmazonTop(parseAmazonCarousels(html), mode);
+      if (items.length >= 5) return { items, via: mode === "movers" ? "amazon.com movers & shakers" : "amazon.com best sellers (department leaders)" };
+      errors.push(`${mode}: ${items.length} items parsed`);
+    } catch (e) {
+      errors.push(`${mode}: ${(e as Error).message}`);
+    }
+  }
+  throw new SourceError(`Amazon ${sawRobot ? "served a robot check" : "charts unavailable"} (${errors.join("; ")})`);
+}
+
+/* ────────────────────────────── eBay ────────────────────────────── */
+
+export function isEbayBlockPage(html: string): boolean {
+  return /Pardon Our Interruption|captcha|splashui\/challenge|Checking your browser/i.test(html.slice(0, 20_000)) && !/data-listing-id=/.test(html);
+}
+
+export function parseEbayTrending(html: string): RawTrendItem[] {
+  const start = html.indexOf("ebayui-dne-trending-widget");
+  const scope = start >= 0 ? html.slice(start) : html;
+  const tiles = scope.split(/data-listing-id="?/).slice(1);
+  const seen = new Set<string>();
+  const out: RawTrendItem[] = [];
+  for (const tile of tiles) {
+    const id = tile.match(/^(\d{6,})/)?.[1];
+    if (!id || seen.has(id)) continue;
+    const name = tile.match(/itemprop=["']?name["']?[^>]*>([^<]+)</)?.[1] ?? tile.match(/dne-itemtile-title[^>]*title="([^"]+)"/)?.[1];
+    if (!name) continue;
+    seen.add(id);
+    const imgTag = tile.match(/<img\s[^>]*>/)?.[0] ?? "";
+    const img = imgTag.match(/data-config-src=["']?(https:\/\/[^"'\s>]+)/)?.[1] ?? imgTag.match(/\ssrc=["']?(https:\/\/i\.ebayimg\.com[^"'\s>]+)/)?.[1];
+    const price = tile.match(/itemprop=["']?price["']?(?:\s[^>]*)?>([^<]+)</)?.[1]?.trim();
+    const was = tile.match(/itemtile-price-strikethrough[^>]*>([^<]+)</)?.[1]?.trim();
+    const off = int(tile.match(/(\d{1,2})%\s*off/i)?.[1]);
+    const shipping = tile.match(/dne-itemtile-delivery[^>]*>([^<]+)</)?.[1]?.trim();
+    const sub = [price, was ? `was ${was}` : undefined].filter(Boolean).join(" · ");
+    out.push({
+      id,
+      title: decodeEntities(name).trim(),
+      url: `https://www.ebay.com/itm/${id}`,
+      subtitle: sub || undefined,
+      thumbnail: safeHttpUrl(img ? decodeEntities(img) : undefined),
+      metric: off,
+      velocityHint: null,
+      comments: null,
+      tags: [price, shipping].filter((t): t is string => Boolean(t)),
+    });
+    if (out.length >= BOARD_SIZE) break;
+  }
+  return out;
+}
+
+export async function fetchEbayTrending(): Promise<FetchResult> {
+  const html = await getShopHtml("https://www.ebay.com/deals/trending");
+  if (isEbayBlockPage(html)) throw new SourceError("eBay served a bot challenge");
+  const items = parseEbayTrending(html);
+  if (items.length < 5) throw new SourceError(`eBay trending markup changed (${items.length} items parsed)`);
+  return { items, via: "ebay.com/deals/trending" };
+}

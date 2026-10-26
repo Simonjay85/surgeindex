@@ -4,7 +4,7 @@
  * the Next.js pages share one contract.
  */
 
-export type TrendSource = "google-trends" | "youtube" | "reddit" | "hackernews" | "github" | "x";
+export type TrendSource = "google-trends" | "youtube" | "wikipedia" | "reddit" | "hackernews" | "github" | "amazon" | "ebay" | "shopee" | "x";
 export type TrendRegion = "global" | "vn";
 export type Movement = "up" | "down" | "same" | "new" | "none";
 export type BoardStatus = "live" | "stale" | "unavailable" | "soon";
@@ -18,6 +18,11 @@ export interface SourceMeta {
   regions: TrendRegion[];
   regionLabels: Partial<Record<TrendRegion, string>>;
   metricLabel: string;
+  /** Rendered around the metric value, e.g. "+" and "%" for a rank gain. */
+  metricPrefix?: string;
+  metricSuffix?: string;
+  /** Label for the secondary link when an item has a discussionUrl. */
+  discussionLabel?: string;
   tagline: string;
   description: string;
   homepage: string;
@@ -34,6 +39,8 @@ export const TREND_SOURCES: SourceMeta[] = [
     regions: ["global", "vn"],
     regionLabels: { global: "United States", vn: "Vietnam" },
     metricLabel: "searches",
+    metricSuffix: "+",
+    discussionLabel: "Explore trend",
     tagline: "What the world is typing right now",
     description: "The fastest-rising Google searches from the official daily trending feed, ranked by approximate search volume and how recently the spike began.",
     homepage: "https://trends.google.com/trending",
@@ -49,6 +56,19 @@ export const TREND_SOURCES: SourceMeta[] = [
     tagline: "The most popular videos on the planet",
     description: "YouTube's official Most Popular chart, re-ranked by view velocity so you see what is accelerating, not just what is big.",
     homepage: "https://www.youtube.com/feed/trending",
+  },
+  {
+    key: "wikipedia",
+    name: "Wikipedia",
+    short: "Wikipedia",
+    color: "#c8ccd4",
+    regions: ["global", "vn"],
+    regionLabels: { global: "English Wikipedia", vn: "Vietnamese Wikipedia" },
+    metricLabel: "views/day",
+    discussionLabel: "Pageviews",
+    tagline: "What people are reading up on",
+    description: "The most-read Wikipedia articles of the last full day from the official Wikimedia pageviews API, with site pages and obvious bot spikes filtered out.",
+    homepage: "https://pageviews.wmcloud.org/topviews/",
   },
   {
     key: "reddit",
@@ -87,6 +107,46 @@ export const TREND_SOURCES: SourceMeta[] = [
     homepage: "https://github.com/trending",
   },
   {
+    key: "amazon",
+    name: "Amazon Best Sellers",
+    short: "Amazon",
+    color: "#ff9900",
+    regions: ["global"],
+    regionLabels: { global: "Amazon.com (US)" },
+    metricLabel: "sales rank, 24h",
+    metricPrefix: "+",
+    metricSuffix: "%",
+    tagline: "What America is adding to cart",
+    description: "Amazon.com's public charts: the biggest Movers & Shakers in sales rank over 24 hours when Amazon publishes them, otherwise the #1 Best Sellers across departments.",
+    homepage: "https://www.amazon.com/gp/movers-and-shakers",
+  },
+  {
+    key: "ebay",
+    name: "eBay Trending Deals",
+    short: "eBay",
+    color: "#e53238",
+    regions: ["global"],
+    regionLabels: { global: "eBay.com (US)" },
+    metricLabel: "off",
+    metricSuffix: "%",
+    tagline: "The deals shoppers are piling into",
+    description: "eBay's public Trending Deals page, in eBay's own order, with price and discount for every listing.",
+    homepage: "https://www.ebay.com/deals/trending",
+  },
+  {
+    key: "shopee",
+    name: "Shopee",
+    short: "Shopee",
+    color: "#ee4d2d",
+    regions: ["vn"],
+    regionLabels: { vn: "Shopee Vietnam" },
+    metricLabel: "sold",
+    tagline: "Vietnam's top-selling products",
+    description: "Shopee Vietnam has no public best-seller feed we can read reliably. This board is planned and will never show placeholder data.",
+    homepage: "https://shopee.vn/",
+    comingSoon: true,
+  },
+  {
     key: "x",
     name: "X",
     short: "X",
@@ -102,6 +162,16 @@ export const TREND_SOURCES: SourceMeta[] = [
 ];
 
 export const SOURCE_KEYS = TREND_SOURCES.map((s) => s.key);
+
+/** "+1.2K%" style metric text for a source (no label). */
+export function formatMetricValue(meta: Pick<SourceMeta, "metricPrefix" | "metricSuffix">, compact: string): string {
+  return `${meta.metricPrefix ?? ""}${compact}${meta.metricSuffix ?? ""}`;
+}
+
+/** The region a single-region source lives in (Shopee is Vietnam-only). */
+export function primaryRegion(meta: Pick<SourceMeta, "regions">): TrendRegion {
+  return meta.regions.includes("global") ? "global" : meta.regions[0] ?? "global";
+}
 
 export function getSourceMeta(key: string): SourceMeta | undefined {
   return TREND_SOURCES.find((s) => s.key === key);

@@ -1,7 +1,8 @@
 /**
  * Hourly Top 10 ingestion: `pnpm trends:ingest`
  *
- * Reads public charts (Google Trends, YouTube, Reddit, Hacker News, GitHub),
+ * Reads public charts (Google Trends, YouTube, Wikipedia, Reddit, Hacker News,
+ * GitHub, Amazon, eBay),
  * scores them and writes JSON snapshots to TRENDS_DATA_DIR
  * (default apps/web/data/trends). Designed for cron: sequential requests,
  * no database, a lock file against overlapping runs, exit code 0 unless every
