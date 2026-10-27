@@ -6,7 +6,7 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { clipTitle, imageSafeText, SHARE_SIZE, vnDateLine, vnTime, type ShareData } from "./top10";
+import { clipTitle, imageSafeText, imageSafeTitleEn, SHARE_SIZE, shareCopy, type ShareData } from "./top10";
 
 export const SHARE_FONT_FAMILY = "Be Vietnam Pro";
 
@@ -57,6 +57,8 @@ function Logo() {
 export function ShareImage({ data }: { data: ShareData }) {
   const { def, board, items, at } = data;
   const accent = def.color;
+  const copy = shareCopy(def, at);
+  const safe = def.locale === "en" ? imageSafeTitleEn : imageSafeText;
   return (
     <div
       style={{
@@ -85,7 +87,7 @@ export function ShareImage({ data }: { data: ShareData }) {
 
       {/* title */}
       <div style={{ display: "flex", flexDirection: "column", marginTop: 40 }}>
-        <span style={{ fontSize: 26, fontWeight: 600, color: "#ffb08a", letterSpacing: 1 }}>{vnDateLine(at)}</span>
+        <span style={{ fontSize: 26, fontWeight: 600, color: "#ffb08a", letterSpacing: 1 }}>{copy.dateLine}</span>
         <span style={{ fontSize: 74, fontWeight: 800, lineHeight: 1.08, letterSpacing: -2, marginTop: 10 }}>{def.title[0]}</span>
         <span style={{ fontSize: 74, fontWeight: 800, lineHeight: 1.08, letterSpacing: -2, color: "#ffb08a" }}>{def.title[1]}</span>
       </div>
@@ -100,24 +102,24 @@ export function ShareImage({ data }: { data: ShareData }) {
               <div key={item.id} style={{ display: "flex", alignItems: "center", height: 79, borderBottom: `2px solid ${LINE}`, gap: 22 }}>
                 <span style={{ display: "flex", width: 64, justifyContent: "flex-end", fontSize: podium ? 46 : 38, fontWeight: 800, color: podium ? accent : "rgba(244,241,234,.45)", letterSpacing: -1 }}>{item.rank}</span>
                 {def.twoLine ? (
-                  <span style={{ display: "block", flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, fontSize: 26, lineHeight: 1.28, fontWeight: 600, overflow: "hidden", lineClamp: 2 }}>{imageSafeText(clipTitle(item.title, 120))}</span>
+                  <span style={{ display: "block", flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, fontSize: 26, lineHeight: 1.28, fontWeight: 600, overflow: "hidden", lineClamp: 2 }}>{safe(clipTitle(item.title, 120))}</span>
                 ) : (
-                  <span style={{ display: "flex", flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, fontSize: 33, fontWeight: 600, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{imageSafeText(clipTitle(item.title, 80))}</span>
+                  <span style={{ display: "flex", flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, fontSize: 33, fontWeight: 600, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{safe(clipTitle(item.title, 80))}</span>
                 )}
                 {metric ? <span style={{ display: "flex", flexShrink: 0, fontSize: 22, fontWeight: 400, color: DIM }}>{metric}</span> : null}
               </div>
             );
           })
         ) : (
-          <div style={{ display: "flex", flexGrow: 1, alignItems: "center", justifyContent: "center", fontSize: 34, fontWeight: 600, color: DIM }}>Board đang cập nhật, quay lại sau ít phút nhé.</div>
+          <div style={{ display: "flex", flexGrow: 1, alignItems: "center", justifyContent: "center", fontSize: 34, fontWeight: 600, color: DIM }}>{copy.empty}</div>
         )}
       </div>
 
       {/* footer */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: 26 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 20, color: DIM }}>{`Nguồn: ${def.source}`}</span>
-          <span style={{ fontSize: 20, color: DIM }}>{`Cập nhật ${vnTime(at)} (giờ VN) · mỗi giờ một lần`}</span>
+          <span style={{ fontSize: 20, color: DIM }}>{copy.source}</span>
+          <span style={{ fontSize: 20, color: DIM }}>{copy.updated}</span>
         </div>
         <span style={{ fontSize: 36, fontWeight: 800, letterSpacing: -0.5 }}>surgeindex.lol</span>
       </div>

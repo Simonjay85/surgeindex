@@ -10,8 +10,14 @@ export const SHARE_SIZE = { width: 1080, height: 1350 } as const;
 export const SHARE_ROUTE = "/api/share/top10-vn.png";
 export const SHARE_PAGE = "/vn/chia-se";
 
+export type ShareLocale = "vi" | "en";
+
 export interface ShareBoardDef {
   id: string;
+  /** Copy language of the image and caption. Defaults to Vietnamese. */
+  locale?: ShareLocale;
+  /** Hashtags for the English caption (VN captions use a fixed set). */
+  hashtags?: string[];
   /** Path of the live board on the site. */
   path: string;
   title: [string, string];
@@ -174,5 +180,205 @@ export function shareCaption(data: ShareData, siteUrl: string): string {
   lines.push("", `Xem bảng xếp hạng cập nhật mỗi giờ: ${base}${def.path}`, `Nguồn: ${def.source}. Cập nhật lúc ${vnTime(at)} (giờ VN).`);
   if (def.id === "tiktok-shop-vn") lines.push("Link sản phẩm trên SurgeIndex là link affiliate.");
   lines.push("", "#SurgeIndex #Top10 #XuHuong");
+  return lines.join("\n");
+}
+
+/* ───────────────────────── English (global boards) ───────────────────────── */
+
+export const SHARE_ROUTE_EN = "/api/share/top10.png";
+export const SHARE_PAGE_EN = "/share";
+
+const enNumber = new Intl.NumberFormat("en-US");
+
+/** "439K", "2.2M", "2,859": short English number. */
+export function formatEnCompact(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1).replace(/\.0$/, "")}M`;
+  if (abs >= 10_000) return `${Math.round(n / 1_000)}K`;
+  return enNumber.format(Math.round(n));
+}
+
+/** Cuts a secondary label (department, subreddit) to fit the metric column. */
+function shortLabel(text: string | undefined, max = 24): string | null {
+  if (!text) return null;
+  const t = imageSafeText(displayTitle(text));
+  if (t === "…") return null;
+  return t.length <= max ? t : `${t.slice(0, max - 1).trimEnd()}…`;
+}
+
+export const SHARE_BOARDS_EN: ShareBoardDef[] = [
+  {
+    id: "google-trends",
+    locale: "en",
+    path: "/top-10/google-trends",
+    title: ["Top 10 Trending", "Searches Today"],
+    short: "Google Trends",
+    source: "Google Trends · United States",
+    color: "#4c8dff",
+    hashtags: ["#Trending", "#GoogleTrends"],
+    metric: (i) => (i.metric ? `${formatEnCompact(i.metric)}+ searches` : null),
+  },
+  {
+    id: "youtube",
+    locale: "en",
+    twoLine: true,
+    path: "/top-10/youtube",
+    title: ["Top 10 on", "YouTube Today"],
+    short: "YouTube",
+    source: "YouTube Most Popular · United States",
+    color: "#ff2d46",
+    hashtags: ["#YouTube", "#TrendingVideos"],
+    metric: (i) => (i.metric ? `${formatEnCompact(i.metric)} views` : null),
+  },
+  {
+    id: "reddit",
+    locale: "en",
+    twoLine: true,
+    path: "/top-10/reddit",
+    title: ["Top 10 on", "Reddit Today"],
+    short: "Reddit",
+    source: "Reddit · r/all",
+    color: "#ff5a1f",
+    hashtags: ["#Reddit", "#Trending"],
+    metric: (i) => (i.metric ? `${formatEnCompact(i.metric)} upvotes` : shortLabel(i.subtitle)),
+  },
+  {
+    id: "hackernews",
+    locale: "en",
+    twoLine: true,
+    path: "/top-10/hackernews",
+    title: ["Top 10 on", "Hacker News Today"],
+    short: "Hacker News",
+    source: "Hacker News · front page",
+    color: "#ff8a1f",
+    hashtags: ["#HackerNews", "#Tech"],
+    metric: (i) => (i.metric ? `${formatEnCompact(i.metric)} points` : null),
+  },
+  {
+    id: "github",
+    locale: "en",
+    path: "/top-10/github",
+    title: ["Top 10 Trending", "GitHub Repos Today"],
+    short: "GitHub",
+    source: "GitHub Trending · all languages",
+    color: "#3fdc7a",
+    hashtags: ["#GitHub", "#OpenSource"],
+    metric: (i) => (i.metric ? `${formatEnCompact(i.metric)} stars today` : null),
+  },
+  {
+    id: "wikipedia",
+    locale: "en",
+    path: "/top-10/wikipedia",
+    title: ["Top 10 Most-Read", "on Wikipedia"],
+    short: "Wikipedia",
+    source: "Wikimedia pageviews · English Wikipedia",
+    color: "#c8ccd4",
+    hashtags: ["#Wikipedia", "#Trending"],
+    metric: (i) => (i.metric ? `${formatEnCompact(i.metric)} views` : null),
+  },
+  {
+    id: "amazon",
+    locale: "en",
+    twoLine: true,
+    path: "/top-10/amazon",
+    title: ["Top 10 Amazon", "Best Sellers"],
+    short: "Amazon",
+    source: "Amazon.com (US) best seller charts",
+    color: "#ff9900",
+    hashtags: ["#AmazonFinds", "#BestSellers"],
+    metric: (i) => (i.metric ? `+${formatEnCompact(i.metric)}% rank` : shortLabel(i.subtitle?.replace(/^#\d+ in /, ""), 22)),
+  },
+  {
+    id: "ebay",
+    locale: "en",
+    twoLine: true,
+    path: "/top-10/ebay",
+    title: ["Top 10 eBay", "Trending Deals"],
+    short: "eBay",
+    source: "eBay Trending Deals (US)",
+    color: "#e53238",
+    hashtags: ["#eBay", "#Deals"],
+    metric: (i) => {
+      const price = i.subtitle?.split(" · ")[0]?.trim();
+      const off = i.metric ? `${Math.round(i.metric)}% off` : null;
+      const p = price && /^\$[\d,.]+$/.test(price) ? price : null;
+      return p && off ? `${p} · ${off}` : (p ?? off);
+    },
+  },
+];
+
+export const DEFAULT_SHARE_BOARD_EN = SHARE_BOARDS_EN[0]!;
+
+/** English boards only: a VN id here is unknown (404). */
+export function getShareBoardEn(id: string | null | undefined): ShareBoardDef | undefined {
+  if (!id) return DEFAULT_SHARE_BOARD_EN;
+  return SHARE_BOARDS_EN.find((b) => b.id === id);
+}
+
+export function shareImagePathEn(def: ShareBoardDef): string {
+  return def.id === DEFAULT_SHARE_BOARD_EN.id ? SHARE_ROUTE_EN : `${SHARE_ROUTE_EN}?board=${def.id}`;
+}
+
+/** US Eastern calendar parts of an instant (DST-aware). */
+function etParts(at: number) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(at));
+  const get = (t: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === t)?.value ?? "";
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const mm = String(months.indexOf(get("month")) + 1).padStart(2, "0");
+  return { weekday: get("weekday"), month: get("month"), day: get("day"), year: get("year"), time: `${get("hour")}:${get("minute")}`, iso: `${get("year")}-${mm}-${get("day").padStart(2, "0")}` };
+}
+
+/** "Tuesday, October 27, 2026" (US Eastern). */
+export function etDateLine(at: number): string {
+  const e = etParts(at);
+  return `${e.weekday}, ${e.month} ${e.day}, ${e.year}`;
+}
+
+/** "08:05" (US Eastern, 24h). */
+export function etTime(at: number): string {
+  return etParts(at).time;
+}
+
+/** "2026-10-27" (US Eastern), for download file names. */
+export function etIsoDate(at: number): string {
+  return etParts(at).iso;
+}
+
+/**
+ * English image titles: the same font-safe filter as VN, then tidy what a dropped
+ * script leaves behind ("ILLIT (아일릿)" → "ILLIT", stray quotes, dangling pipes).
+ */
+export function imageSafeTitleEn(text: string): string {
+  const t = imageSafeText(text)
+    .replace(/[([{]\s*(?:feat\.?|ft\.?|with)?\s*[)\]}]/gi, " ")
+    .replace(/(^|\s)['‘’"“”](?=\s)/g, "$1")
+    .replace(/(^|\s)[|·•–-](?=\s*$)/g, "")
+    .replace(/^\s*[|·•–-]\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return t || "…";
+}
+
+/** Locale strings the image renderer needs. VN strings are unchanged from the original image. */
+export function shareCopy(def: ShareBoardDef, at: number) {
+  if (def.locale === "en") {
+    return { dateLine: etDateLine(at), source: `Source: ${def.source}`, updated: `Updated ${etTime(at)} ET · hourly`, empty: "This board is updating. Check back in a few minutes." };
+  }
+  return { dateLine: vnDateLine(at), source: `Nguồn: ${def.source}`, updated: `Cập nhật ${vnTime(at)} (giờ VN) · mỗi giờ một lần`, empty: "Board đang cập nhật, quay lại sau ít phút nhé." };
+}
+
+/** Ready-to-paste English caption: title, numbered list, link, hashtags. */
+export function shareCaptionEn(data: ShareData, siteUrl: string): string {
+  const base = siteUrl.replace(/\/$/, "");
+  const { def, items, at } = data;
+  const lines = [`🔥 ${def.title[0]} ${def.title[1]} (${etDateLine(at)})`, ""];
+  if (!items.length) lines.push("This board is updating. Check back in a few minutes.");
+  for (const item of items) {
+    const metric = data.board ? def.metric(item, data.board) : null;
+    lines.push(`${item.rank}. ${clipTitle(item.title, 90)}${metric ? ` (${metric})` : ""}`);
+  }
+  lines.push("", `Live Top 10, updated every hour: ${base}${def.path}`, `Source: ${def.source}. Updated ${etTime(at)} ET.`);
+  lines.push("", ["#SurgeIndex", ...(def.hashtags ?? ["#Trending"])].join(" "));
   return lines.join("\n");
 }

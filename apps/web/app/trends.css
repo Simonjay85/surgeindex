@@ -817,3 +817,29 @@ body:has(.t-root)::before { display: none; }
 .t-share-btn.is-primary { background: linear-gradient(135deg, #ff5a1f, #ff2d6f); border-color: transparent; color: #fff; }
 .t-share-label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--t-dim); }
 .t-share-caption { width: 100%; resize: vertical; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.35); color: inherit; font: 13px/1.5 var(--font-mono), ui-monospace, monospace; }
+
+/* Share pages hero: text left, live preview slideshow right (stacks on mobile). */
+.t-share-hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr); column-gap: 56px; align-items: center; }
+.t-sp { display: flex; flex-direction: column; align-items: center; gap: 16px; animation: t-rise 1s .3s cubic-bezier(.2, .7, .2, 1) both; }
+.t-sp-stage { position: relative; width: min(100%, 360px); aspect-ratio: 4 / 5; }
+.t-sp-back { position: absolute; inset: 0; border-radius: 22px; border: 1px solid var(--t-line-strong, rgba(255,255,255,.16)); background: linear-gradient(160deg, rgba(255,122,61,.18), rgba(165,139,255,.16)); transform: rotate(6deg) translate(18px, 8px); }
+.t-sp-card { position: absolute; inset: 0; overflow: hidden; border-radius: 22px; background: #06070a; transform: rotate(-2.5deg); box-shadow: 0 40px 100px -30px rgba(255, 60, 90, .45), 0 18px 40px -18px rgba(0,0,0,.8), inset 0 0 0 1px rgba(255,255,255,.08); transition: transform .5s cubic-bezier(.2, .7, .2, 1); }
+.t-sp:hover .t-sp-card { transform: rotate(-1deg) translateY(-4px); }
+.t-sp-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.02); transition: opacity .7s ease, transform .9s ease; }
+.t-sp-card img.is-active { opacity: 1; transform: none; }
+.t-sp-controls { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.t-sp-arrow { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 999px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.03); color: inherit; cursor: pointer; }
+.t-sp-arrow:hover, .t-sp-arrow:focus-visible { border-color: rgba(255,255,255,.45); }
+.t-sp-dots { display: flex; gap: 6px; }
+.t-sp-dots button { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 99px; background: rgba(255,255,255,.25); cursor: pointer; transition: width .3s ease, background .3s ease; }
+.t-sp-dots button.is-active { width: 22px; background: var(--brand, #ff5a1f); }
+.t-sp-dots button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.t-sp-caption { margin: 0; font-family: var(--font-mono), ui-monospace, monospace; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--t-dim); }
+@media (max-width: 900px) {
+  .t-share-hero { grid-template-columns: minmax(0, 1fr); row-gap: 36px; }
+  .t-sp-stage { width: min(78vw, 320px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-sp, .t-sp-card, .t-sp-card img, .t-sp-dots button { animation: none !important; transition: none !important; }
+  .t-sp:hover .t-sp-card { transform: rotate(-2.5deg); }
+}

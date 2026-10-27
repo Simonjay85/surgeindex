@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Download } from "lucide-react";
+import { SharePreview } from "../../../components/share/share-preview";
 import { CopyCaption } from "../../../components/share/copy-caption";
 import { TrendShell } from "../../../components/trends/ui";
 import { SHARE_BOARDS, SHARE_PAGE, shareCaption, shareData, shareImagePath, vnDateLine } from "../../../lib/share/top10";
@@ -20,11 +21,16 @@ export default async function SharePage() {
   const snapshot = await getLatestSnapshot();
   const site = (process.env.NEXT_PUBLIC_APP_URL ?? "https://surgeindex.lol").replace(/\/$/, "");
   const version = snapshot?.generatedAt ? Date.parse(snapshot.generatedAt) || 0 : 0;
+  const slides = SHARE_BOARDS.map((def) => {
+    const src = shareImagePath(def);
+    return { src: `${src}${src.includes("?") ? "&" : "?"}v=${version}`, alt: `Ảnh ${def.title[0]} ${def.title[1]}`, label: def.short, color: def.color };
+  });
   return (
     <TrendShell generatedAt={snapshot?.generatedAt ?? null}>
       <div className="t-story" lang="vi">
         <section className="t-hero is-compact t-story-hero">
-          <div className="t-wrap">
+          <div className="t-wrap t-share-hero">
+            <div>
             <nav className="t-crumbs" aria-label="Breadcrumb">
               <Link href="/">SurgeIndex</Link>
               <span aria-hidden="true">/</span>
@@ -35,6 +41,8 @@ export default async function SharePage() {
               Top 10 <em>hôm nay</em>
             </h1>
             <p className="t-lede">Ảnh 1080×1350 (dọc, hợp feed Facebook, Threads, TikTok) và caption sẵn để dán. Ảnh tự cập nhật theo dữ liệu mới nhất mỗi giờ. SurgeIndex không tự đăng lên mạng xã hội nào.</p>
+            </div>
+            <SharePreview slides={slides} labels={{ region: "Xem trước ảnh chia sẻ", prev: "Ảnh trước", next: "Ảnh tiếp", goTo: "Xem ảnh" }} />
           </div>
         </section>
         <div className="t-wrap t-share-grid">

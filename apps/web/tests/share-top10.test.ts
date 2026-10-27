@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { shareFontsDir } from "../lib/share/image";
-import { clipTitle, formatViCompact, getShareBoard, imageSafeText, SHARE_BOARDS, shareCaption, shareData, shareImagePath, vnDateLine, vnTime } from "../lib/share/top10";
+import { clipTitle, etDateLine, etIsoDate, etTime, formatEnCompact, formatViCompact, getShareBoard, getShareBoardEn, imageSafeText, imageSafeTitleEn, SHARE_BOARDS, SHARE_BOARDS_EN, shareCaption, shareCaptionEn, shareCopy, shareData, shareImagePath, shareImagePathEn, vnDateLine, vnTime } from "../lib/share/top10";
 import type { TrendBoard, TrendSnapshot } from "../lib/trends/types";
 
 const item = (rank: number, title: string, metric: number | null) => ({ id: `i${rank}`, rank, title, url: `https://example.com/${rank}`, metric, prevRank: null, movement: "none" as const, rankHistory: [rank], velocityPerHour: null, velocityMeasured: false, heat: 50, why: "x" });
@@ -73,5 +73,69 @@ describe("Top 10 share image helpers", () => {
   it("ships self-hosted Vietnamese fonts", () => {
     const dir = shareFontsDir();
     for (const f of ["BeVietnamPro-Regular.ttf", "BeVietnamPro-SemiBold.ttf", "BeVietnamPro-ExtraBold.ttf"]) expect(existsSync(path.join(dir, f))).toBe(true);
+  });
+});
+
+describe("English (global) share images", () => {
+  const en = (id: string, extra: Partial<TrendBoard> = {}): TrendBoard => ({ ...board(id), region: "global", source: id as TrendBoard["source"], ...extra });
+  const snap: TrendSnapshot = {
+    version: 1,
+    generatedAt: "2026-10-27T12:13:00Z",
+    boards: [
+      en("google-trends", { fetchedAt: "2026-10-27T12:13:00Z", items: Array.from({ length: 12 }, (_, i) => item(i + 1, `search ${i + 1}`, 20000 - i * 1000)) }),
+      en("ebay", { items: [{ ...item(1, "Apple iPhone 13 128GB", 22), subtitle: "$217.79 · was $278.15" }] }),
+      en("amazon", { items: [{ ...item(1, "Mighty Patch", null), subtitle: "#2 in Beauty & Personal Care" }] }),
+    ],
+  };
+
+  it("serves only the global boards, google-trends by default", () => {
+    expect(SHARE_BOARDS_EN.map((b) => b.id)).toEqual(["google-trends", "youtube", "reddit", "hackernews", "github", "wikipedia", "amazon", "ebay"]);
+    expect(getShareBoardEn(null)?.id).toBe("google-trends");
+    expect(getShareBoardEn("google-trends-vn")).toBeUndefined();
+    expect(getShareBoardEn("nope")).toBeUndefined();
+    expect(shareImagePathEn(getShareBoardEn("google-trends")!)).toBe("/api/share/top10.png");
+    expect(shareImagePathEn(getShareBoardEn("reddit")!)).toBe("/api/share/top10.png?board=reddit");
+    expect(getShareBoard("reddit")).toBeUndefined();
+  });
+
+  it("formats US Eastern dates (DST-aware) and short numbers", () => {
+    const at = Date.parse("2026-10-27T12:13:00Z");
+    expect(etDateLine(at)).toBe("Tuesday, October 27, 2026");
+    expect(etTime(at)).toBe("08:13");
+    expect(etIsoDate(at)).toBe("2026-10-27");
+    const winter = Date.parse("2026-12-01T03:30:00Z"); // EST, previous day in New York
+    expect(etDateLine(winter)).toBe("Monday, November 30, 2026");
+    expect(etTime(winter)).toBe("22:30");
+    expect(formatEnCompact(2859)).toBe("2,859");
+    expect(formatEnCompact(511_715)).toBe("512K");
+    expect(formatEnCompact(2_202_623)).toBe("2.2M");
+    expect(formatEnCompact(15_000_000)).toBe("15M");
+  });
+
+  it("uses English copy on the image, VN copy unchanged", () => {
+    const at = Date.parse("2026-10-27T12:13:00Z");
+    expect(shareCopy(getShareBoardEn("google-trends")!, at)).toEqual({ dateLine: "Tuesday, October 27, 2026", source: "Source: Google Trends · United States", updated: "Updated 08:13 ET · hourly", empty: "This board is updating. Check back in a few minutes." });
+    expect(shareCopy(getShareBoard("google-trends-vn")!, at).updated).toBe("Cập nhật 19:13 (giờ VN) · mỗi giờ một lần");
+  });
+
+  it("tidies what dropped scripts leave behind", () => {
+    expect(imageSafeTitleEn("ILLIT (아일릿) Official MV")).toBe("ILLIT Official MV");
+    expect(imageSafeTitleEn("Pop | 대")).toBe("Pop");
+    expect(imageSafeTitleEn("🔴LIVE | AGE OF EMPIRES")).toBe("LIVE | AGE OF EMPIRES");
+    expect(imageSafeTitleEn("大谷")).toBe("…");
+  });
+
+  it("builds a ready English caption with metrics, link and hashtags", () => {
+    const caption = shareCaptionEn(shareData(snap, getShareBoardEn("google-trends")!), "https://surgeindex.lol/");
+    expect(caption).toContain("🔥 Top 10 Trending Searches Today (Tuesday, October 27, 2026)");
+    expect(caption).toContain("1. search 1 (20K+ searches)");
+    expect(caption).toContain("10. search 10");
+    expect(caption).not.toContain("11. ");
+    expect(caption).toContain("https://surgeindex.lol/top-10/google-trends");
+    expect(caption).toContain("Updated 08:13 ET.");
+    expect(caption).toContain("#SurgeIndex #Trending #GoogleTrends");
+    expect(shareCaptionEn(shareData(snap, getShareBoardEn("ebay")!), "https://surgeindex.lol")).toContain("1. Apple iPhone 13 128GB ($217.79 · 22% off)");
+    expect(shareCaptionEn(shareData(snap, getShareBoardEn("amazon")!), "https://surgeindex.lol")).toContain("1. Mighty Patch (Beauty & Personal Care)");
+    expect(shareCaptionEn(shareData(snap, getShareBoardEn("youtube")!), "https://surgeindex.lol")).toContain("This board is updating");
   });
 });
