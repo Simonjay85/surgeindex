@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ProsePage } from "../../components/trends/prose-page";
 import { TREND_VELOCITY_REFERENCE, TREND_HEAT_WEIGHTS } from "@surge/scoring";
 import { formatCompact } from "../../lib/trends/format";
+import { isProductsBoardPublished, PRODUCTS_BOARD_PATH } from "../../lib/products";
 
 export const metadata: Metadata = {
   title: "Methodology — how the Top 10 and Heat Score work",
@@ -72,6 +74,15 @@ export default function MethodologyPage() {
         <h2>5 · “Why it&apos;s hot”</h2>
         <p>The one-line explanation under each item is generated from the data alone — velocity, comments, age, stars today, the headline Google attaches to a search spike — with no AI writing involved.</p>
       </section>
+      {isProductsBoardPublished() ? (
+        <section id="san-pham-dang-len" lang="vi">
+          <h2>6 · Sản phẩm đang lên (thử nghiệm)</h2>
+          <p>
+            Board <Link href={PRODUCTS_BOARD_PATH}>Sản phẩm đang lên</Link> cập nhật mỗi tuần, không theo giờ. Thứ hạng xếp theo mức tăng mức quan tâm tìm kiếm tại Việt Nam trên Google Trends (geo=VN), so sánh trung bình 7 ngày gần nhất với 7 ngày trước đó; khi có, cộng thêm tín hiệu tăng hạng từ TikTok Creative Center Top Products VN (snapshot thủ công, ghi rõ ngày). Mỗi sản phẩm cần ít nhất một tín hiệu đo được kèm link nguồn; không có tín hiệu thì không vào board. Chúng tôi không thu thập dữ liệu trực tiếp từ Shopee hay TikTok Shop, không ghi giá nếu chưa kiểm tra, không ghi lượt bán.
+          </p>
+          <p>Một số link mua là link affiliate (Shopee, TikTok Shop): SurgeIndex có thể nhận hoa hồng, giá người mua trả không đổi, và hoa hồng không ảnh hưởng thứ hạng.</p>
+        </section>
+      ) : null}
     </ProsePage>
   );
 }

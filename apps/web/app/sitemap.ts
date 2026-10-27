@@ -4,6 +4,7 @@ import { getLatestSnapshot, listArchiveDates } from "../lib/trends/read";
 import { TREND_SOURCES } from "../lib/trends/types";
 import { listStories } from "../lib/stories";
 import { getDonateConfig } from "../lib/donate";
+import { isProductsBoardPublished, PRODUCTS_BOARD, PRODUCTS_BOARD_PATH } from "../lib/products";
 
 // Built from the trend snapshots on disk; no database access.
 export const dynamic = "force-dynamic";
@@ -27,6 +28,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       entries.push({ url: `${base}${story.url}`, lastModified: new Date(`${story.last_updated}T12:00:00+07:00`), changeFrequency: story.live ? "hourly" : "weekly", priority: 0.7 });
     }
   }
+  // Weekly product board: only once Aaron flips products-vn.json to "published".
+  if (isProductsBoardPublished()) entries.push({ url: `${base}${PRODUCTS_BOARD_PATH}`, lastModified: new Date(PRODUCTS_BOARD.updatedAt), changeFrequency: "weekly", priority: 0.7 });
   entries.push({ url: `${base}/vn/gui-tin`, changeFrequency: "monthly", priority: 0.3 });
   if (getDonateConfig().enabled) entries.push({ url: `${base}/vn/ung-ho`, changeFrequency: "monthly", priority: 0.3 });
   for (const date of dates) {

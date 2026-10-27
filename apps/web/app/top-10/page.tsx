@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, TrendingUp } from "lucide-react";
 import { PlatformIcon } from "../../components/trends/platform-icon";
 import { brandStyle, StatusChip, TrendShell } from "../../components/trends/ui";
 import { formatCompact } from "../../lib/trends/format";
+import { isProductsBoardPublished, PRODUCTS_BOARD, PRODUCTS_BOARD_PATH } from "../../lib/products";
 import { findBoard, getLatestSnapshot } from "../../lib/trends/read";
 import { formatMetricValue, primaryRegion, TREND_SOURCES } from "../../lib/trends/types";
 
@@ -63,6 +64,31 @@ export default async function BoardsIndexPage() {
             </Link>
           );
         })}
+        {isProductsBoardPublished() ? (
+          <Link href={PRODUCTS_BOARD_PATH} className="t-index-card" style={brandStyle("#ff8a3d")} lang="vi">
+            <div className="t-board-glow" aria-hidden="true" />
+            <div className="t-index-head">
+              <span className="t-board-icon">
+                <TrendingUp size={20} aria-hidden="true" />
+              </span>
+              <span className="t-status is-stale">Thử nghiệm · hàng tuần</span>
+            </div>
+            <h2>Sản phẩm đang lên</h2>
+            <p>Sản phẩm tìm kiếm tăng nhanh nhất tại Việt Nam, cập nhật mỗi tuần (không theo giờ).</p>
+            <ol>
+              {PRODUCTS_BOARD.items.slice(0, 3).map((i) => (
+                <li key={i.rank}>
+                  <span className="t-index-rank">{i.rank}</span>
+                  <span className="t-index-title">{i.name}</span>
+                  {typeof i.signals[0]?.changePct === "number" ? <span className="t-index-metric">+{i.signals[0].changePct}%</span> : null}
+                </li>
+              ))}
+            </ol>
+            <span className="t-index-cta">
+              Mở board <ArrowUpRight size={14} aria-hidden="true" />
+            </span>
+          </Link>
+        ) : null}
       </div>
     </TrendShell>
   );
