@@ -130,7 +130,18 @@ if [ "$ok" -ne 1 ]; then
 fi
 
 # --- hourly ingest cron (idempotent) -----------------------------------
-CRON_LINE="5 * * * * cd $ROOT/current && TRENDS_ENV_FILE=/etc/surgeindex/trends.env TRENDS_DATA_DIR=$DATA NODE_OPTIONS=--max-old-space-size=256 /usr/bin/flock -n /tmp/surgeindex-trends.lock timeout 300 node_modules/.bin/tsx scripts/ingest-trends.ts >> /var/log/surgeindex/trends-ingest.log 2>&1"
+# The cron job runs as ubuntu without sudo. It used to read
+# /etc/surgeindex/trends.env directly, which it cannot always do (directory
+# permissions / older Node without process.loadEnvFile), so hourly runs lost
+# YOUTUBE_API_KEY and flipped the YouTube boards to "Coming soon" one hour
+# after every deploy. Give it a private copy it can always read.
+INGEST_ENV="$SHARED/ingest.env"
+( umask 077; sudo cat /etc/surgeindex/trends.env 2>/dev/null > "$INGEST_ENV.tmp" || : > "$INGEST_ENV.tmp" )
+grep -q '^TRENDS_DATA_DIR=' "$INGEST_ENV.tmp" || echo "TRENDS_DATA_DIR=$DATA" >> "$INGEST_ENV.tmp"
+chmod 0600 "$INGEST_ENV.tmp"; mv -f "$INGEST_ENV.tmp" "$INGEST_ENV"
+if grep -q '^YOUTUBE_API_KEY=..*' "$INGEST_ENV"; then log "ingest env: YOUTUBE_API_KEY present"; else log "ingest env: YOUTUBE_API_KEY missing (YouTube boards stay Coming soon)"; fi
+log "node $(node -v)"
+CRON_LINE="5 * * * * cd $ROOT/current && TRENDS_ENV_FILE=$INGEST_ENV TRENDS_DATA_DIR=$DATA NODE_OPTIONS=--max-old-space-size=256 /usr/bin/flock -n /tmp/surgeindex-trends.lock timeout 300 node_modules/.bin/tsx scripts/ingest-trends.ts >> /var/log/surgeindex/trends-ingest.log 2>&1"
 ( crontab -l 2>/dev/null | grep -v 'scripts/ingest-trends.ts' ; echo "$CRON_LINE" ) | crontab -
 
 log "deployed $SHA ($ID) OK"

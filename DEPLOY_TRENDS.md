@@ -105,6 +105,15 @@ Exit codes: `0` ok (some boards may be "Delayed"), `1` aborted (lock held / disk
 Each run logs one line per board, e.g.
 `[trends] reddit  live  10 items via reddit rss (no vote counts)`.
 
+> `scripts/deploy-vps.sh` (the GitHub Actions deploy) writes the cron line itself
+> and points it at `/opt/surgeindex/shared/ingest.env`, a 0600 copy of
+> `trends.env` owned by `ubuntu`, refreshed on every deploy. The cron user could
+> not reliably read `/etc/surgeindex/trends.env`, so hourly runs lost
+> `YOUTUBE_API_KEY` and flipped the YouTube boards to "Coming soon" an hour after
+> each deploy (fixed 2026-10-27). Each run now logs `YOUTUBE_API_KEY present|MISSING`,
+> and a board that was live but loses its key mid-run is kept as "Delayed" (stale)
+> with the last good items instead of going blank.
+
 ## 5. Verify after the first cron run
 
 ```bash

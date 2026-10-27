@@ -46,11 +46,13 @@ const MEASURED_VELOCITY_SOURCES = new Set<TrendSource>(["reddit", "hackernews", 
 /** Sources whose metric is not a growth signal at all (eBay discount %). */
 const NO_VELOCITY_SOURCES = new Set<TrendSource>(["ebay", "shopee"]);
 
-interface BoardSpec {
+export interface BoardSpec {
   source: TrendSource;
   region: TrendRegion;
   fetch?: (now: number, prev?: TrendBoard) => Promise<FetchResult>;
   soonNote?: string;
+  /** The source is wired up but its API key is missing in this run's environment. */
+  missingKey?: string;
 }
 
 /** Minimum fresh articles before the news board trusts a run (else keep the last good board). */
@@ -79,10 +81,10 @@ function boardSpecs(): BoardSpec[] {
     { source: "news", region: "vn", fetch: (now, prev) => fetchNewsVn(now, prev) },
     yt
       ? { source: "youtube", region: "global", fetch: (now) => fetchYouTube("global", now) }
-      : { source: "youtube", region: "global", soonNote: "YouTube Data API key not configured yet." },
+      : { source: "youtube", region: "global", soonNote: "YouTube Data API key not configured yet.", missingKey: "YOUTUBE_API_KEY" },
     yt
       ? { source: "youtube", region: "vn", fetch: (now) => fetchYouTube("vn", now) }
-      : { source: "youtube", region: "vn", soonNote: "YouTube Data API key not configured yet." },
+      : { source: "youtube", region: "vn", soonNote: "YouTube Data API key not configured yet.", missingKey: "YOUTUBE_API_KEY" },
     { source: "wikipedia", region: "global", fetch: (now) => fetchWikipedia("global", now) },
     { source: "wikipedia", region: "vn", fetch: (now) => fetchWikipedia("vn", now) },
     { source: "reddit", region: "global", fetch: (now) => fetchReddit(now) },
@@ -264,6 +266,27 @@ export async function updateLivePress(articles: NewsArticle[], now: number, log:
   }
 }
 
+/**
+ * Board for a spec that cannot fetch this run. When the source was live before
+ * and only its API key is missing from this run's environment (e.g. cron could
+ * not read the env file), keep the last good items as "stale" instead of
+ * blanking a working board back to "Coming soon".
+ */
+export function unfetchableBoard(spec: BoardSpec, prev: TrendBoard | undefined): { board: TrendBoard; log: IngestLog } {
+  const id = boardId(spec.source, spec.region);
+  if (spec.missingKey && prev && prev.items.length && prev.status !== "soon") {
+    const error = `${spec.missingKey} is not set in this run's environment`;
+    return {
+      board: { ...prev, status: "stale", note: `Latest refresh skipped: ${error}. Showing the last good snapshot.` },
+      log: { board: id, status: "stale", items: prev.items.length, error },
+    };
+  }
+  return {
+    board: { id, source: spec.source, region: spec.region, status: "soon", fetchedAt: null, note: spec.soonNote, items: [] },
+    log: { board: id, status: "soon", items: 0, ...(spec.missingKey ? { error: `${spec.missingKey} is not set` } : {}) },
+  };
+}
+
 export interface IngestLog {
   board: string;
   status: TrendBoard["status"];
@@ -286,8 +309,9 @@ export async function runIngest(dir: string, log: (line: string) => void = conso
       const id = boardId(spec.source, spec.region);
       const prev = prevBoards.get(id);
       if (!spec.fetch) {
-        boards.push({ id, source: spec.source, region: spec.region, status: "soon", fetchedAt: null, note: spec.soonNote, items: [] });
-        results.push({ board: id, status: "soon", items: 0 });
+        const { board, log: line } = unfetchableBoard(spec, prev);
+        boards.push(board);
+        results.push(line);
         continue;
       }
       try {

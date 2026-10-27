@@ -11,19 +11,21 @@
  * Env is read from the process, then from TRENDS_ENV_FILE or apps/web/.env
  * when present (existing variables are never overwritten).
  */
-import { existsSync } from "node:fs";
 import path from "node:path";
+import { loadEnvFileInto } from "../apps/web/lib/trends/env-file";
 import { runIngest } from "../apps/web/lib/trends/ingest";
 import { resolveTrendsDataDir } from "../apps/web/lib/trends/paths";
 
-const envFile = process.env.TRENDS_ENV_FILE ?? path.join(process.cwd(), "apps", "web", ".env");
-if (existsSync(envFile)) {
-  try {
-    process.loadEnvFile(envFile);
-  } catch (e) {
-    console.warn(`[trends] could not read ${envFile}: ${(e as Error).message}`);
-  }
+const explicitEnvFile = process.env.TRENDS_ENV_FILE?.trim();
+const envFile = explicitEnvFile || path.join(process.cwd(), "apps", "web", ".env");
+const envResult = loadEnvFileInto(envFile);
+if (envResult.ok) {
+  console.log(`[trends] env ${envFile}: set ${envResult.set.length ? envResult.set.join(", ") : "nothing new"}`);
+} else if (explicitEnvFile) {
+  // An explicit env file that cannot be read means optional keys (YouTube, Reddit) silently vanish; say so loudly.
+  console.warn(`[trends] WARNING could not read TRENDS_ENV_FILE ${envFile} (${envResult.error}); optional API keys from it are missing this run`);
 }
+console.log(`[trends] YOUTUBE_API_KEY ${process.env.YOUTUBE_API_KEY?.trim() ? "present" : "MISSING"}`);
 
 const dir = resolveTrendsDataDir();
 
