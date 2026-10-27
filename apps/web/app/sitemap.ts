@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getServerEnv } from "@surge/config";
-import { getLatestSnapshot, listArchiveDates } from "../lib/trends/read";
-import { TREND_SOURCES } from "../lib/trends/types";
+import { findBoard, getLatestSnapshot, listArchiveDates } from "../lib/trends/read";
+import { primaryRegion, TREND_SOURCES } from "../lib/trends/types";
 import { listStories } from "../lib/stories";
 import { getDonateConfig } from "../lib/donate";
 import { isProductsBoardPublished, PRODUCTS_BOARD, PRODUCTS_BOARD_PATH } from "../lib/products";
@@ -13,7 +13,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = getServerEnv().NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   const [snapshot, dates] = await Promise.all([getLatestSnapshot(), listArchiveDates()]);
   const updated = snapshot ? new Date(snapshot.generatedAt) : new Date();
-  const sources = TREND_SOURCES.filter((s) => !s.comingSoon);
+  // Boards with no items yet (e.g. TikTok Shop before its API key is set) are noindex, so leave them out.
+  const sources = TREND_SOURCES.filter((s) => !s.comingSoon && (s.key !== "tiktok-shop" || Boolean(findBoard(snapshot, s.key, primaryRegion(s))?.items.length)));
   const entries: MetadataRoute.Sitemap = [
     { url: `${base}/`, lastModified: updated, changeFrequency: "hourly", priority: 1 },
     { url: `${base}/top-10`, lastModified: updated, changeFrequency: "hourly", priority: 0.9 },

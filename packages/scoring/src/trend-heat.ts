@@ -34,6 +34,7 @@ export const TREND_VELOCITY_REFERENCE = {
   news: 6, // distinct outlets × recency decay (6 fresh outlets = blazing)
   ebay: null, // trending deals expose price and discount, not growth
   shopee: null,
+  "tiktok-shop": 300, // units sold per hour, measured over 24h (7,200 / day)
   x: 10_000,
 } as const satisfies Record<string, number | null>;
 

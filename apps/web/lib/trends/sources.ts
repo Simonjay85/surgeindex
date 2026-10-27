@@ -19,6 +19,12 @@ export class SourceError extends Error {
 export interface FetchResult {
   items: RawTrendItem[];
   via: string;
+  /** Board-level metric label override (see TrendBoard.metricLabel). */
+  metricLabel?: string;
+  /** Short source line shown under the board. */
+  attribution?: string;
+  /** False when this read has no growth metric at all (heat drops the velocity term). */
+  velocityAvailable?: boolean;
 }
 
 async function get(url: string, init: RequestInit = {}): Promise<Response> {

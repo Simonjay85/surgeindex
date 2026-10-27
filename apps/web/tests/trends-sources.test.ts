@@ -146,7 +146,9 @@ describe("public api payload", () => {
     const size = Buffer.byteLength(JSON.stringify(compact));
     expect(compact.boards).toHaveLength(boards.length);
     expect(compact.boards[0]!.items[0]).not.toHaveProperty("rankHistory");
-    expect(size).toBeLessThan(50_000);
+    // 16 boards since TikTok Shop VN. Real snapshots are ~32 KB (TikTok Shop's affiliate URLs ≈ 5.5 KB);
+    // 56 KB keeps 8 KB headroom under the 64 KB pipe buffer of `curl | head` health checks.
+    expect(size).toBeLessThan(56_000);
     expect(Buffer.byteLength(JSON.stringify(full))).toBeGreaterThan(size * 2);
   });
 });

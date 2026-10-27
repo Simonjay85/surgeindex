@@ -50,3 +50,10 @@ export function formatShortDate(date: string): string {
 export function formatUtcTime(iso: string): string {
   return `${new Date(iso).toISOString().slice(11, 16)} UTC`;
 }
+
+/** "16:05 27/10" in Vietnam time (UTC+7, no DST). */
+export function formatVnClock(iso: string): string {
+  const d = new Date(Date.parse(iso) + 7 * 3_600_000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())} ${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}`;
+}

@@ -1,13 +1,40 @@
 /* eslint-disable @next/next/no-img-element -- remote thumbnails are rendered directly (lazy, sized) so the VPS never runs the image optimizer */
 import Link from "next/link";
 import { ArrowUpRight, Flame, MessageSquare } from "lucide-react";
-import { formatCompact, formatFull, formatUtcTime } from "../../lib/trends/format";
-import { formatMetricValue, getSourceMeta, TREND_SOURCES, type SourceMeta, type TrendBoard, type TrendItem, type TrendSource } from "../../lib/trends/types";
+import { formatCompact, formatFull, formatUtcTime, formatVnClock } from "../../lib/trends/format";
+import { externalRel, formatMetricValue, getSourceMeta, TREND_SOURCES, type SourceMeta, type TrendBoard, type TrendItem, type TrendSource } from "../../lib/trends/types";
 import { PlatformIcon } from "./platform-icon";
 import { UpdatedPulse } from "./client";
 import { getDonateConfig } from "../../lib/donate";
 
 const EXT = { target: "_blank", rel: "noopener noreferrer nofollow" } as const;
+
+/** Outbound link props for an item: affiliate boards get rel="sponsored nofollow". */
+function ext(meta: SourceMeta | undefined) {
+  return { target: "_blank", rel: externalRel(meta) } as const;
+}
+
+/** The source meta with this board's own metric label (e.g. "Bán thêm 24h"). */
+export function boardMeta(meta: SourceMeta, board: Pick<TrendBoard, "metricLabel">): SourceMeta {
+  return board.metricLabel ? { ...meta, metricLabel: board.metricLabel } : meta;
+}
+
+/** Source line, fetch time (VN) and affiliate disclosure under boards that carry them. */
+export function BoardSourceNote({ meta, board }: { meta: SourceMeta; board: TrendBoard }) {
+  if (!board.attribution && !meta.affiliate) return null;
+  if (!board.items.length) return null;
+  return (
+    <div className="t-board-src" lang={meta.lang}>
+      {board.attribution ? (
+        <p>
+          {board.attribution}
+          {board.fetchedAt ? ` Cập nhật lúc ${formatVnClock(board.fetchedAt)} (giờ VN).` : ""}
+        </p>
+      ) : null}
+      {meta.affiliate ? <p className="t-aff-note">Link sản phẩm là link affiliate: SurgeIndex có thể nhận hoa hồng khi bạn mua, giá bạn trả không đổi. Hoa hồng không ảnh hưởng thứ hạng.</p> : null}
+    </div>
+  );
+}
 
 export function brandStyle(color: string): React.CSSProperties {
   return { "--brand": color } as React.CSSProperties;
@@ -98,7 +125,7 @@ export function TrendFooter() {
       </div>
       <div className="t-wrap t-footer-bottom">
         <span>© {new Date().getFullYear()} SurgeIndex</span>
-        <span>Data from public Google Trends, YouTube, Wikipedia, Reddit, Hacker News, GitHub, Amazon and eBay charts and Vietnamese news RSS feeds. Not affiliated with any platform or publisher.</span>
+        <span>Data from public Google Trends, YouTube, Wikipedia, Reddit, Hacker News, GitHub, Amazon and eBay charts, Vietnamese news RSS feeds and the TikTok Shop affiliate feed (via AccessTrade). TikTok Shop product links are affiliate links. Not affiliated with any platform or publisher.</span>
       </div>
     </footer>
   );
@@ -203,7 +230,7 @@ export function CompactRow({ item, meta }: { item: TrendItem; meta: SourceMeta }
       <span className={`t-crank ${item.rank <= 3 ? "is-podium" : ""}`}>{item.rank}</span>
       <Thumb item={item} meta={meta} />
       <div className="t-crow-body">
-        <a className="t-crow-title" href={item.url} {...EXT}>
+        <a className="t-crow-title" href={item.url} {...ext(meta)}>
           {item.title}
         </a>
         <span className="t-crow-why">{item.why}</span>
@@ -240,7 +267,7 @@ export function FullRow({ item, meta }: { item: TrendItem; meta: SourceMeta }) {
           {item.author && item.author !== item.subtitle ? <span>{item.author}</span> : null}
         </div>
         <h3 className="t-frow-title">
-          <a href={item.url} {...EXT}>
+          <a href={item.url} {...ext(meta)}>
             {item.title}
             <ArrowUpRight size={16} aria-hidden="true" className="t-ext" />
           </a>
@@ -317,8 +344,8 @@ export function ComingSoon({ meta, note }: { meta: SourceMeta; note?: string }) 
       <span className="t-soon-icon">
         <PlatformIcon source={meta.key} size={28} />
       </span>
-      <strong>{meta.name} Top 10 is coming soon</strong>
-      <p>{meta.key === "x" ? "Real-time X trends need the paid X API. We will switch this board on in a later phase — no placeholder data in the meantime." : meta.key === "shopee" ? "Shopee Vietnam does not publish a public best-seller feed we can read reliably. We will switch this board on once there is one — no placeholder data in the meantime." : "We are connecting the official chart. Until then this board stays empty rather than showing anything made up."}</p>
+      <strong>{meta.lang === "vi" ? `Board ${meta.name} sắp ra mắt` : `${meta.name} Top 10 is coming soon`}</strong>
+      <p lang={meta.lang}>{meta.lang === "vi" ? "Board đang được kết nối với nguồn dữ liệu chính thức. Trong lúc chờ, board để trống chứ không hiển thị dữ liệu giả." : meta.key === "x" ? "Real-time X trends need the paid X API. We will switch this board on in a later phase — no placeholder data in the meantime." : meta.key === "shopee" ? "Shopee Vietnam does not publish a public best-seller feed we can read reliably. We will switch this board on once there is one — no placeholder data in the meantime." : "We are connecting the official chart. Until then this board stays empty rather than showing anything made up."}</p>
       {note && meta.key !== "x" && meta.key !== "shopee" ? <span className="t-soon-note">{note}</span> : null}
     </div>
   );
@@ -355,7 +382,7 @@ export function BoardCard({ meta, boards }: { meta: SourceMeta; boards: TrendBoa
           {b.items.length ? (
             <ol className="t-clist">
               {b.items.slice(0, 10).map((item) => (
-                <CompactRow key={item.id} item={item} meta={meta} />
+                <CompactRow key={item.id} item={item} meta={boardMeta(meta, b)} />
               ))}
             </ol>
           ) : b.status === "soon" ? (
@@ -367,6 +394,7 @@ export function BoardCard({ meta, boards }: { meta: SourceMeta; boards: TrendBoa
             </div>
           )}
           {b.status === "stale" && b.fetchedAt ? <p className="t-board-note">Showing the last good snapshot from {formatUtcTime(b.fetchedAt)}.</p> : null}
+          <BoardSourceNote meta={meta} board={b} />
         </div>
       ))}
       {!meta.comingSoon ? (
@@ -402,7 +430,7 @@ export function Ticker({ entries }: { entries: TickerEntry[] }) {
               {region !== "global" ? <em>{region.toUpperCase()}</em> : null}
             </span>
             <span className="t-ticker-one">#{item.rank}</span>
-            <a href={item.url} tabIndex={hidden ? -1 : undefined} {...EXT}>
+            <a href={item.url} tabIndex={hidden ? -1 : undefined} {...ext(meta)}>
               {item.title}
             </a>
             {item.metric !== null ? <span className="t-ticker-metric">{formatMetricValue(meta, formatCompact(item.metric))} {meta.metricLabel}</span> : null}

@@ -17,6 +17,7 @@ import { buildPressFile } from "../live/press";
 import { readPressFile, writePressFile } from "../live/store";
 import { resolveLiveDataDir } from "../live/paths";
 import { listStories } from "../stories";
+import { accessTradeConfigured, fetchTikTokShop, LABEL_UNITS_24H, LABEL_UNITS_TOTAL, TIKTOK_ATTRIBUTION, tiktokWhy } from "./tiktok-shop";
 import {
   fetchAmazon,
   fetchEbayTrending,
@@ -73,8 +74,22 @@ export async function fetchNewsVn(now: number, prev?: TrendBoard, fetcher: typeo
   return { items: clusters.slice(0, 10).map(clusterToRaw), via: `${okFeeds.length}/${reports.length} RSS feeds, ${articles.length} articles` };
 }
 
-function boardSpecs(): BoardSpec[] {
+/** TikTok Shop VN via the AccessTrade affiliate feed; history and link cache live in the data dir. */
+export async function fetchTikTokShopVn(dir: string, now: number): Promise<FetchResult> {
+  const r = await fetchTikTokShop(dir, now);
+  const h24 = r.basis === "units-24h";
+  return {
+    items: r.items,
+    via: r.via,
+    metricLabel: h24 ? LABEL_UNITS_24H : LABEL_UNITS_TOTAL,
+    attribution: `Nguồn: ${TIKTOK_ATTRIBUTION}. Xếp theo ${h24 ? "số lượng bán thêm trong 24 giờ qua (đo từ snapshot hằng giờ)" : "tổng đã bán (lũy kế) — chưa đủ ~20 giờ dữ liệu để đo bán thêm 24h"}.`,
+    velocityAvailable: h24,
+  };
+}
+
+function boardSpecs(dir: string): BoardSpec[] {
   const yt = youtubeConfigured();
+  const at = accessTradeConfigured();
   return [
     { source: "google-trends", region: "global", fetch: (now) => fetchGoogleTrends("global", now) },
     { source: "google-trends", region: "vn", fetch: (now) => fetchGoogleTrends("vn", now) },
@@ -92,6 +107,9 @@ function boardSpecs(): BoardSpec[] {
     { source: "github", region: "global", fetch: () => fetchGitHubTrending() },
     { source: "amazon", region: "global", fetch: () => fetchAmazon() },
     { source: "ebay", region: "global", fetch: () => fetchEbayTrending() },
+    at
+      ? { source: "tiktok-shop", region: "vn", fetch: (now) => fetchTikTokShopVn(dir, now) }
+      : { source: "tiktok-shop", region: "vn", soonNote: "Đang kết nối feed affiliate TikTok Shop (AccessTrade).", missingKey: "ACCESSTRADE_API_KEY" },
     { source: "shopee", region: "vn", soonNote: "Shopee Vietnam has no public best-seller feed (API returns 403, the chart page is client-rendered)." },
     { source: "x", region: "global", soonNote: "X trends need the paid X API — planned for Phase 3." },
   ];
@@ -145,6 +163,8 @@ function whyLine(source: TrendSource, item: RawTrendItem, ctx: { movement: Movem
       if (item.metric) parts.push(`${item.metric} đầu báo cùng đưa tin`);
       if (item.publishedAt) parts.push(`xuất hiện lúc ${formatVnTime(item.publishedAt)} (giờ VN)`);
       break;
+    case "tiktok-shop":
+      return [ctx.movement === "new" ? "Mới vào board" : ctx.movement === "up" && ctx.prevRank !== null ? `Tăng ${ctx.prevRank - ctx.rank} hạng so với lần trước` : null, tiktokWhy(item.metric, item.velocityHint)].filter(Boolean).join(" · ");
     case "ebay":
       if (item.metric) parts.push(`${item.metric}% off`);
       if (item.subtitle) parts.push(item.subtitle.split(" · ")[0]!);
@@ -183,7 +203,7 @@ export function buildBoard(spec: BoardSpec, result: FetchResult, prev: TrendBoar
       boardSize: size,
       rankDelta: prevRank === null ? null : prevRank - rank,
       isNew: movement === "new",
-      velocityAvailable: !NO_VELOCITY_SOURCES.has(spec.source) && !result.items.every((i) => i.metric === null && (i.velocityHint ?? null) === null),
+      velocityAvailable: result.velocityAvailable !== false && !NO_VELOCITY_SOURCES.has(spec.source) && !result.items.every((i) => i.metric === null && (i.velocityHint ?? null) === null),
     }).score;
     return {
       ...raw,
@@ -197,7 +217,17 @@ export function buildBoard(spec: BoardSpec, result: FetchResult, prev: TrendBoar
       why: whyLine(spec.source, raw, { movement, prevRank, rank, velocity, measured, now }),
     };
   });
-  return { id: boardId(spec.source, spec.region), source: spec.source, region: spec.region, status: "live", fetchedAt: new Date(now).toISOString(), via: result.via, items };
+  return {
+    id: boardId(spec.source, spec.region),
+    source: spec.source,
+    region: spec.region,
+    status: "live",
+    fetchedAt: new Date(now).toISOString(),
+    via: result.via,
+    ...(result.metricLabel ? { metricLabel: result.metricLabel } : {}),
+    ...(result.attribution ? { attribution: result.attribution } : {}),
+    items,
+  };
 }
 
 async function readJson<T>(file: string): Promise<T | null> {
@@ -305,7 +335,7 @@ export async function runIngest(dir: string, log: (line: string) => void = conso
     const boards: TrendBoard[] = [];
     const results: IngestLog[] = [];
 
-    for (const spec of boardSpecs()) {
+    for (const spec of boardSpecs(dir)) {
       const id = boardId(spec.source, spec.region);
       const prev = prevBoards.get(id);
       if (!spec.fetch) {

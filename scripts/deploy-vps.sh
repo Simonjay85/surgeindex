@@ -140,6 +140,7 @@ INGEST_ENV="$SHARED/ingest.env"
 grep -q '^TRENDS_DATA_DIR=' "$INGEST_ENV.tmp" || echo "TRENDS_DATA_DIR=$DATA" >> "$INGEST_ENV.tmp"
 chmod 0600 "$INGEST_ENV.tmp"; mv -f "$INGEST_ENV.tmp" "$INGEST_ENV"
 if grep -q '^YOUTUBE_API_KEY=..*' "$INGEST_ENV"; then log "ingest env: YOUTUBE_API_KEY present"; else log "ingest env: YOUTUBE_API_KEY missing (YouTube boards stay Coming soon)"; fi
+if grep -q '^ACCESSTRADE_API_KEY=..*' "$INGEST_ENV"; then log "ingest env: ACCESSTRADE_API_KEY present"; else log "ingest env: ACCESSTRADE_API_KEY missing (TikTok Shop board stays Coming soon)"; fi
 log "node $(node -v)"
 CRON_LINE="5 * * * * cd $ROOT/current && TRENDS_ENV_FILE=$INGEST_ENV TRENDS_DATA_DIR=$DATA NODE_OPTIONS=--max-old-space-size=256 /usr/bin/flock -n /tmp/surgeindex-trends.lock timeout 300 node_modules/.bin/tsx scripts/ingest-trends.ts >> /var/log/surgeindex/trends-ingest.log 2>&1"
 ( crontab -l 2>/dev/null | grep -v 'scripts/ingest-trends.ts' ; echo "$CRON_LINE" ) | crontab -

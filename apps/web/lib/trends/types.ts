@@ -4,7 +4,7 @@
  * the Next.js pages share one contract.
  */
 
-export type TrendSource = "google-trends" | "news" | "youtube" | "wikipedia" | "reddit" | "hackernews" | "github" | "amazon" | "ebay" | "shopee" | "x";
+export type TrendSource = "google-trends" | "news" | "youtube" | "wikipedia" | "reddit" | "hackernews" | "github" | "amazon" | "ebay" | "shopee" | "tiktok-shop" | "x";
 export type TrendRegion = "global" | "vn";
 export type Movement = "up" | "down" | "same" | "new" | "none";
 export type BoardStatus = "live" | "stale" | "unavailable" | "soon";
@@ -28,6 +28,10 @@ export interface SourceMeta {
   homepage: string;
   /** True when the board is announced but not yet ingested (paid API etc.). */
   comingSoon?: boolean;
+  /** Item links are affiliate links: rendered rel="sponsored nofollow" with a disclosure. */
+  affiliate?: boolean;
+  /** Language of the board's own copy (notes, labels), when not English. */
+  lang?: "vi";
 }
 
 export const TREND_SOURCES: SourceMeta[] = [
@@ -147,6 +151,20 @@ export const TREND_SOURCES: SourceMeta[] = [
     homepage: "https://www.ebay.com/deals/trending",
   },
   {
+    key: "tiktok-shop",
+    name: "TikTok Shop",
+    short: "TikTok Shop",
+    color: "#25f4ee",
+    regions: ["vn"],
+    regionLabels: { vn: "TikTok Shop Việt Nam" },
+    metricLabel: "đã bán",
+    tagline: "Sản phẩm bán chạy trên TikTok Shop Việt Nam",
+    description: "Sản phẩm bán chạy nhất trên TikTok Shop Việt Nam từ feed affiliate chính thức (TikTok Shop qua AccessTrade), đọc mỗi giờ. Khi đủ khoảng 20 giờ dữ liệu, board xếp theo số lượng bán thêm trong 24 giờ; trước đó xếp theo tổng đã bán (lũy kế) và ghi rõ.",
+    homepage: "https://shop.tiktok.com/",
+    affiliate: true,
+    lang: "vi",
+  },
+  {
     key: "shopee",
     name: "Shopee",
     short: "Shopee",
@@ -188,6 +206,19 @@ export function primaryRegion(meta: Pick<SourceMeta, "regions">): TrendRegion {
 
 export function getSourceMeta(key: string): SourceMeta | undefined {
   return TREND_SOURCES.find((s) => s.key === key);
+}
+
+/**
+ * Single-region sources can also be addressed by their board id
+ * (`/top-10/tiktok-shop-vn`, `/top-10/news-vn`); the canonical URL stays `/top-10/<key>`.
+ */
+export function getSourceMetaByBoardId(id: string): SourceMeta | undefined {
+  return TREND_SOURCES.find((s) => s.regions.length === 1 && boardId(s.key, s.regions[0]!) === id && id !== s.key);
+}
+
+/** rel for outbound item links; affiliate boards add "sponsored". */
+export function externalRel(meta: Pick<SourceMeta, "affiliate"> | undefined): string {
+  return meta?.affiliate ? "sponsored nofollow noopener noreferrer" : "noopener noreferrer nofollow";
 }
 
 /** One outlet's article inside a news cluster (news board only). */
@@ -240,6 +271,10 @@ export interface TrendBoard {
   fetchedAt: string | null;
   via?: string;
   note?: string;
+  /** Overrides the source's metricLabel for this board (e.g. "Bán thêm 24h" vs "Tổng đã bán (lũy kế)"). */
+  metricLabel?: string;
+  /** Short source line shown under the board, e.g. "TikTok Shop qua AccessTrade". */
+  attribution?: string;
   items: TrendItem[];
 }
 

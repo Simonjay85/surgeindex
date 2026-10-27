@@ -2,7 +2,7 @@
  * Hourly Top 10 ingestion: `pnpm trends:ingest`
  *
  * Reads public charts (Google Trends, YouTube, Wikipedia, Reddit, Hacker News,
- * GitHub, Amazon, eBay),
+ * GitHub, Amazon, eBay, TikTok Shop VN via AccessTrade),
  * scores them and writes JSON snapshots to TRENDS_DATA_DIR
  * (default apps/web/data/trends). Designed for cron: sequential requests,
  * no database, a lock file against overlapping runs, exit code 0 unless every
@@ -26,6 +26,7 @@ if (envResult.ok) {
   console.warn(`[trends] WARNING could not read TRENDS_ENV_FILE ${envFile} (${envResult.error}); optional API keys from it are missing this run`);
 }
 console.log(`[trends] YOUTUBE_API_KEY ${process.env.YOUTUBE_API_KEY?.trim() ? "present" : "MISSING"}`);
+console.log(`[trends] ACCESSTRADE_API_KEY ${process.env.ACCESSTRADE_API_KEY?.trim() ? "present" : "MISSING"}`);
 
 const dir = resolveTrendsDataDir();
 

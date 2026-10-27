@@ -4,7 +4,7 @@ import { formatLongDate, formatShortDate, formatUtcTime } from "../../lib/trends
 import { TREND_SOURCES, type SourceMeta, type TrendBoard } from "../../lib/trends/types";
 import { RegionScope, RegionToggle, UpdatedPulse } from "./client";
 import { PlatformIcon } from "./platform-icon";
-import { brandStyle, ComingSoon, FullRow, StatusChip } from "./ui";
+import { boardMeta, BoardSourceNote, brandStyle, ComingSoon, FullRow, StatusChip } from "./ui";
 
 export interface SourceViewProps {
   meta: SourceMeta;
@@ -91,7 +91,7 @@ export function SourceView({ meta, boards, generatedAt, archiveDates, archiveDat
               {b.items.length ? (
                 <ol className="t-flist" style={brandStyle(meta.color)}>
                   {b.items.map((item) => (
-                    <FullRow key={item.id} item={item} meta={meta} />
+                    <FullRow key={item.id} item={item} meta={boardMeta(meta, b)} />
                   ))}
                 </ol>
               ) : b.status === "soon" ? (
@@ -103,6 +103,7 @@ export function SourceView({ meta, boards, generatedAt, archiveDates, archiveDat
                 </div>
               )}
               {b.status === "stale" && b.fetchedAt ? <p className="t-board-note">The latest refresh failed; showing the last good snapshot from {formatUtcTime(b.fetchedAt)}.</p> : null}
+              <BoardSourceNote meta={meta} board={b} />
             </div>
           ))}
           {archiveDate ? (
@@ -131,7 +132,11 @@ export function SourceView({ meta, boards, generatedAt, archiveDates, archiveDat
         <aside className="t-src-side">
           <div className="t-side-card">
             <h2>How this board is ranked</h2>
+            {meta.key === "tiktok-shop" ? (
+              <p lang="vi">Thứ tự lấy từ số lượng đã bán trong feed affiliate chính thức của TikTok Shop (qua AccessTrade). Feed chỉ có tổng đã bán (lũy kế), nên SurgeIndex lưu số liệu mỗi giờ và xếp theo số bán thêm trong 24 giờ khi đủ ~20 giờ dữ liệu. Hoa hồng affiliate không ảnh hưởng thứ hạng.</p>
+            ) : (
             <p>Position comes from {meta.name}&apos;s own chart. The flame is our Heat Score: growth per hour normalized for {meta.short}, blended with chart position and momentum since the previous hour.</p>
+            )}
             <Link href="/methodology" className="t-side-link">
               Methodology <ArrowUpRight size={13} aria-hidden="true" />
             </Link>

@@ -32,6 +32,8 @@ Create `/etc/surgeindex/trends.env` (read by the cron job; must be readable by t
 TRENDS_DATA_DIR=/opt/surgeindex/shared/trends
 # Optional — enables the YouTube boards (US + VN). Without it the board shows "Coming soon".
 YOUTUBE_API_KEY=
+# Optional — enables the TikTok Shop (VN) board via the AccessTrade affiliate feed. Without it the board shows "Coming soon".
+ACCESSTRADE_API_KEY=
 # Optional — Reddit app-only OAuth (create a "script" app at https://www.reddit.com/prefs/apps).
 # Without it Reddit is read from the public JSON, falling back to the RSS feed (no vote counts).
 REDDIT_CLIENT_ID=
@@ -145,6 +147,24 @@ Point `/opt/surgeindex/current` back at the previous release and restart
 `surgeindex.service`. Remove the cron task. The trend data directory can stay;
 nothing else reads it.
 
+## 7b. TikTok Shop board (`tiktok-shop-vn`)
+
+- Source: `GET https://api.accesstrade.vn/v2/tiktokshop_product_feeds?sort_field=BEST_SELLERS&limit=50`
+  with `Authorization: Token $ACCESSTRADE_API_KEY` (repo secret `ACCESSTRADE_API_KEY`,
+  synced to `trends.env` → `ingest.env` like `YOUTUBE_API_KEY`). Code: `apps/web/lib/trends/tiktok-shop.ts`.
+- `units_sold` is cumulative. Each run stores one sample per product in
+  `$TRENDS_DATA_DIR/tiktok-shop/units.json` (48 h kept). With ≥ ~20 h of history
+  (and ≥ 5 measurable products) the board ranks by units sold in the last 24 h
+  ("Bán thêm 24h"); before that by cumulative units ("Tổng đã bán (lũy kế)").
+- Affiliate links: `POST /v1/product_link/create` (campaign `6648523843406889655`,
+  `utm_source=surgeindex`) once per product, cached in
+  `$TRENDS_DATA_DIR/tiktok-shop/aff-links.json`. A failed creation falls back to the
+  plain `detail_link` and is retried next run. Links render `rel="sponsored nofollow"`
+  with an affiliate disclosure under the board.
+- No key → "Coming soon" (noindex, not in the sitemap). Key removed after it was live →
+  last good items kept as "Delayed".
+- URLs: `/top-10/tiktok-shop` (canonical) and `/top-10/tiktok-shop-vn` (alias, same page).
+
 ## 8. Live blog, tips, donate (runtime data + secrets)
 
 `scripts/deploy-vps.sh` creates `/opt/surgeindex/shared/live` and
@@ -170,7 +190,8 @@ Content workflow (posting updates, resolving): `CONTENT_SURGE_STORY.md`.
 
 - `/` — live Top 10 overview (ticker, spotlight, all boards, Global/Vietnam toggle)
 - `/top-10` — board index
-- `/top-10/[source]` — `google-trends`, `news` (Báo VN đang nóng, board id `news-vn`), `youtube`, `reddit`, `hackernews`, `github` (`x` is a noindex "coming soon")
+- `/api/share/top10-vn.png` — 1080×1350 "Top 10 hôm nay" share image (`?board=google-trends-vn|youtube-vn|news-vn|tiktok-shop-vn`), `/vn/chia-se` (noindex) lists them with captions
+- `/top-10/[source]` — `tiktok-shop` (TikTok Shop VN, alias `tiktok-shop-vn`), `google-trends`, `news` (Báo VN đang nóng, board id `news-vn`), `youtube`, `reddit`, `hackernews`, `github` (`x` is a noindex "coming soon")
 - `/vn/gui-tin` (reader tips), `/vn/ung-ho` (donate), `POST /api/tips`, `GET|POST /api/live/<slug>`
 - `/top-10/[source]/[YYYY-MM-DD]` — daily archive (UTC), ISR 30 min
 - `/api/trends` — latest snapshot JSON (compact: every board and item, no thumbnails / why-lines / rank history; stays well under 64 KB so the deploy health check `curl | head -c 1` under `pipefail` keeps passing)

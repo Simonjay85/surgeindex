@@ -6,7 +6,7 @@ import { PlatformIcon } from "../components/trends/platform-icon";
 import { BoardCard, brandStyle, HeatMeter, JsonLd, Ticker, TrendShell, type TickerEntry } from "../components/trends/ui";
 import { formatUtcTime } from "../lib/trends/format";
 import { findBoard, getLatestSnapshot, hottestAcross } from "../lib/trends/read";
-import { getSourceMeta, primaryRegion, TREND_SOURCES, type TrendBoard } from "../lib/trends/types";
+import { externalRel, getSourceMeta, primaryRegion, TREND_SOURCES, type TrendBoard } from "../lib/trends/types";
 
 export const revalidate = 300;
 
@@ -79,7 +79,7 @@ export default async function HomePage() {
                       </span>
                       <div className="t-leaders-body">
                         <span className="t-leaders-src">{meta.name}</span>
-                        <a href={top.url} target="_blank" rel="noopener noreferrer nofollow">
+                        <a href={top.url} target="_blank" rel={externalRel(meta)}>
                           {top.title}
                         </a>
                       </div>
@@ -220,7 +220,7 @@ function SpotlightCard({ board, index, itemId }: { board: TrendBoard; index: num
       </span>
       <div className="t-spot-body">
         <h3>
-          <a href={item.url} target="_blank" rel="noopener noreferrer nofollow">
+          <a href={item.url} target="_blank" rel={externalRel(meta)}>
             {item.title}
           </a>
         </h3>

@@ -2,13 +2,14 @@
 
 > **Branch `trends-pivot` — Phase 1: "The internet's Top 10, updated every hour."**
 > The public site is now a set of hourly Top 10 boards (Google Trends US/VN, Reddit r/all, Hacker News,
-> GitHub Trending, YouTube Most Popular US/VN when `YOUTUBE_API_KEY` is set, X as "coming soon"),
+> GitHub Trending, YouTube Most Popular US/VN when `YOUTUBE_API_KEY` is set, TikTok Shop VN via the AccessTrade
+> affiliate feed when `ACCESSTRADE_API_KEY` is set, X as "coming soon"),
 > ranked by a per-platform Heat Score (`packages/scoring/src/trend-heat.ts`).
 >
 > - Ingest: `pnpm trends:ingest` (`scripts/ingest-trends.ts` → `apps/web/lib/trends/`) writes JSON snapshots to
 >   `TRENDS_DATA_DIR` (default `apps/web/data/trends`): `latest.json`, `history/` (7 days), `daily/` (archive).
 > - Pages: `/`, `/top-10`, `/top-10/[source]`, `/top-10/[source]/[date]`, `/methodology`, `/privacy`, `/terms`,
->   `/api/trends` (compact) and `/api/trends/full`. ISR every 5 minutes; no database needed for these routes.
+>   `/api/trends` (compact) and `/api/trends/full`, `/api/share/top10-vn.png` (daily share image) and `/vn/chia-se` (noindex). ISR every 5 minutes; no database needed for these routes.
 > - Legacy directory, claim, boost, dashboard, billing, creators, campaigns and pricing code is kept but hidden
 >   from navigation, the home page, the sitemap and robots.
 > - Deployment: see [`DEPLOY_TRENDS.md`](DEPLOY_TRENDS.md).
