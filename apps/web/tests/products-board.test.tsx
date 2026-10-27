@@ -30,9 +30,12 @@ describe("Sản phẩm đang lên data", () => {
       const pct = item.signals[0]!.changePct ?? 0;
       expect(pct).toBeLessThanOrEqual(prev);
       prev = pct;
-      // No invented prices or links in the draft week.
+      // No invented prices; links are only AccessTrade TikTok Shop deep links (disclosed).
       expect(item.priceNote).toBeNull();
-      expect(item.buyLinks).toEqual([]);
+      for (const link of item.buyLinks) {
+        expect(link.disclosure).toBe(true);
+        if (link.retailer === "TikTok Shop") expect(link.url).toMatch(/^https:\/\/go\.isclix\.com\/deep_link\/\d+\/6648523843406889655\?url=https%3A%2F%2Fshop\.tiktok\.com%2Fview%2Fproduct%2F\d+/);
+      }
     }
   });
 
@@ -60,8 +63,10 @@ describe("Sản phẩm đang lên page", () => {
     render(<ProductsBoardView board={PRODUCTS_BOARD} />);
     expect(screen.getByText("Thử nghiệm")).toBeInTheDocument();
     expect(screen.getByRole("note")).toHaveTextContent("link affiliate");
-    expect(screen.getAllByText("Link mua đang cập nhật")).toHaveLength(10);
-    expect(screen.queryByText(/Mua trên/)).toBeNull();
+    const withoutLinks = PRODUCTS_BOARD.items.filter((i) => !i.buyLinks.length).length;
+    const linkCount = PRODUCTS_BOARD.items.reduce((n, i) => n + i.buyLinks.length, 0);
+    expect(screen.queryAllByText("Link mua đang cập nhật")).toHaveLength(withoutLinks);
+    expect(screen.queryAllByRole("link", { name: /Mua trên .* · Link affiliate/ })).toHaveLength(linkCount);
     const first = screen.getAllByRole("listitem").find((li) => li.id === "rank-1")!;
     expect(within(first).getByRole("link", { name: /Google Trends VN/ })).toHaveAttribute("href", PRODUCTS_BOARD.items[0]!.signals[0]!.evidenceUrl);
   });
@@ -69,6 +74,7 @@ describe("Sản phẩm đang lên page", () => {
   it("renders affiliate buttons with retailer labels and sponsored rel once links exist", () => {
     const board = clone();
     board.status = "published";
+    for (const item of board.items) item.buyLinks = [];
     board.items[0]!.buyLinks = [
       { retailer: "Shopee", url: "https://s.shopee.vn/example", disclosure: true },
       { retailer: "TikTok Shop", url: "https://vt.tiktok.com/example", disclosure: true },

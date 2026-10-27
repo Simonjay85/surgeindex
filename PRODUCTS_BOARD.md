@@ -60,7 +60,14 @@ Only flip to `"published"` after Aaron approves the week's data **and** links.
 4. **Pick the 10** with the clearest measured growth, write `products-vn.json`:
    bump `week` (ISO week, `2026-W44`), `periodLabel`, `updatedAt`, `method` if it changed.
 5. **Affiliate links**: Aaron sends the Shopee Affiliate / TikTok Shop Affiliate
-   links per item. Paste each into that item's `buyLinks`, open every link once
+   links per item, or (TikTok Shop, approved AccessTrade campaign
+   `6648523843406889655`) search `GET https://api.accesstrade.vn/v2/tiktokshop_product_feeds?sort_field=BEST_SELLERS&limit=20&title_keywords=<từ khóa>`,
+   pick one in-stock product whose title clearly matches the item, and create the
+   link with `POST https://api.accesstrade.vn/v1/product_link/create`
+   `{"campaign_id":"6648523843406889655","urls":["<detail_link>"],"utm_source":"surgeindex"}`
+   (use `aff_link`). No match → no link. The Shopee AccessTrade campaign
+   (`4751584435713464237`) was not registered as of 27/10/2026. TikTok `units_sold`
+   is not shown (no sales counts on the board). Paste each into that item's `buyLinks`, open every link once
    to check it resolves to the right product. Items without links show
    "Link mua đang cập nhật".
 6. **Publish**: when Aaron approves, set `"status": "published"`.
