@@ -13,48 +13,40 @@ SHARED="$ROOT/shared"
 DATA="$SHARED/trends"
 ID="$(date -u +%Y%m%d%H%M%S)-${SHA:0:7}"
 RELEASE="$RELEASES/$ID"
-PREV="$(readlink -f "$ROOT/current" 2>/dev/null || true)"
 LOCK=/tmp/surgeindex-deploy.lock
 
 exec 9>"$LOCK"
 flock -n 9 || { echo "[deploy] another deploy is running"; exit 1; }
+PREV="$(readlink -f "$ROOT/current" 2>/dev/null || true)"
 
 log() { echo "[deploy $(date -u +%H:%M:%S)] $*"; }
 
 # --- tools -------------------------------------------------------------
 export PATH="$HOME/.local/share/pnpm:$HOME/.npm-global/bin:/usr/local/bin:$PATH"
 command -v node >/dev/null || { log "node not found"; exit 1; }
-if ! command -v pnpm >/dev/null; then
-  log "installing pnpm via corepack"
-  corepack enable --install-directory "$HOME/.local/bin" pnpm 2>/dev/null || npm i -g pnpm@11.22.0 --prefix "$HOME/.npm-global"
-  export PATH="$HOME/.local/bin:$PATH"
-fi
+command -v pnpm >/dev/null || { log "pnpm not found; provision it before deploying"; exit 1; }
 
-# --- one-time dirs -----------------------------------------------------
-sudo mkdir -p "$RELEASES" "$DATA" "$SHARED/live" "$SHARED/tips" /var/log/surgeindex
-sudo chown -R ubuntu:ubuntu "$RELEASES" "$SHARED" /var/log/surgeindex
+# Provisioning and credential changes are separate from routine deployment.
+test -d "$RELEASES" && test -w "$RELEASES" && test -d "$DATA" || {
+  log "release or shared data directory unavailable; provision it before deploying"
+  exit 1
+}
 
 # --- disk guard (VPS has run near-full before) -------------------------
 FREE_MB=$(df -Pm "$ROOT" | awk 'NR==2{print $4}')
 if [ "$FREE_MB" -lt 2500 ]; then
-  log "only ${FREE_MB}MB free; pruning old releases first"
+  log "only ${FREE_MB}MB free; stopping without deleting old releases"
+  exit 1
 fi
-# keep current + 2 newest others
-for d in $(ls -1dt "$RELEASES"/* 2>/dev/null | tail -n +4); do
-  [ "$(readlink -f "$d")" = "$PREV" ] && continue
-  rm -rf "$d"
+
+# Required production configuration must exist before a release is built.
+for f in /etc/surgeindex/surgeindex.env /etc/surgeindex/trends.env "$SHARED/ingest.env"; do
+  sudo test -s "$f" || { log "required configuration missing: $f"; exit 1; }
 done
-
-# --- fetch -------------------------------------------------------------
-log "cloning $BRANCH @ $SHA -> $RELEASE"
-git clone --quiet --branch "$BRANCH" "$REPO" "$RELEASE"
-git -C "$RELEASE" checkout --quiet "$SHA"
-printf 'BUILD_SHA=%s\n' "$SHA" > "$RELEASE/release.env"
-chmod 0644 "$RELEASE/release.env"
-
-cd "$RELEASE"
-log "pnpm install"
-pnpm install --frozen-lockfile --reporter=append-only
+crontab -l 2>/dev/null | grep -q 'scripts/ingest-trends.ts' || {
+  log "hourly trends cron missing; provision it before deploying"
+  exit 1
+}
 
 # --- env ---------------------------------------------------------------
 # Parse systemd-style env files literally (values may contain spaces/$/quotes).
@@ -73,51 +65,45 @@ load_env() {
   done < <(sudo cat "$f")
   log "loaded env $(basename "$f")"
 }
-# merge optional keys pushed by GitHub Actions. Ingest keys go to trends.env
-# (cron); keys the web process needs at runtime (live-blog admin token,
-# donate channels) go to surgeindex.env, which surgeindex.service loads.
-if [ -s /tmp/surgeindex-keys.env ]; then
-  sudo touch /etc/surgeindex/trends.env
-  while IFS= read -r kv; do
-    k="${kv%%=*}"
-    [[ "$k" =~ ^[A-Z_][A-Z0-9_]*$ ]] || continue
-    case "$k" in
-      LIVE_ADMIN_TOKEN|DONATE_*|TIPS_NOTIFY_EMAIL) target=/etc/surgeindex/surgeindex.env ;;
-      *) target=/etc/surgeindex/trends.env ;;
-    esac
-    sudo sed -i "/^${k}=/d" "$target"
-    printf '%s\n' "$kv" | sudo tee -a "$target" >/dev/null
-    log "updated $k in $(basename "$target")"
-  done < /tmp/surgeindex-keys.env
-  grep -q '^TRENDS_DATA_DIR=' <(sudo cat /etc/surgeindex/trends.env) || echo "TRENDS_DATA_DIR=$DATA" | sudo tee -a /etc/surgeindex/trends.env >/dev/null
-  sudo chown root:ubuntu /etc/surgeindex/trends.env; sudo chmod 0640 /etc/surgeindex/trends.env
-fi
-rm -f /tmp/surgeindex-keys.env
-# same env files surgeindex.service loads, plus trends.env
+# Read existing configuration without modifying credentials or environment files.
 for f in /etc/surgeindex/surgeindex.env /etc/surgeindex/turnstile.production.env /etc/surgeindex/resend.env /etc/surgeindex/trends.env; do
   load_env "$f"
 done
 export TRENDS_DATA_DIR="$DATA"
-grep -q '^TRENDS_DATA_DIR=' <(sudo cat /etc/surgeindex/surgeindex.env) || \
-  echo "TRENDS_DATA_DIR=$DATA" | sudo tee -a /etc/surgeindex/surgeindex.env >/dev/null
+
+# --- fetch -------------------------------------------------------------
+log "cloning $BRANCH @ $SHA -> $RELEASE"
+git clone --quiet --branch "$BRANCH" "$REPO" "$RELEASE"
+git -C "$RELEASE" checkout --quiet "$SHA"
+printf 'BUILD_SHA=%s\n' "$SHA" > "$RELEASE/release.env"
+chmod 0644 "$RELEASE/release.env"
+
+cd "$RELEASE"
+log "pnpm install"
+pnpm install --frozen-lockfile --reporter=append-only
 
 # --- data + build ------------------------------------------------------
-log "seeding trends snapshot"
-NODE_OPTIONS=--max-old-space-size=256 pnpm trends:ingest || log "ingest returned non-zero (boards may show Delayed)"
+# Build with the existing shared snapshot. The existing hourly cron continues
+# to refresh it, without a deploy changing its configuration or credentials.
 
 log "next build"
 NODE_OPTIONS=--max-old-space-size=1536 pnpm build
 
 # --- switch ------------------------------------------------------------
+[ "$(readlink -f "$ROOT/current" 2>/dev/null || true)" = "$PREV" ] || {
+  log "current release changed during build; refusing to switch"
+  exit 1
+}
 log "switching current -> $RELEASE"
 ln -sfn "$RELEASE" "$ROOT/current"
-sudo systemctl restart surgeindex.service
 
 ok=0
-for i in $(seq 1 30); do
-  if curl -fsS -o /dev/null http://127.0.0.1:3211/ && curl -fsS -o /tmp/surgeindex-health.json http://127.0.0.1:3211/api/trends && head -c 1 /tmp/surgeindex-health.json | grep -q '{'; then ok=1; break; fi
-  sleep 2
-done
+if sudo systemctl restart surgeindex.service; then
+  for i in $(seq 1 30); do
+    if curl -fsS -o /dev/null http://127.0.0.1:3211/ && curl -fsS -o /tmp/surgeindex-health.json http://127.0.0.1:3211/api/trends && head -c 1 /tmp/surgeindex-health.json | grep -q '{'; then ok=1; break; fi
+    sleep 2
+  done
+fi
 
 if [ "$ok" -ne 1 ]; then
   log "health check FAILED"
@@ -128,21 +114,5 @@ if [ "$ok" -ne 1 ]; then
   fi
   exit 1
 fi
-
-# --- hourly ingest cron (idempotent) -----------------------------------
-# The cron job runs as ubuntu without sudo. It used to read
-# /etc/surgeindex/trends.env directly, which it cannot always do (directory
-# permissions / older Node without process.loadEnvFile), so hourly runs lost
-# YOUTUBE_API_KEY and flipped the YouTube boards to "Coming soon" one hour
-# after every deploy. Give it a private copy it can always read.
-INGEST_ENV="$SHARED/ingest.env"
-( umask 077; sudo cat /etc/surgeindex/trends.env 2>/dev/null > "$INGEST_ENV.tmp" || : > "$INGEST_ENV.tmp" )
-grep -q '^TRENDS_DATA_DIR=' "$INGEST_ENV.tmp" || echo "TRENDS_DATA_DIR=$DATA" >> "$INGEST_ENV.tmp"
-chmod 0600 "$INGEST_ENV.tmp"; mv -f "$INGEST_ENV.tmp" "$INGEST_ENV"
-if grep -q '^YOUTUBE_API_KEY=..*' "$INGEST_ENV"; then log "ingest env: YOUTUBE_API_KEY present"; else log "ingest env: YOUTUBE_API_KEY missing (YouTube boards stay Coming soon)"; fi
-if grep -q '^ACCESSTRADE_API_KEY=..*' "$INGEST_ENV"; then log "ingest env: ACCESSTRADE_API_KEY present"; else log "ingest env: ACCESSTRADE_API_KEY missing (TikTok Shop board stays Coming soon)"; fi
-log "node $(node -v)"
-CRON_LINE="5 * * * * cd $ROOT/current && TRENDS_ENV_FILE=$INGEST_ENV TRENDS_DATA_DIR=$DATA NODE_OPTIONS=--max-old-space-size=256 /usr/bin/flock -n /tmp/surgeindex-trends.lock timeout 300 node_modules/.bin/tsx scripts/ingest-trends.ts >> /var/log/surgeindex/trends-ingest.log 2>&1"
-( crontab -l 2>/dev/null | grep -v 'scripts/ingest-trends.ts' ; echo "$CRON_LINE" ) | crontab -
 
 log "deployed $SHA ($ID) OK"

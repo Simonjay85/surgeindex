@@ -333,7 +333,9 @@ export function FullRow({ item, meta }: { item: TrendItem; meta: SourceMeta }) {
 /* ───────────────────────────── Boards ───────────────────────────── */
 
 export function StatusChip({ board, showTime = false, archive = false, compact = false }: { board: TrendBoard; showTime?: boolean; archive?: boolean; compact?: boolean }) {
-  return <BoardFreshness board={{ status: board.status, fetchedAt: board.fetchedAt, note: board.note }} showTime={showTime} archive={archive} compact={compact} />;
+  // Pass the server render time through to the client for consistent hydration.
+  // eslint-disable-next-line react-hooks/purity
+  return <BoardFreshness board={{ status: board.status, fetchedAt: board.fetchedAt, note: board.note }} serverNow={Date.now()} showTime={showTime} archive={archive} compact={compact} />;
 }
 
 export function ComingSoon({ meta, note }: { meta: SourceMeta; note?: string }) {

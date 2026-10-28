@@ -25,6 +25,9 @@ export const metadata: Metadata = {
 export default async function HomePage() {
   const snapshot = await getLatestSnapshot();
   const generatedAt = snapshot?.generatedAt ?? null;
+  // Capture the server render time so the first HTML and hydration agree.
+  // eslint-disable-next-line react-hooks/purity
+  const renderedAt = Date.now();
   const boards = snapshot?.boards ?? [];
   const liveBoards = boards.filter((b) => (b.status === "live" || b.status === "stale") && b.items.length);
   const primaryBoards = TREND_SOURCES.map((meta) => findBoard(snapshot, meta.key, primaryRegion(meta))).filter((b): b is TrendBoard => Boolean(b));
@@ -55,7 +58,7 @@ export default async function HomePage() {
           <div className="t-hero-copy">
           <div className="t-eyebrow">
             <span className="t-pulse-dot" aria-hidden="true" />
-            Hourly snapshots · <LiveSourceCount boards={activePrimaryBoards} /> live platforms
+            Hourly snapshots · <LiveSourceCount boards={activePrimaryBoards} serverNow={renderedAt} /> live platforms
           </div>
           <h1 className="t-display">
             The internet&apos;s <em>Top&nbsp;10</em>,
@@ -107,7 +110,7 @@ export default async function HomePage() {
             <div>
               <dt>Live platforms</dt>
               <dd>
-                <LiveSourceCount boards={activePrimaryBoards} />
+                <LiveSourceCount boards={activePrimaryBoards} serverNow={renderedAt} />
                 <span>/{TREND_SOURCES.length}</span>
               </dd>
             </div>

@@ -17,15 +17,14 @@ function subscribe(onChange: () => void) {
   };
 }
 const nowSnapshot = () => Math.floor(Date.now() / 20_000) * 20_000;
-const serverSnapshot = () => null;
 
 function utcDateTime(iso: string) {
   const time = new Date(iso);
   return Number.isFinite(time.getTime()) ? `${time.toISOString().slice(0, 16).replace("T", " ")} UTC` : null;
 }
 
-export function BoardFreshness({ board, showTime = true, archive = false, compact = false }: { board: FreshnessBoard; showTime?: boolean; archive?: boolean; compact?: boolean }) {
-  const now = useSyncExternalStore(subscribe, nowSnapshot, serverSnapshot);
+export function BoardFreshness({ board, serverNow, showTime = true, archive = false, compact = false }: { board: FreshnessBoard; serverNow: number; showTime?: boolean; archive?: boolean; compact?: boolean }) {
+  const now = useSyncExternalStore(subscribe, nowSnapshot, () => serverNow);
   const status = effectiveBoardStatus(board, archive ? null : now);
   const timestamp = board.fetchedAt ? utcDateTime(board.fetchedAt) : null;
   const label = status === "live" ? "Live" : status === "stale" ? "Delayed" : status === "soon" ? "Coming soon" : "Unavailable";
@@ -38,7 +37,7 @@ export function BoardFreshness({ board, showTime = true, archive = false, compac
   );
 }
 
-export function LiveSourceCount({ boards }: { boards: FreshnessBoard[] }) {
-  const now = useSyncExternalStore(subscribe, nowSnapshot, serverSnapshot);
+export function LiveSourceCount({ boards, serverNow }: { boards: FreshnessBoard[]; serverNow: number }) {
+  const now = useSyncExternalStore(subscribe, nowSnapshot, () => serverNow);
   return <>{boards.filter((board) => effectiveBoardStatus(board, now) === "live").length}</>;
 }
