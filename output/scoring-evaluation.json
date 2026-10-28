@@ -1,0 +1,442 @@
+{
+  "scoreVersion": "heat-v1",
+  "generatedAt": "2026-08-23T12:20:04.171Z",
+  "syntheticFixture": true,
+  "cases": [
+    {
+      "id": "A",
+      "title": "Tiny base spike",
+      "expected": [
+        "relative growth is visible",
+        "absolute support is weak",
+        "must not become global #1 automatically"
+      ],
+      "score": {
+        "score": 35,
+        "rawScore": 35.05,
+        "smoothedScore": 35.05,
+        "state": "provisional",
+        "freshness": "live",
+        "league": "new",
+        "confidence": 0.8138,
+        "breakdown": {
+          "growthVelocity": 0,
+          "liveAcceleration": 62,
+          "trafficVolume": 24.9,
+          "engagementQuality": 64.3,
+          "trustConfidence": 81.4
+        },
+        "notes": [
+          "Below minimum volume threshold (20 visitors/24h) — growth is not trusted yet.",
+          "Provisional score: the site can participate in its league while confidence grows."
+        ],
+        "reasonCodes": [
+          "confidence_or_history_below_full_threshold"
+        ],
+        "relativeLift": 2,
+        "absoluteLift": 19,
+        "recovery": null
+      },
+      "breakout": null
+    },
+    {
+      "id": "B",
+      "title": "Large genuine surge",
+      "expected": [
+        "strong volume and growth",
+        "eligible global candidate",
+        "breakout potential requires persistence"
+      ],
+      "score": {
+        "score": 79,
+        "rawScore": 78.575,
+        "smoothedScore": 78.575,
+        "state": "eligible",
+        "freshness": "live",
+        "league": "established",
+        "confidence": 1,
+        "breakdown": {
+          "growthVelocity": 66.5,
+          "liveAcceleration": 72,
+          "trafficVolume": 93.5,
+          "engagementQuality": 86,
+          "trustConfidence": 100
+        },
+        "notes": [
+          "Growth confidence reduced to 90% by baseline support."
+        ],
+        "reasonCodes": [],
+        "relativeLift": 1.8,
+        "absoluteLift": 40000,
+        "recovery": null
+      },
+      "breakout": null
+    },
+    {
+      "id": "C",
+      "title": "Large stable site",
+      "expected": [
+        "strong volume",
+        "weak growth velocity",
+        "not a breakout from lift alone"
+      ],
+      "score": {
+        "score": 61,
+        "rawScore": 61.18,
+        "smoothedScore": 61.18,
+        "state": "eligible",
+        "freshness": "live",
+        "league": "established",
+        "confidence": 1,
+        "breakdown": {
+          "growthVelocity": 43.8,
+          "liveAcceleration": 42,
+          "trafficVolume": 94.6,
+          "engagementQuality": 64.3,
+          "trustConfidence": 100
+        },
+        "notes": [
+          "Growth confidence reduced to 90% by baseline support."
+        ],
+        "reasonCodes": [],
+        "relativeLift": 1.03,
+        "absoluteLift": 3000,
+        "recovery": null
+      },
+      "breakout": null
+    },
+    {
+      "id": "D",
+      "title": "Low-volume stable site",
+      "expected": [
+        "low score relative to high-volume sites",
+        "no breakout",
+        "appropriate emerging league"
+      ],
+      "score": {
+        "score": 38,
+        "rawScore": 37.57,
+        "smoothedScore": 37.57,
+        "state": "eligible",
+        "freshness": "live",
+        "league": "emerging",
+        "confidence": 1,
+        "breakdown": {
+          "growthVelocity": 8.8,
+          "liveAcceleration": 42,
+          "trafficVolume": 37.8,
+          "engagementQuality": 64.3,
+          "trustConfidence": 100
+        },
+        "notes": [
+          "Growth confidence reduced to 90% by baseline support."
+        ],
+        "reasonCodes": [],
+        "relativeLift": 1,
+        "absoluteLift": 0,
+        "recovery": null
+      },
+      "breakout": {
+        "firstWindow": {
+          "state": "none",
+          "shouldPublish": false,
+          "relativeLift": 1,
+          "absoluteLift": 0,
+          "explanation": "Traffic is within the expected range for this site."
+        },
+        "afterPersistence": null
+      }
+    },
+    {
+      "id": "E",
+      "title": "Bot spike",
+      "expected": [
+        "fraud review",
+        "no public breakout",
+        "suspicious traffic is not a positive signal"
+      ],
+      "score": {
+        "score": 45,
+        "rawScore": 78.9352,
+        "smoothedScore": 78.9352,
+        "state": "fraud_review",
+        "freshness": "live",
+        "league": "established",
+        "confidence": 1,
+        "breakdown": {
+          "growthVelocity": 95.2,
+          "liveAcceleration": 65.5,
+          "trafficVolume": 94.3,
+          "engagementQuality": 64.3,
+          "trustConfidence": 100
+        },
+        "notes": [
+          "Growth confidence reduced to 90% by baseline support."
+        ],
+        "reasonCodes": [
+          "fraud_review_required"
+        ],
+        "relativeLift": 100,
+        "absoluteLift": 99000,
+        "recovery": null
+      },
+      "breakout": {
+        "firstWindow": {
+          "state": "none",
+          "shouldPublish": false,
+          "relativeLift": 100,
+          "absoluteLift": 99000,
+          "explanation": "No public breakout: valid, fresh traffic evidence is not sufficient."
+        },
+        "afterPersistence": null
+      }
+    },
+    {
+      "id": "F",
+      "title": "Stale tracker",
+      "expected": [
+        "stale state",
+        "score cap applies",
+        "not in fresh global rank"
+      ],
+      "score": {
+        "score": 44,
+        "rawScore": 44.1488,
+        "smoothedScore": 44.1488,
+        "state": "stale",
+        "freshness": "stale",
+        "league": "established",
+        "confidence": 0.4512,
+        "breakdown": {
+          "growthVelocity": 47,
+          "liveAcceleration": 65.5,
+          "trafficVolume": 75.5,
+          "engagementQuality": 64.3,
+          "trustConfidence": 45.1
+        },
+        "notes": [
+          "Growth confidence reduced to 90% by baseline support.",
+          "Data stale: historical records remain, but the live score is capped."
+        ],
+        "reasonCodes": [
+          "source_stale"
+        ],
+        "relativeLift": 1.25,
+        "absoluteLift": 2000,
+        "recovery": null
+      },
+      "breakout": null
+    },
+    {
+      "id": "G",
+      "title": "New legitimate site",
+      "expected": [
+        "building baseline",
+        "new league",
+        "not full-confidence global rank"
+      ],
+      "score": {
+        "score": 0,
+        "rawScore": 49.275,
+        "smoothedScore": 49.275,
+        "state": "building_baseline",
+        "freshness": "live",
+        "league": "new",
+        "confidence": 0.7193,
+        "breakdown": {
+          "growthVelocity": 26,
+          "liveAcceleration": 65.5,
+          "trafficVolume": 50.9,
+          "engagementQuality": 64.3,
+          "trustConfidence": 71.9
+        },
+        "notes": [
+          "Growth confidence reduced to 30% by baseline support.",
+          "Building baseline: more accepted history is required before a public score is shown."
+        ],
+        "reasonCodes": [
+          "baseline_insufficient"
+        ],
+        "relativeLift": 1.25,
+        "absoluteLift": 100,
+        "recovery": null
+      },
+      "breakout": null
+    },
+    {
+      "id": "H",
+      "title": "Missing engagement support",
+      "expected": [
+        "neutral engagement subscore",
+        "explanation marks unavailable metric",
+        "confidence adjustment"
+      ],
+      "score": {
+        "score": 60,
+        "rawScore": 59.7788,
+        "smoothedScore": 59.7788,
+        "state": "eligible",
+        "freshness": "live",
+        "league": "established",
+        "confidence": 1,
+        "breakdown": {
+          "growthVelocity": 47,
+          "liveAcceleration": 65.5,
+          "trafficVolume": 75.5,
+          "engagementQuality": 50,
+          "trustConfidence": 100
+        },
+        "notes": [
+          "Growth confidence reduced to 90% by baseline support.",
+          "Engagement metrics unavailable — neutral score applied with a confidence adjustment."
+        ],
+        "reasonCodes": [],
+        "relativeLift": 1.25,
+        "absoluteLift": 2000,
+        "recovery": null
+      },
+      "breakout": null
+    },
+    {
+      "id": "I",
+      "title": "Nearly tied sites",
+      "expected": [
+        "stable deterministic ordering",
+        "domain and site ID tie-breakers"
+      ],
+      "score": null,
+      "breakout": null
+    },
+    {
+      "id": "J",
+      "title": "Sudden live acceleration",
+      "expected": [
+        "strong live component",
+        "watch before public breakout",
+        "persistence required"
+      ],
+      "score": {
+        "score": 73,
+        "rawScore": 72.98,
+        "smoothedScore": 72.98,
+        "state": "eligible",
+        "freshness": "live",
+        "league": "established",
+        "confidence": 1,
+        "breakdown": {
+          "growthVelocity": 47,
+          "liveAcceleration": 100,
+          "trafficVolume": 75.5,
+          "engagementQuality": 64.3,
+          "trustConfidence": 100
+        },
+        "notes": [
+          "Growth confidence reduced to 90% by baseline support."
+        ],
+        "reasonCodes": [],
+        "relativeLift": 1.25,
+        "absoluteLift": 2000,
+        "recovery": null
+      },
+      "breakout": {
+        "firstWindow": {
+          "state": "watch",
+          "shouldPublish": false,
+          "relativeLift": 5,
+          "absoluteLift": 4000,
+          "explanation": "Traffic is 5.0× above the expected level, but persistence is still being established."
+        },
+        "afterPersistence": {
+          "state": "surging",
+          "shouldPublish": true,
+          "relativeLift": 5,
+          "absoluteLift": 4000,
+          "explanation": "Traffic is 5.0× above the expected level with 4,000 additional valid visitors."
+        }
+      }
+    },
+    {
+      "id": "K",
+      "title": "One-minute anomaly",
+      "expected": [
+        "watch only on first window",
+        "no public breakout from one evaluation"
+      ],
+      "score": null,
+      "breakout": {
+        "firstWindow": {
+          "state": "watch",
+          "shouldPublish": false,
+          "relativeLift": 4,
+          "absoluteLift": 300,
+          "explanation": "Traffic is 4.0× above the expected level, but persistence is still being established."
+        },
+        "afterPersistence": null
+      }
+    },
+    {
+      "id": "L",
+      "title": "Recovery after data outage",
+      "expected": [
+        "stale during outage",
+        "freshness recovers when valid data resumes",
+        "historical records remain"
+      ],
+      "score": {
+        "score": 44,
+        "rawScore": 44.1488,
+        "smoothedScore": 44.1488,
+        "state": "stale",
+        "freshness": "stale",
+        "league": "established",
+        "confidence": 0.4512,
+        "breakdown": {
+          "growthVelocity": 47,
+          "liveAcceleration": 65.5,
+          "trafficVolume": 75.5,
+          "engagementQuality": 64.3,
+          "trustConfidence": 45.1
+        },
+        "notes": [
+          "Growth confidence reduced to 90% by baseline support.",
+          "Data stale: historical records remain, but the live score is capped."
+        ],
+        "reasonCodes": [
+          "source_stale"
+        ],
+        "relativeLift": 1.25,
+        "absoluteLift": 2000,
+        "recovery": {
+          "state": "eligible",
+          "freshness": "live",
+          "score": 64
+        }
+      },
+      "breakout": null
+    }
+  ],
+  "rankingProbe": [
+    "tie-a",
+    "tie-b"
+  ],
+  "performance": [
+    {
+      "size": 100,
+      "scoreMs": 1.099,
+      "rankMs": 0.111,
+      "breakoutMs": 0.072,
+      "environment": "darwin arm64, Node v25.9.0"
+    },
+    {
+      "size": 1000,
+      "scoreMs": 4.11,
+      "rankMs": 0.405,
+      "breakoutMs": 0.521,
+      "environment": "darwin arm64, Node v25.9.0"
+    }
+  ],
+  "limitations": [
+    "Synthetic fixtures test determinism and fairness invariants; they are not predictive validation.",
+    "Performance timings are local process timings without PostgreSQL, Cloudflare, or Tinybird."
+  ]
+}

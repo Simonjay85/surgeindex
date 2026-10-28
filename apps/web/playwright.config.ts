@@ -12,7 +12,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "APP_MODE=demo DATA_PROVIDER=demo NEXT_PUBLIC_APP_URL=http://127.0.0.1:3100 next dev -p 3100",
+    command: "APP_MODE=demo DATA_PROVIDER=demo NEXT_PUBLIC_APP_URL=http://127.0.0.1:3100 SURGEINDEX_NEXT_DIST_DIR=.next-e2e next dev -p 3100",
     url: "http://127.0.0.1:3100",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

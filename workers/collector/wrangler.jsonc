@@ -10,13 +10,27 @@
       }
     ]
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "REALTIME",
+        "class_name": "RealtimeRoom",
+        "script_name": "surgeindex-realtime"
+      }
+    ]
+  },
   "kv_namespaces": [
     {
       "binding": "SITE_KEYS",
       "id": "REPLACE_WITH_KV_ID"
+    },
+    {
+      "binding": "EVENT_IDS",
+      "id": "REPLACE_WITH_EVENT_ID_KV_ID"
     }
   ],
   "vars": {
-    "HASH_SALT": "set-via-secret"
+    "TRACKER_EVENT_MAX_BODY_BYTES": "65536",
+    "EVENT_RETENTION_DAYS": "90"
   }
 }

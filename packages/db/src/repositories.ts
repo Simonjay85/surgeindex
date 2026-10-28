@@ -14,6 +14,7 @@ import {
   adminAuditLog,
   category,
   moderationAction,
+  currentRanking,
   rankSnapshot,
   site,
   siteCategory,
@@ -42,12 +43,20 @@ export interface RepositorySite {
   submittedByUserId: string | null;
   featured: boolean;
   isDemo: boolean;
+  permittedAliases: string[];
+  publicRevenueVisible: boolean;
+  publicPageMetricsVisible: boolean;
   createdAt: Date;
   current: {
     activeNow: number | null;
     visitors24h: number | null;
     visitors7d: number | null;
     pageviews24h: number | null;
+    sessions24h: number | null;
+    engagedSessions24h: number | null;
+    activeSessions: number | null;
+    surgeAttributedVisits24h: number;
+    surgeAttributedEngagedVisits24h: number;
     engagementRate: number | null;
     avgEngagementSeconds: number | null;
     baselineDailyVisitors: number | null;
@@ -56,9 +65,26 @@ export interface RepositorySite {
     growth7dPct: number | null;
     surgeReferrals24h: number;
     heatScore: number;
+    rawScore: number;
+    smoothedScore: number;
     heatLeague: string;
+    rankingState: string;
+    freshness: string;
+    dataConfidence: number;
     scoreVersion: string;
+    rankingSource: "tracker" | "ga4";
+    providerDefinitionVersion: string;
+    lastBaselineAt: Date | null;
+    lastScoreAt: Date | null;
+    breakoutState: string;
+    breakoutStrength: string | null;
     updatedAt: Date;
+    lastAcceptedEventAt: Date | null;
+    lastDetectedOrigin: string | null;
+    trackerVersion: string | null;
+    acceptedEvents24h: number;
+    suspectedEvents24h: number;
+    invalidEvents24h: number;
   } | null;
   rank: { rank: number; previousRank: number | null; capturedAt: Date } | null;
 }
@@ -90,7 +116,7 @@ export interface RepositoryClaimReview {
   siteName: string;
   domain: string;
   userId: string;
-  method: "meta_tag" | "html_file" | "dns_txt" | "tracker" | "ga4";
+  method: "meta_tag" | "dns_txt";
   status: "pending" | "verified" | "failed" | "expired";
   attempts: number;
   lastError: string | null;
@@ -116,8 +142,12 @@ const siteSelection = {
   submittedByUserId: site.submittedByUserId,
   featured: site.featured,
   isDemo: site.isDemo,
+  permittedAliases: site.permittedAliases,
+  publicRevenueVisible: site.publicRevenueVisible,
+  publicPageMetricsVisible: site.publicPageMetricsVisible,
   createdAt: site.createdAt,
   current: siteMetricCurrent,
+  currentRank: currentRanking,
   rank: rankSnapshot,
 };
 
@@ -138,6 +168,9 @@ type SiteJoinRow = {
   submittedByUserId: string | null;
   featured: boolean;
   isDemo: boolean;
+  permittedAliases: string[];
+  publicRevenueVisible: boolean;
+  publicPageMetricsVisible: boolean;
   createdAt: Date;
   current: {
     siteId: string;
@@ -145,6 +178,11 @@ type SiteJoinRow = {
     visitors24h: number | null;
     visitors7d: number | null;
     pageviews24h: number | null;
+    sessions24h: number | null;
+    engagedSessions24h: number | null;
+    activeSessions: number | null;
+    surgeAttributedVisits24h: number;
+    surgeAttributedEngagedVisits24h: number;
     engagementRate: string | null;
     avgEngagementSeconds: number | null;
     baselineDailyVisitors: number | null;
@@ -153,9 +191,32 @@ type SiteJoinRow = {
     growth7dPct: string | null;
     surgeReferrals24h: number;
     heatScore: number;
+    rawScore: string;
+    smoothedScore: string;
     heatLeague: string;
+    rankingState: string;
+    freshness: string;
+    dataConfidence: string;
     scoreVersion: string;
+    rankingSource: "tracker" | "ga4";
+    providerDefinitionVersion: string;
+    lastBaselineAt: Date | null;
+    lastScoreAt: Date | null;
+    breakoutState: string;
+    breakoutStrength: string | null;
     updatedAt: Date;
+    lastAcceptedEventAt: Date | null;
+    lastDetectedOrigin: string | null;
+    trackerVersion: string | null;
+    acceptedEvents24h: number;
+    suspectedEvents24h: number;
+    invalidEvents24h: number;
+  } | null;
+  currentRank: {
+    siteId: string;
+    rank: number;
+    previousRank: number | null;
+    generatedAt: Date;
   } | null;
   rank: { siteId: string; rank: number; previousRank: number | null; capturedAt: Date } | null;
 };
@@ -167,6 +228,11 @@ function hydrateSite(row: SiteJoinRow): RepositorySite {
         visitors24h: row.current.visitors24h,
         visitors7d: row.current.visitors7d,
         pageviews24h: row.current.pageviews24h,
+        sessions24h: row.current.sessions24h,
+        engagedSessions24h: row.current.engagedSessions24h,
+        activeSessions: row.current.activeSessions,
+        surgeAttributedVisits24h: row.current.surgeAttributedVisits24h,
+        surgeAttributedEngagedVisits24h: row.current.surgeAttributedEngagedVisits24h,
         engagementRate: row.current.engagementRate == null ? null : Number(row.current.engagementRate),
         avgEngagementSeconds: row.current.avgEngagementSeconds,
         baselineDailyVisitors: row.current.baselineDailyVisitors,
@@ -175,13 +241,32 @@ function hydrateSite(row: SiteJoinRow): RepositorySite {
         growth7dPct: row.current.growth7dPct == null ? null : Number(row.current.growth7dPct),
         surgeReferrals24h: row.current.surgeReferrals24h,
         heatScore: row.current.heatScore,
+        rawScore: Number(row.current.rawScore),
+        smoothedScore: Number(row.current.smoothedScore),
         heatLeague: row.current.heatLeague,
+        rankingState: row.current.rankingState,
+        freshness: row.current.freshness,
+        dataConfidence: Number(row.current.dataConfidence),
         scoreVersion: row.current.scoreVersion,
+        rankingSource: row.current.rankingSource,
+        providerDefinitionVersion: row.current.providerDefinitionVersion,
+        lastBaselineAt: row.current.lastBaselineAt,
+        lastScoreAt: row.current.lastScoreAt,
+        breakoutState: row.current.breakoutState,
+        breakoutStrength: row.current.breakoutStrength,
         updatedAt: row.current.updatedAt,
+        lastAcceptedEventAt: row.current.lastAcceptedEventAt,
+        lastDetectedOrigin: row.current.lastDetectedOrigin,
+        trackerVersion: row.current.trackerVersion,
+        acceptedEvents24h: row.current.acceptedEvents24h,
+        suspectedEvents24h: row.current.suspectedEvents24h,
+        invalidEvents24h: row.current.invalidEvents24h,
       }
     : null;
-  const rank = row.rank?.siteId
-    ? { rank: row.rank.rank, previousRank: row.rank.previousRank, capturedAt: row.rank.capturedAt }
+  const rank = row.currentRank?.siteId
+    ? { rank: row.currentRank.rank, previousRank: row.currentRank.previousRank, capturedAt: row.currentRank.generatedAt }
+    : row.rank?.siteId
+      ? { rank: row.rank.rank, previousRank: row.rank.previousRank, capturedAt: row.rank.capturedAt }
     : null;
   return {
     ...row,
@@ -202,6 +287,14 @@ async function selectSites(db: Repository, where: ReturnType<typeof and>) {
     .from(site)
     .leftJoin(category, eq(site.categoryId, category.id))
     .leftJoin(siteMetricCurrent, eq(siteMetricCurrent.siteId, site.id))
+    .leftJoin(
+      currentRanking,
+      and(
+        eq(currentRanking.siteId, site.id),
+        eq(currentRanking.scope, "global"),
+        eq(currentRanking.window, "live"),
+      ),
+    )
     .leftJoin(
       rankSnapshot,
       and(
@@ -232,31 +325,41 @@ export async function findSiteByDomain(db: Repository, domain: string): Promise<
 
 export async function listPublicSites(
   db: Repository,
-  input: { categorySlug?: string; query?: string; status?: "active" | "pending" | "suspended"; limit?: number },
+  input: { categorySlug?: string; league?: "new" | "emerging" | "established"; query?: string; status?: "active" | "pending" | "suspended"; limit?: number },
 ): Promise<RepositorySite[]> {
   const conditions = [
     input.status ? eq(site.status, input.status) : publicSitePredicate(),
     input.categorySlug && input.categorySlug !== "all" ? eq(category.slug, input.categorySlug) : undefined,
+    input.league ? eq(siteMetricCurrent.heatLeague, input.league) : undefined,
     input.query
       ? or(ilike(site.name, `%${input.query}%`), ilike(site.domain, `%${input.query}%`), ilike(site.description, `%${input.query}%`))
       : undefined,
   ].filter(Boolean) as Array<ReturnType<typeof eq>>;
   const rows = await selectSites(db, and(...conditions));
   return rows
-    .sort((a, b) => (b.current?.heatScore ?? 0) - (a.current?.heatScore ?? 0) || a.createdAt.getTime() - b.createdAt.getTime())
+    .sort((a, b) =>
+      (a.rank?.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank?.rank ?? Number.MAX_SAFE_INTEGER)
+      || (b.current?.smoothedScore ?? b.current?.heatScore ?? 0) - (a.current?.smoothedScore ?? a.current?.heatScore ?? 0)
+      || a.createdAt.getTime() - b.createdAt.getTime()
+      || a.id.localeCompare(b.id),
+    )
     .slice(0, input.limit ?? 50);
 }
 
-export async function listNewPublicSites(db: Repository, limit = 50, categorySlug?: string, query?: string): Promise<RepositorySite[]> {
-  const rows = await listPublicSites(db, { limit, categorySlug, query });
+export async function listNewPublicSites(db: Repository, limit = 50, categorySlug?: string, query?: string, league?: "new" | "emerging" | "established"): Promise<RepositorySite[]> {
+  const rows = await listPublicSites(db, { limit, categorySlug, query, league });
   return rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
 }
 
-export async function listBreakoutSites(db: Repository, limit = 50, categorySlug?: string, query?: string): Promise<RepositorySite[]> {
-  const rows = await listPublicSites(db, { limit: Math.max(limit, 100), categorySlug, query });
+export async function listBreakoutSites(db: Repository, limit = 50, categorySlug?: string, query?: string, league?: "new" | "emerging" | "established"): Promise<RepositorySite[]> {
+  const rows = await listPublicSites(db, { limit: Math.max(limit, 100), categorySlug, query, league });
   return rows
-    .filter((row) => row.current?.growth24hPct != null && row.current.visitors24h != null)
-    .sort((a, b) => (b.current?.growth24hPct ?? -Infinity) - (a.current?.growth24hPct ?? -Infinity))
+    .filter((row) => row.current?.breakoutState === "active" || row.current?.breakoutState === "cooling")
+    .sort((a, b) =>
+      (b.current?.dataConfidence ?? 0) - (a.current?.dataConfidence ?? 0)
+      || (b.current?.smoothedScore ?? 0) - (a.current?.smoothedScore ?? 0)
+      || a.id.localeCompare(b.id),
+    )
     .slice(0, limit);
 }
 
@@ -355,9 +458,46 @@ export async function listClaimReviews(db: Repository, limit = 100): Promise<Rep
     .limit(limit);
 }
 
+/** Record an explicit admin decision on a failed or expired ownership proof. */
+export async function reviewClaim(
+  db: Repository,
+  input: { claimId: string; adminUserId: string; action: "reject" | "expire"; reason: string; requestId: string },
+) {
+  return db.transaction(async (tx) => {
+      const [before] = await tx
+        .select({ id: siteClaim.id, status: siteClaim.status, lastError: siteClaim.lastError })
+        .from(siteClaim)
+      .where(and(eq(siteClaim.id, input.claimId), or(eq(siteClaim.status, "failed"), eq(siteClaim.status, "expired"))))
+        .limit(1)
+        .for("update");
+    if (!before) return null;
+    const nextStatus = input.action === "expire" ? "expired" : "failed";
+    const [updated] = await tx
+      .update(siteClaim)
+        .set({ status: nextStatus, lastError: `admin_${input.action}:${input.reason}`.slice(0, 2_000), usedAt: new Date() })
+      .where(and(eq(siteClaim.id, input.claimId), or(eq(siteClaim.status, "failed"), eq(siteClaim.status, "expired"))))
+        .returning({ id: siteClaim.id, status: siteClaim.status });
+    const [audit] = await tx
+      .insert(adminAuditLog)
+      .values({
+        actorUserId: input.adminUserId,
+        action: `claim_${input.action}`,
+        targetType: "site_claim",
+        targetId: input.claimId,
+        previousState: { status: before.status, lastError: before.lastError },
+        newState: { status: nextStatus },
+        details: { reviewed: true },
+        reason: input.reason,
+        requestId: input.requestId,
+      })
+      .returning({ id: adminAuditLog.id });
+    return { claim: updated, auditId: audit?.id ?? null };
+  });
+}
+
 export async function getSnapshots(db: Repository, siteId: string, limit = 24) {
   return db
-    .select({ capturedAt: siteMetricSnapshot.capturedAt, visitors: siteMetricSnapshot.visitors, activeNow: siteMetricSnapshot.activeNow, growthPct: siteMetricSnapshot.growthPct, heatScore: siteMetricSnapshot.heatScore })
+    .select({ capturedAt: siteMetricSnapshot.capturedAt, visitors: siteMetricSnapshot.visitors, sessions: siteMetricSnapshot.sessions, pageviews: siteMetricSnapshot.pageviews, engagedSessions: siteMetricSnapshot.engagedSessions, attributedVisits: siteMetricSnapshot.attributedVisits, activeNow: siteMetricSnapshot.activeNow, growthPct: siteMetricSnapshot.growthPct, heatScore: siteMetricSnapshot.heatScore })
     .from(siteMetricSnapshot)
     .where(eq(siteMetricSnapshot.siteId, siteId))
     .orderBy(desc(siteMetricSnapshot.capturedAt))
@@ -410,8 +550,13 @@ export async function createPendingSite(
         submittedByUserId: input.submittedByUserId,
         isDemo: false,
       })
+      .onConflictDoNothing({ target: site.domain })
       .returning({ id: site.id, slug: site.slug });
-    if (!created) throw new Error("site_insert_failed");
+    if (!created) {
+      const [raced] = await tx.select({ id: site.id }).from(site).where(eq(site.domain, input.domain)).limit(1);
+      if (raced) return { duplicate: true as const, siteId: raced.id };
+      throw new Error("site_insert_failed");
+    }
     if (input.categoryId) {
       await tx.insert(siteCategory).values({ siteId: created.id, categoryId: input.categoryId }).onConflictDoNothing();
     }
@@ -448,7 +593,7 @@ export async function moderateSite(
   const nextStatus = { approve: "active", reject: "rejected", suspend: "suspended", restore: "active" }[input.action] as "active" | "rejected" | "suspended";
   const activityType = { approve: "site_approved", reject: "site_rejected", suspend: "site_suspended", restore: "site_restored" }[input.action] as "site_approved" | "site_rejected" | "site_suspended" | "site_restored";
   return db.transaction(async (tx) => {
-    const [before] = await tx.select({ status: site.status }).from(site).where(eq(site.id, input.siteId)).limit(1);
+    const [before] = await tx.select({ status: site.status }).from(site).where(eq(site.id, input.siteId)).limit(1).for("update");
     if (!before) return false;
     await tx.update(site).set({ status: nextStatus, updatedAt: new Date() }).where(eq(site.id, input.siteId));
     await tx.insert(activityEvent).values({ type: activityType, siteId: input.siteId, detail: input.reason, isDemo: false });
@@ -462,9 +607,16 @@ export async function createClaim(
   input: { siteId: string; userId: string; method: "meta_tag" | "dns_txt"; token: string; expiresAt: Date },
 ) {
   return db.transaction(async (tx) => {
-    const [target] = await tx.select({ id: site.id, domain: site.domain, ownership: site.ownership }).from(site).where(eq(site.id, input.siteId)).limit(1);
+    // Lock the site before checking its status and current owners so a
+    // concurrent moderation action cannot suspend a site between this check
+    // and the claim challenge creation.
+    const [target] = await tx.select({ id: site.id, domain: site.domain, status: site.status }).from(site).where(and(eq(site.id, input.siteId), isNull(site.deletedAt))).limit(1).for("update");
     if (!target) return { ok: false as const, reason: "site_not_found" as const };
-    const owners = await tx.select({ userId: siteOwner.userId, role: siteOwner.role }).from(siteOwner).where(eq(siteOwner.siteId, input.siteId));
+    if (target.status !== "active") return { ok: false as const, reason: "site_not_active" as const };
+    // Claim mutations use the same site -> membership lock order as owner
+    // settings and tracker-key mutations. The site lock above serializes
+    // moderation; this membership lock serializes owner-role changes.
+    const owners = await tx.select({ userId: siteOwner.userId, role: siteOwner.role }).from(siteOwner).where(eq(siteOwner.siteId, input.siteId)).for("update");
     if (owners.some((owner) => owner.role === "owner" && owner.userId !== input.userId)) {
       await tx.insert(siteClaim).values({ ...input, status: "failed", lastError: "ownership_conflict", usedAt: new Date() });
       return { ok: false as const, reason: "ownership_conflict" as const };
@@ -477,7 +629,7 @@ export async function createClaim(
 
 export async function getClaimForUser(db: Repository, claimId: string, userId: string) {
   const [claim] = await db
-    .select({ id: siteClaim.id, siteId: siteClaim.siteId, userId: siteClaim.userId, method: siteClaim.method, token: siteClaim.token, status: siteClaim.status, attempts: siteClaim.attempts, expiresAt: siteClaim.expiresAt, domain: site.domain })
+    .select({ id: siteClaim.id, siteId: siteClaim.siteId, userId: siteClaim.userId, method: siteClaim.method, token: siteClaim.token, status: siteClaim.status, attempts: siteClaim.attempts, expiresAt: siteClaim.expiresAt, domain: site.domain, siteStatus: site.status })
     .from(siteClaim)
     .innerJoin(site, eq(siteClaim.siteId, site.id))
     .where(and(eq(siteClaim.id, claimId), eq(siteClaim.userId, userId)))
@@ -485,25 +637,79 @@ export async function getClaimForUser(db: Repository, claimId: string, userId: s
   return claim ?? null;
 }
 
-export async function recordClaimAttempt(db: Repository, claimId: string, status: "failed" | "expired", error: string) {
-  await db.update(siteClaim).set({ status, lastError: error, attempts: sql`${siteClaim.attempts} + 1` }).where(eq(siteClaim.id, claimId));
+/**
+ * Record a failed proof lookup without making the challenge terminal too early.
+ *
+ * The status decision is made inside the UPDATE so concurrent verification
+ * requests cannot both observe the same attempt count and leave a challenge
+ * pending after it has crossed the cap. Expired challenges always remain
+ * expired; failed proof lookups stay pending until the final allowed attempt.
+ */
+export async function recordClaimAttempt(
+  db: Repository,
+  claimId: string,
+  status: "pending" | "expired",
+  error: string,
+  maxAttempts = 5,
+) {
+  const nextStatus = status === "expired"
+    ? sql`'expired'::claim_status`
+    : sql`CASE WHEN ${siteClaim.attempts} + 1 >= ${maxAttempts} THEN 'failed'::claim_status ELSE 'pending'::claim_status END`;
+  const nextAttempts = sql`CASE WHEN ${siteClaim.attempts} < ${maxAttempts} THEN ${siteClaim.attempts} + 1 ELSE ${siteClaim.attempts} END`;
+  const [updated] = await db
+    .update(siteClaim)
+    .set({ status: nextStatus, lastError: error, attempts: nextAttempts })
+    .where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")))
+    .returning({ status: siteClaim.status, attempts: siteClaim.attempts });
+  return updated ?? null;
 }
 
 export async function completeClaim(db: Repository, claimId: string, userId: string) {
   return db.transaction(async (tx) => {
-    const [claim] = await tx.select({ id: siteClaim.id, siteId: siteClaim.siteId, status: siteClaim.status, expiresAt: siteClaim.expiresAt }).from(siteClaim).where(and(eq(siteClaim.id, claimId), eq(siteClaim.userId, userId))).limit(1);
+    const [claim] = await tx
+      .select({ id: siteClaim.id, siteId: siteClaim.siteId, status: siteClaim.status, expiresAt: siteClaim.expiresAt })
+      .from(siteClaim)
+      .where(and(eq(siteClaim.id, claimId), eq(siteClaim.userId, userId)))
+      .limit(1)
+      .for("update");
     if (!claim) return { ok: false as const, reason: "not_found" as const };
     if (claim.status !== "pending") return { ok: false as const, reason: "not_pending" as const };
     const now = new Date();
     if (claim.expiresAt <= now) {
-      await tx.update(siteClaim).set({ status: "expired", lastError: "challenge_expired", attempts: sql`${siteClaim.attempts} + 1` }).where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")));
+      await tx.update(siteClaim).set({ status: "expired", lastError: "challenge_expired", attempts: sql`LEAST(${siteClaim.attempts} + 1, 5)` }).where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")));
       return { ok: false as const, reason: "expired" as const };
     }
-    const [existingOwner] = await tx.select({ userId: siteOwner.userId, role: siteOwner.role }).from(siteOwner).where(and(eq(siteOwner.siteId, claim.siteId), eq(siteOwner.role, "owner"))).limit(1);
-    if (existingOwner && existingOwner.userId !== userId) return { ok: false as const, reason: "ownership_conflict" as const };
-    await tx.update(siteClaim).set({ status: "verified", verifiedAt: now, usedAt: now, lastError: null, attempts: sql`${siteClaim.attempts} + 1` }).where(eq(siteClaim.id, claimId));
+    // Serialize all claim completions for one site, including different claim
+    // rows, before checking or creating its single owner.
+    const [lockedSite] = await tx.select({ id: site.id, status: site.status }).from(site).where(and(eq(site.id, claim.siteId), isNull(site.deletedAt))).limit(1).for("update");
+    if (!lockedSite) return { ok: false as const, reason: "not_found" as const };
+    if (lockedSite.status !== "active") return { ok: false as const, reason: "site_not_active" as const };
+    const [existingOwner] = await tx
+      .select({ userId: siteOwner.userId, role: siteOwner.role })
+      .from(siteOwner)
+      .where(and(eq(siteOwner.siteId, claim.siteId), eq(siteOwner.role, "owner")))
+      .limit(1)
+      .for("update");
+    if (existingOwner && existingOwner.userId !== userId) {
+      await tx
+        .update(siteClaim)
+        .set({ status: "failed", usedAt: now, lastError: "ownership_conflict", attempts: sql`LEAST(${siteClaim.attempts} + 1, 5)` })
+        .where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")));
+      return { ok: false as const, reason: "ownership_conflict" as const };
+    }
+    const [transitioned] = await tx
+      .update(siteClaim)
+      .set({ status: "verified", verifiedAt: now, usedAt: now, lastError: null, attempts: sql`LEAST(${siteClaim.attempts} + 1, 5)` })
+      .where(and(eq(siteClaim.id, claimId), eq(siteClaim.status, "pending")))
+      .returning({ siteId: siteClaim.siteId });
+    if (!transitioned) return { ok: false as const, reason: "not_pending" as const };
     await tx.update(site).set({ ownership: "claimed", updatedAt: now }).where(eq(site.id, claim.siteId));
-    await tx.insert(siteOwner).values({ siteId: claim.siteId, userId, role: "owner" }).onConflictDoNothing();
+    const [membership] = await tx.select({ id: siteOwner.id, role: siteOwner.role }).from(siteOwner).where(and(eq(siteOwner.siteId, claim.siteId), eq(siteOwner.userId, userId))).limit(1);
+    if (membership && membership.role !== "owner") {
+      await tx.update(siteOwner).set({ role: "owner" }).where(eq(siteOwner.id, membership.id));
+    } else if (!membership) {
+      await tx.insert(siteOwner).values({ siteId: claim.siteId, userId, role: "owner" });
+    }
     await tx.insert(activityEvent).values({ type: "ownership_verified", siteId: claim.siteId, detail: "Ownership verification succeeded.", isDemo: false });
     return { ok: true as const, siteId: claim.siteId };
   });

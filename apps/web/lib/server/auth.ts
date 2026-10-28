@@ -7,11 +7,13 @@ import { nextCookies } from "better-auth/next-js";
 import { and, eq } from "drizzle-orm";
 import { account, getPostgresDb, session, user, verificationToken } from "@surge/db";
 import { getServerEnv } from "@surge/config";
+import { sendTransactionalEmail } from "./email";
 
 export interface CurrentUser {
   id: string;
   name: string;
   email: string;
+  emailVerified: boolean;
   role: "user" | "admin";
   isDemo: boolean;
 }
@@ -20,11 +22,18 @@ const DEMO_USER: CurrentUser = {
   id: "demo-user",
   name: "Demo Workspace",
   email: "demo@surgeindex.local",
+  emailVerified: true,
   role: "admin",
   isDemo: true,
 };
 
+function escapeEmailHtml(value: string): string {
+  const entities: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" };
+  return value.replace(/[&<>\"']/g, (character) => entities[character] ?? character);
+}
+
 function createAuth(env: ReturnType<typeof getServerEnv>) {
+  const secureCookies = new URL(env.NEXT_PUBLIC_APP_URL).protocol === "https:";
   const google = env.GOOGLE_AUTH_CLIENT_ID && env.GOOGLE_AUTH_CLIENT_SECRET
     ? { google: { clientId: env.GOOGLE_AUTH_CLIENT_ID, clientSecret: env.GOOGLE_AUTH_CLIENT_SECRET } }
     : {};
@@ -40,15 +49,35 @@ function createAuth(env: ReturnType<typeof getServerEnv>) {
     trustedOrigins: [env.NEXT_PUBLIC_APP_URL],
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: false,
+      requireEmailVerification: env.APP_MODE === "production",
+      autoSignIn: env.APP_MODE !== "production",
+      async sendResetPassword({ user, url }: { user: { email: string }; url: string }) {
+        await sendTransactionalEmail({
+          to: user.email,
+          subject: "Reset your SurgeIndex password",
+          text: `Use this link to reset your SurgeIndex password: ${url}`,
+          html: `<p>Use this link to reset your SurgeIndex password:</p><p><a href="${escapeEmailHtml(url)}">Reset password</a></p>`,
+        });
+      },
+    },
+    emailVerification: {
+      sendOnSignUp: env.APP_MODE === "production",
+      async sendVerificationEmail({ user, url }: { user: { email: string }; url: string }) {
+        await sendTransactionalEmail({
+          to: user.email,
+          subject: "Verify your SurgeIndex email",
+          text: `Verify your SurgeIndex account: ${url}`,
+          html: `<p>Verify your SurgeIndex account:</p><p><a href="${escapeEmailHtml(url)}">Verify email</a></p>`,
+        });
+      },
     },
     socialProviders: google,
     advanced: {
-      useSecureCookies: true,
+      useSecureCookies: secureCookies,
       defaultCookieAttributes: {
         httpOnly: true,
         sameSite: "lax",
-        secure: true,
+        secure: secureCookies,
       },
     },
     plugins: [nextCookies()],
@@ -70,7 +99,7 @@ export function getAuth(): ReturnType<typeof createAuth> {
 async function loadUser(userId: string): Promise<CurrentUser | null> {
   const db = getPostgresDb();
   const [record] = await db
-    .select({ id: user.id, name: user.name, email: user.email, role: user.role, isDemo: user.isDemo })
+    .select({ id: user.id, name: user.name, email: user.email, emailVerified: user.emailVerified, role: user.role, isDemo: user.isDemo })
     .from(user)
     .where(eq(user.id, userId))
     .limit(1);

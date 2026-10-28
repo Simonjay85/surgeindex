@@ -1,0 +1,18 @@
+[Unit]
+Description=Sync HiGuppy WooCommerce sales aggregate to SurgeIndex
+Wants=network-online.target
+After=network-online.target surgeindex.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/surgeindex/current
+EnvironmentFile=/etc/surgeindex/surgeindex.env
+Environment=SURGEINDEX_HIGUPPY_SITE_ID=a117f0ae-9dda-4daf-a11a-c14148d1c94d
+Environment=SURGEINDEX_REVENUE_URL=https://surgeindex.lol/api/internal/revenue
+ExecStart=/www/server/php/83/bin/php /usr/local/bin/wp --path=/www/wwwroot/higuppy.com --allow-root eval-file /opt/surgeindex/current/deploy/higuppy/surgeindex-revenue-sync.php
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=full
+StandardOutput=journal
+StandardError=journal

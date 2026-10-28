@@ -1,0 +1,12 @@
+[Unit]
+Description=Check GA4 operations health every ten minutes
+
+[Timer]
+OnBootSec=6min
+OnUnitActiveSec=10min
+AccuracySec=30s
+Persistent=true
+Unit=surgeindex-ga4-health.service
+
+[Install]
+WantedBy=timers.target
