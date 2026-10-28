@@ -150,8 +150,8 @@ function mapRedditRss(xml: string): RawTrendItem[] {
 }
 
 async function redditOAuthToken(): Promise<string | null> {
-  const id = process.env.REDDIT_CLIENT_ID;
-  const secret = process.env.REDDIT_CLIENT_SECRET;
+  const id = process.env.REDDIT_CLIENT_ID?.trim();
+  const secret = process.env.REDDIT_CLIENT_SECRET?.trim();
   if (!id || !secret) return null;
   const res = await get("https://www.reddit.com/api/v1/access_token", {
     method: "POST",
@@ -159,7 +159,8 @@ async function redditOAuthToken(): Promise<string | null> {
     body: "grant_type=client_credentials",
   });
   const json = (await res.json()) as { access_token?: string };
-  return json.access_token ?? null;
+  if (!json.access_token) throw new SourceError("OAuth response did not contain an access token");
+  return json.access_token;
 }
 
 export async function fetchReddit(now: number): Promise<FetchResult> {
@@ -170,6 +171,9 @@ export async function fetchReddit(now: number): Promise<FetchResult> {
       const res = await get("https://oauth.reddit.com/r/all/hot?limit=30&raw_json=1", { headers: { Authorization: `Bearer ${token}` } });
       const items = mapRedditJson(await res.json(), now);
       if (items.length) return { items, via: "reddit oauth api" };
+      errors.push("oauth: no usable posts returned");
+    } else {
+      errors.push("oauth: approved Reddit credentials are not configured");
     }
   } catch (e) {
     errors.push(`oauth: ${(e as Error).message}`);
@@ -179,6 +183,7 @@ export async function fetchReddit(now: number): Promise<FetchResult> {
       const res = await get(url, { headers: { Accept: "application/json" } });
       const items = mapRedditJson(await res.json(), now);
       if (items.length) return { items, via: "reddit public json" };
+      errors.push(`${new URL(url).host}: no usable posts returned`);
     } catch (e) {
       errors.push((e as Error).message);
     }
@@ -187,6 +192,7 @@ export async function fetchReddit(now: number): Promise<FetchResult> {
     const res = await get("https://www.reddit.com/r/all/hot/.rss?limit=30", { headers: { Accept: "application/atom+xml" } });
     const items = mapRedditRss(await res.text());
     if (items.length) return { items, via: "reddit rss (no vote counts)" };
+    errors.push("rss: no usable posts returned");
   } catch (e) {
     errors.push(`rss: ${(e as Error).message}`);
   }

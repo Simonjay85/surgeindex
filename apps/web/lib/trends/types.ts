@@ -71,7 +71,7 @@ export const TREND_SOURCES: SourceMeta[] = [
     regionLabels: { global: "United States", vn: "Vietnam" },
     metricLabel: "views",
     tagline: "The most popular videos on the planet",
-    description: "YouTube's official Most Popular chart, re-ranked by view velocity so you see what is accelerating, not just what is big.",
+    description: "YouTube's official Most Popular chart in YouTube's order, with a separate Heat Score using available view data and rank movement.",
     homepage: "https://www.youtube.com/feed/trending",
   },
   {
@@ -96,7 +96,7 @@ export const TREND_SOURCES: SourceMeta[] = [
     regionLabels: { global: "r/all" },
     metricLabel: "upvotes",
     tagline: "The front page of the internet, distilled",
-    description: "The hottest posts on r/all, with upvote velocity, comment depth and movement since the last hour.",
+    description: "The r/all hot listing in Reddit's order, with rank movement and vote data when available.",
     homepage: "https://www.reddit.com/r/all/",
   },
   {
@@ -108,7 +108,7 @@ export const TREND_SOURCES: SourceMeta[] = [
     regionLabels: { global: "Front page" },
     metricLabel: "points",
     tagline: "What builders are reading",
-    description: "The Hacker News front page from the official API, scored by points per hour and discussion depth.",
+    description: "The Hacker News front page in its source order, with a separate Heat Score and discussion counts when available.",
     homepage: "https://news.ycombinator.com/",
   },
   {
@@ -120,7 +120,7 @@ export const TREND_SOURCES: SourceMeta[] = [
     regionLabels: { global: "All languages" },
     metricLabel: "stars today",
     tagline: "The repos developers are starring today",
-    description: "GitHub's daily trending repositories, ranked by stars gained today and how fast that pace is holding.",
+    description: "GitHub's daily trending repositories in GitHub's order, with stars gained today and a separate Heat Score.",
     homepage: "https://github.com/trending",
   },
   {

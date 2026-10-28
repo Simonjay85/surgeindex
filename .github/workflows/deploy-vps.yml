@@ -40,28 +40,6 @@ jobs:
         run: |
           scp -i ~/.ssh/id_deploy scripts/deploy-vps.sh "$VPS_USER@$VPS_HOST:/tmp/surgeindex-deploy-vps.sh"
 
-      - name: Upload API keys (optional repo secrets)
-        env:
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          ACCESSTRADE_API_KEY: ${{ secrets.ACCESSTRADE_API_KEY }}
-          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
-          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
-          LIVE_ADMIN_TOKEN: ${{ secrets.LIVE_ADMIN_TOKEN }}
-          DONATE_BANK_BIN: ${{ secrets.DONATE_BANK_BIN }}
-          DONATE_BANK_CODE: ${{ secrets.DONATE_BANK_CODE }}
-          DONATE_BANK_NAME: ${{ secrets.DONATE_BANK_NAME }}
-          DONATE_ACCOUNT_NO: ${{ secrets.DONATE_ACCOUNT_NO }}
-          DONATE_ACCOUNT_NAME: ${{ secrets.DONATE_ACCOUNT_NAME }}
-          DONATE_MOMO_PHONE: ${{ secrets.DONATE_MOMO_PHONE }}
-          DONATE_INTL_URL: ${{ secrets.DONATE_INTL_URL }}
-        run: |
-          umask 077; : > keys.env
-          for k in YOUTUBE_API_KEY ACCESSTRADE_API_KEY REDDIT_CLIENT_ID REDDIT_CLIENT_SECRET LIVE_ADMIN_TOKEN DONATE_BANK_BIN DONATE_BANK_CODE DONATE_BANK_NAME DONATE_ACCOUNT_NO DONATE_ACCOUNT_NAME DONATE_MOMO_PHONE DONATE_INTL_URL; do
-            v="${!k}"; v="${v//$'\n'/}"; [ -n "$v" ] && printf '%s=%s\n' "$k" "$v" >> keys.env
-          done
-          scp -i ~/.ssh/id_deploy keys.env "$VPS_USER@$VPS_HOST:/tmp/surgeindex-keys.env"
-          rm -f keys.env
-
       - name: Deploy
         run: |
           set -o pipefail

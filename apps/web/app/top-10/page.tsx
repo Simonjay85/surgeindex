@@ -6,7 +6,7 @@ import { brandStyle, StatusChip, TrendShell } from "../../components/trends/ui";
 import { formatCompact } from "../../lib/trends/format";
 import { isProductsBoardPublished, PRODUCTS_BOARD, PRODUCTS_BOARD_PATH } from "../../lib/products";
 import { findBoard, getLatestSnapshot } from "../../lib/trends/read";
-import { formatMetricValue, primaryRegion, TREND_SOURCES } from "../../lib/trends/types";
+import { boardId, formatMetricValue, primaryRegion, TREND_SOURCES, type TrendBoard } from "../../lib/trends/types";
 
 export const revalidate = 300;
 
@@ -27,13 +27,16 @@ export default async function BoardsIndexPage() {
           <h1 className="t-display is-medium">
             Pick a <em>platform.</em>
           </h1>
-          <p className="t-lede">Each board is a live Top 10 from that platform&apos;s own chart, re-scored every hour by Heat Score.</p>
+          <p className="t-lede">Explore Top 10 boards from public charts and feeds. Each board has its own ordering; Heat Score is a separate indicator using available signals.</p>
         </div>
       </section>
       <div className="t-wrap t-index-grid">
         {TREND_SOURCES.map((meta) => {
-          const board = findBoard(snapshot, meta.key, primaryRegion(meta));
-          const top = board?.items.slice(0, 3) ?? [];
+          const region = primaryRegion(meta);
+          const board: TrendBoard = findBoard(snapshot, meta.key, region) ?? {
+            id: boardId(meta.key, region), source: meta.key, region, status: meta.comingSoon ? "soon" : "unavailable", fetchedAt: null, items: [],
+          };
+          const top = board.items.slice(0, 3);
           return (
             <Link key={meta.key} href={`/top-10/${meta.key}`} className="t-index-card" style={brandStyle(meta.color)}>
               <div className="t-board-glow" aria-hidden="true" />
@@ -41,7 +44,7 @@ export default async function BoardsIndexPage() {
                 <span className="t-board-icon">
                   <PlatformIcon source={meta.key} size={20} />
                 </span>
-                {board ? <StatusChip board={board} /> : <span className="t-status is-soon">Coming soon</span>}
+                <StatusChip board={board} showTime />
               </div>
               <h2>{meta.name}</h2>
               <p>{meta.tagline}</p>
@@ -56,7 +59,7 @@ export default async function BoardsIndexPage() {
                   ))}
                 </ol>
               ) : (
-                <p className="t-index-empty">{meta.comingSoon ? "Planned for a later phase." : board?.status === "soon" ? "Coming soon — the official chart is not connected yet." : "Waiting for the first refresh."}</p>
+                <p className="t-index-empty">{meta.comingSoon ? "Planned for a later phase." : board.status === "soon" ? "Coming soon — the official chart is not connected yet." : "Waiting for the first refresh."}</p>
               )}
               <span className="t-index-cta">
                 Open board <ArrowUpRight size={14} aria-hidden="true" />

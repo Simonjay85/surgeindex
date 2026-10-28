@@ -7,7 +7,7 @@ import { isProductsBoardPublished, PRODUCTS_BOARD_PATH } from "../../lib/product
 
 export const metadata: Metadata = {
   title: "Methodology — how the Top 10 and Heat Score work",
-  description: "Where every SurgeIndex Top 10 comes from, how often it refreshes, and exactly how Heat Score measures growth velocity per platform.",
+  description: "Where each SurgeIndex Top 10 comes from, how its order is determined, and how Heat Score uses available signals.",
   alternates: { canonical: "/methodology" },
 };
 
@@ -26,10 +26,11 @@ const REF_ROWS: Array<{ key: keyof typeof TREND_VELOCITY_REFERENCE; name: string
 
 export default function MethodologyPage() {
   return (
-    <ProsePage kicker="Methodology" title={<>Heat, <em>not hype.</em></>} lede="Every board is a real platform chart, refreshed hourly. Heat Score adds one thing the charts do not tell you: how fast each item is moving.">
+    <ProsePage kicker="Methodology" title={<>Heat, <em>not hype.</em></>} lede="We collect public charts and feeds on an hourly schedule. Each board has its own ordering; Heat Score is a separate indicator based on the signals available for that source.">
       <section>
         <h2>1 · The boards</h2>
-        <p>Each board is the platform&apos;s own Top 10 — we never invent, pad or estimate rows. If a platform cannot be reached, the board keeps its last good snapshot and is marked <strong>Delayed</strong>, or says <strong>Unavailable</strong>. Boards without a usable public source — X (paid API) and Shopee Vietnam (no public best-seller feed) — are shown as <strong>Coming soon</strong> with no data.</p>
+        <p>Board position and Heat Score are different. Reddit, YouTube, Hacker News, GitHub and eBay retain the source&apos;s order. Google Trends is sorted by reported search-volume bucket and recency; Wikipedia uses its filtered most-read list; Báo VN groups and scores reports by outlets and recency. Amazon combines department lists as described below, and TikTok Shop uses measured sales growth when enough history exists, otherwise cumulative sales. Heat Score does not reorder these boards.</p>
+        <p>We do not invent or pad rows. If a source cannot be reached, the board keeps its last good snapshot and is marked <strong>Delayed</strong>, or says <strong>Unavailable</strong>. Boards without a usable public source — X (paid API) and Shopee Vietnam (no public best-seller feed) — are shown as <strong>Coming soon</strong> with no data.</p>
         <div className="t-table-wrap">
           <table className="t-table">
             <thead>
@@ -55,17 +56,18 @@ export default function MethodologyPage() {
       </section>
       <section>
         <h2>2 · Hourly refresh</h2>
-        <p>A single lightweight job runs at the top of every hour. It reads each source one after another, compares the new chart with the previous hour, and writes a JSON snapshot. Hourly snapshots are kept for seven days; the last snapshot of each UTC day becomes that day&apos;s archive page.</p>
+        <p>A scheduled job attempts a refresh each hour. It reads sources one after another, compares available results with the previous snapshot, and writes a JSON snapshot. A failed source can remain delayed; its displayed timestamp is the last successful fetch. Hourly snapshots are kept for seven days; the last snapshot of each UTC day becomes that day&apos;s archive page.</p>
       </section>
       <section>
         <h2>3 · Heat Score (trend-v1)</h2>
         <p>Heat Score runs from 0 to 99 and blends three signals:</p>
         <ul>
-          <li><strong>Growth velocity — {Math.round(TREND_HEAT_WEIGHTS.velocity * 100)}%.</strong> How fast the item&apos;s own metric is rising per hour. When we saw the item an hour ago, this is measured directly (for example, upvotes gained since the last refresh). For a first sighting we use its lifetime average rate (metric ÷ hours since it was posted). Velocity is log-normalized against the platform&apos;s “fully hot” rate above and capped there, so 300,000 YouTube views and 150 Hacker News points per hour both count as blazing on their own turf.</li>
-          <li><strong>Chart position — {Math.round(TREND_HEAT_WEIGHTS.position * 100)}%.</strong> The platform&apos;s own ranking, from #1 (full credit) to #10.</li>
-          <li><strong>Momentum — {Math.round(TREND_HEAT_WEIGHTS.momentum * 100)}%.</strong> Places climbed or lost since the previous hour. Newcomers get a strong momentum signal.</li>
+          <li><strong>Velocity or source-specific proxy — {Math.round(TREND_HEAT_WEIGHTS.velocity * 100)}%.</strong> For running totals such as YouTube views, Reddit votes and Hacker News points, a comparable previous snapshot can provide a per-hour change. Otherwise, where available, the source supplies a rate or an estimate such as a lifetime average or daily count divided by 24. Google&apos;s search-volume bucket and the Báo VN outlets-and-recency score are proxies, not directly observed hourly growth. The signal is log-normalized against the source reference above and capped there.</li>
+          <li><strong>Board position — {Math.round(TREND_HEAT_WEIGHTS.position * 100)}%.</strong> The item&apos;s position in this board, scaled by the number of items.</li>
+          <li><strong>Momentum — {Math.round(TREND_HEAT_WEIGHTS.momentum * 100)}%.</strong> Places climbed or lost since the previous available snapshot. A new item receives a fixed newcomer signal; no prior position receives a neutral baseline.</li>
         </ul>
-        <p>Velocity is only measured between snapshots for running totals that keep growing through the hour (Reddit upvotes, Hacker News points, YouTube views). Daily figures such as Wikipedia&apos;s most-read counts or Amazon&apos;s 24-hour rank gain keep their own per-hour rate. When a source exposes no growth counts at all (Reddit&apos;s RSS fallback, Amazon Best Sellers, eBay deals), velocity is left out and the other two weights are rescaled, rather than pretending velocity is zero — so brand-new boards score sensibly from their very first refresh.</p>
+        <p>When the entire source read has no growth signal (for example Reddit RSS, Amazon Best Sellers, eBay deals, or TikTok Shop before enough sales history exists), velocity is omitted and position and momentum are rescaled. A score can therefore be shown without measured growth; it is not a growth rate or a guarantee that an item is accelerating. If a particular item lacks a usable rate while its board has one, the velocity component for that item is zero.</p>
+        <p>Scores use different source metrics, assumptions and fallback rules. They are useful as a rough signal, not a direct comparison of audience size or growth across platforms. A delayed board&apos;s score reflects its last successful snapshot.</p>
       </section>
       <section>
         <h2>4 · Movement and history</h2>
