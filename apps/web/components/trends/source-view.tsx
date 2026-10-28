@@ -2,9 +2,22 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays } from "lucide-react";
 import { formatLongDate, formatShortDate, formatUtcTime } from "../../lib/trends/format";
 import { TREND_SOURCES, type SourceMeta, type TrendBoard } from "../../lib/trends/types";
-import { RegionScope, RegionToggle, UpdatedPulse } from "./client";
+import { RegionScope, RegionToggle } from "./client";
 import { PlatformIcon } from "./platform-icon";
 import { boardMeta, BoardSourceNote, brandStyle, ComingSoon, FullRow, StatusChip } from "./ui";
+
+const ORDER_EXPLANATION: Partial<Record<SourceMeta["key"], string>> = {
+  "google-trends": "SurgeIndex sorts Google Trends entries by the reported search-volume bucket, then recency.",
+  news: "SurgeIndex groups related articles and sorts stories by the number of outlets and recency.",
+  youtube: "Positions follow YouTube's Most Popular chart for the selected region.",
+  wikipedia: "Positions follow the Wikimedia most-read list after non-article pages and obvious bot spikes are filtered.",
+  reddit: "Positions follow Reddit's r/all hot listing.",
+  hackernews: "Positions follow the Hacker News top-stories listing.",
+  github: "Positions follow GitHub's daily trending list.",
+  amazon: "Positions combine Amazon department charts: Movers & Shakers by rank gain when available, otherwise Best Sellers interleaved by department rank.",
+  ebay: "Positions follow eBay's Trending Deals page.",
+  "tiktok-shop": "SurgeIndex ranks by units sold over approximately 24 hours when enough history exists; otherwise it ranks by cumulative units sold. See the source note below the board for the current basis. Affiliate commission does not affect the order.",
+};
 
 export interface SourceViewProps {
   meta: SourceMeta;
@@ -27,7 +40,7 @@ export function SourceView({ meta, boards, generatedAt, archiveDates, archiveDat
     </>
   ) : (
     <>
-      Top 10 on <em>{meta.name}</em> right now
+      Latest Top 10 on <em>{meta.name}</em>
     </>
   );
   return (
@@ -68,14 +81,10 @@ export function SourceView({ meta, boards, generatedAt, archiveDates, archiveDat
               <span className="t-pill">
                 <CalendarDays size={14} aria-hidden="true" /> Final snapshot of the day{generatedAt ? ` · ${formatUtcTime(generatedAt)}` : ""}
               </span>
-            ) : (
-              <span className="t-pill">
-                <UpdatedPulse at={generatedAt} fallback={generatedAt ? formatUtcTime(generatedAt) : "pending"} />
-              </span>
-            )}
+            ) : null}
             {boards.map((b) => (
               <span key={b.id} data-only={multi ? b.region : undefined}>
-                <StatusChip board={b} />
+                <StatusChip board={b} showTime archive={Boolean(archiveDate)} />
               </span>
             ))}
             {multi ? <RegionToggle /> : null}
@@ -102,7 +111,7 @@ export function SourceView({ meta, boards, generatedAt, archiveDates, archiveDat
                   <p>{archiveDate ? "This board was not available when the day closed." : `The last refresh could not reach ${meta.name}. It retries every hour.`}</p>
                 </div>
               )}
-              {b.status === "stale" && b.fetchedAt ? <p className="t-board-note">The latest refresh failed; showing the last good snapshot from {formatUtcTime(b.fetchedAt)}.</p> : null}
+              {b.status === "stale" && b.fetchedAt ? <p className="t-board-note">The latest refresh failed; showing the last successful snapshot.</p> : null}
               <BoardSourceNote meta={meta} board={b} />
             </div>
           ))}
@@ -132,11 +141,8 @@ export function SourceView({ meta, boards, generatedAt, archiveDates, archiveDat
         <aside className="t-src-side">
           <div className="t-side-card">
             <h2>How this board is ranked</h2>
-            {meta.key === "tiktok-shop" ? (
-              <p lang="vi">Thứ tự lấy từ số lượng đã bán trong feed affiliate chính thức của TikTok Shop (qua AccessTrade). Feed chỉ có tổng đã bán (lũy kế), nên SurgeIndex lưu số liệu mỗi giờ và xếp theo số bán thêm trong 24 giờ khi đủ ~20 giờ dữ liệu. Hoa hồng affiliate không ảnh hưởng thứ hạng.</p>
-            ) : (
-            <p>Position comes from {meta.name}&apos;s own chart. The flame is our Heat Score: growth per hour normalized for {meta.short}, blended with chart position and momentum since the previous hour.</p>
-            )}
+            <p>{ORDER_EXPLANATION[meta.key] ?? "This board's positions follow the available source data."}</p>
+            <p>Heat Score is separate from position. It combines position, rank movement and an available source-specific growth signal or proxy. When the source has no growth signal, the score uses position and movement only.</p>
             <Link href="/methodology" className="t-side-link">
               Methodology <ArrowUpRight size={13} aria-hidden="true" />
             </Link>

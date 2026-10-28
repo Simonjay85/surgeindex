@@ -5,6 +5,7 @@ import { formatCompact, formatFull, formatUtcTime, formatVnClock } from "../../l
 import { externalRel, formatMetricValue, getSourceMeta, TREND_SOURCES, type SourceMeta, type TrendBoard, type TrendItem, type TrendSource } from "../../lib/trends/types";
 import { PlatformIcon } from "./platform-icon";
 import { UpdatedPulse } from "./client";
+import { BoardFreshness } from "./freshness";
 import { getDonateConfig } from "../../lib/donate";
 
 const EXT = { target: "_blank", rel: "noopener noreferrer nofollow" } as const;
@@ -79,7 +80,7 @@ export function TrendHeader({ generatedAt }: { generatedAt?: string | null }) {
           <Link href="/methodology">Methodology</Link>
         </nav>
         <div className="t-header-meta">
-          {generatedAt !== undefined ? <UpdatedPulse at={generatedAt} fallback={generatedAt ? formatUtcTime(generatedAt) : "pending"} /> : null}
+          {generatedAt !== undefined ? <UpdatedPulse at={generatedAt} label="Snapshot" fallback={generatedAt ? formatUtcTime(generatedAt) : "pending"} /> : null}
         </div>
       </div>
     </header>
@@ -96,7 +97,7 @@ export function TrendFooter() {
             <Logo />
             <span className="t-brand-word">SurgeIndex</span>
           </Link>
-          <p className="t-footer-note">The internet&apos;s Top 10, refreshed every hour. Real public charts, re-ranked by how fast things are moving.</p>
+          <p className="t-footer-note">Public charts and feeds, checked hourly. Board order follows each source&apos;s stated method; Heat Score is a separate signal.</p>
         </div>
         <div className="t-footer-cols">
           <div>
@@ -188,7 +189,7 @@ export function Sparkline({ history, width = 84, height = 26 }: { history: numbe
 export function HeatMeter({ value, large = false }: { value: number; large?: boolean }) {
   const tier = value >= 80 ? "blazing" : value >= 60 ? "hot" : value >= 40 ? "warm" : "mild";
   return (
-    <span className={`t-heat is-${tier} ${large ? "is-large" : ""}`} title={`Heat Score ${value}/99 — growth velocity normalized for this platform`}>
+    <span className={`t-heat is-${tier} ${large ? "is-large" : ""}`} title={`Heat Score ${value}/99 — based on board position, movement and available source signals; not a measured growth rate`}>
       <Flame size={large ? 15 : 12} aria-hidden="true" />
       <span className="t-heat-num">{value}</span>
       <span className="t-heat-bar" aria-hidden="true">
@@ -331,11 +332,8 @@ export function FullRow({ item, meta }: { item: TrendItem; meta: SourceMeta }) {
 
 /* ───────────────────────────── Boards ───────────────────────────── */
 
-export function StatusChip({ board }: { board: TrendBoard }) {
-  if (board.status === "live") return <span className="t-status is-live">Live</span>;
-  if (board.status === "stale") return <span className="t-status is-stale" title={board.note}>Delayed</span>;
-  if (board.status === "soon") return <span className="t-status is-soon">Coming soon</span>;
-  return <span className="t-status is-down" title={board.note}>Unavailable</span>;
+export function StatusChip({ board, showTime = false, archive = false, compact = false }: { board: TrendBoard; showTime?: boolean; archive?: boolean; compact?: boolean }) {
+  return <BoardFreshness board={{ status: board.status, fetchedAt: board.fetchedAt, note: board.note }} showTime={showTime} archive={archive} compact={compact} />;
 }
 
 export function ComingSoon({ meta, note }: { meta: SourceMeta; note?: string }) {
@@ -372,7 +370,7 @@ export function BoardCard({ meta, boards }: { meta: SourceMeta; boards: TrendBoa
         <div className="t-board-status">
           {boards.map((b) => (
             <span key={b.id} data-only={multi ? b.region : undefined}>
-              <StatusChip board={b} />
+              <StatusChip board={b} showTime />
             </span>
           ))}
         </div>
@@ -393,7 +391,7 @@ export function BoardCard({ meta, boards }: { meta: SourceMeta; boards: TrendBoa
               <p>The last refresh could not reach {meta.name}. It will retry at the next hourly run.</p>
             </div>
           )}
-          {b.status === "stale" && b.fetchedAt ? <p className="t-board-note">Showing the last good snapshot from {formatUtcTime(b.fetchedAt)}.</p> : null}
+          {b.status === "stale" && b.fetchedAt ? <p className="t-board-note">Showing the last successful snapshot; the latest refresh failed.</p> : null}
           <BoardSourceNote meta={meta} board={b} />
         </div>
       ))}
@@ -414,13 +412,14 @@ export interface TickerEntry {
   item: TrendItem;
   source: TrendSource;
   region: string;
+  board: TrendBoard;
 }
 
 export function Ticker({ entries }: { entries: TickerEntry[] }) {
   if (!entries.length) return null;
   const track = (hidden: boolean) => (
     <ul className="t-ticker-track" aria-hidden={hidden || undefined}>
-      {entries.map(({ item, source, region }) => {
+      {entries.map(({ item, source, region, board }) => {
         const meta = getSourceMeta(source)!;
         return (
           <li key={`${source}-${region}-${item.id}`} style={brandStyle(meta.color)}>
@@ -429,6 +428,7 @@ export function Ticker({ entries }: { entries: TickerEntry[] }) {
               {meta.short}
               {region !== "global" ? <em>{region.toUpperCase()}</em> : null}
             </span>
+            <StatusChip board={board} showTime />
             <span className="t-ticker-one">#{item.rank}</span>
             <a href={item.url} tabIndex={hidden ? -1 : undefined} {...ext(meta)}>
               {item.title}
@@ -440,9 +440,9 @@ export function Ticker({ entries }: { entries: TickerEntry[] }) {
     </ul>
   );
   return (
-    <div className="t-ticker" role="region" aria-label="Top three right now on every platform">
+    <div className="t-ticker" role="region" aria-label="Top three on each platform; each source shows its update status">
       <span className="t-ticker-label">
-        <span className="t-pulse-dot" aria-hidden="true" /> Trending now
+        <span className="t-pulse-dot" aria-hidden="true" /> Latest boards
       </span>
       <div className="t-ticker-viewport">
         <div className="t-ticker-move">

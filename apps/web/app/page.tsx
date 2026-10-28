@@ -3,15 +3,16 @@ import Link from "next/link";
 import { ArrowUpRight, Gauge, History, Radar } from "lucide-react";
 import { RegionScope, RegionToggle, PlatformTabs, UpdatedPulse } from "../components/trends/client";
 import { PlatformIcon } from "../components/trends/platform-icon";
-import { BoardCard, brandStyle, HeatMeter, JsonLd, Ticker, TrendShell, type TickerEntry } from "../components/trends/ui";
+import { LiveSourceCount } from "../components/trends/freshness";
+import { BoardCard, brandStyle, HeatMeter, JsonLd, StatusChip, Ticker, TrendShell, type TickerEntry } from "../components/trends/ui";
 import { formatUtcTime } from "../lib/trends/format";
 import { findBoard, getLatestSnapshot, hottestAcross } from "../lib/trends/read";
-import { externalRel, getSourceMeta, primaryRegion, TREND_SOURCES, type TrendBoard } from "../lib/trends/types";
+import { boardId, externalRel, getSourceMeta, primaryRegion, TREND_SOURCES, type TrendBoard } from "../lib/trends/types";
 
 export const revalidate = 300;
 
 const TITLE = "SurgeIndex — The internet's Top 10, updated every hour";
-const DESCRIPTION = "What is hot on the internet right now: hourly Top 10s from Google Trends, YouTube, Wikipedia, Reddit, Hacker News, GitHub, Amazon and eBay, ranked by Heat Score — how fast each item is surging.";
+const DESCRIPTION = "Explore Top 10 boards from public charts and feeds, with source-specific rankings and a separate Heat Score based on available signals.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
@@ -26,7 +27,8 @@ export default async function HomePage() {
   const generatedAt = snapshot?.generatedAt ?? null;
   const boards = snapshot?.boards ?? [];
   const liveBoards = boards.filter((b) => (b.status === "live" || b.status === "stale") && b.items.length);
-  const liveSources = new Set(liveBoards.map((b) => b.source));
+  const primaryBoards = TREND_SOURCES.map((meta) => findBoard(snapshot, meta.key, primaryRegion(meta))).filter((b): b is TrendBoard => Boolean(b));
+  const activePrimaryBoards = primaryBoards.filter((b) => b.items.length).map(({ status, fetchedAt }) => ({ status, fetchedAt }));
   const tracked = liveBoards.reduce((n, b) => n + b.items.length, 0);
 
   // Ticker: the top three of every board (global and Vietnam), interleaved by rank.
@@ -34,8 +36,9 @@ export default async function HomePage() {
   for (let rank = 0; rank < 3; rank++) {
     for (const meta of TREND_SOURCES) {
       for (const region of meta.regions) {
-        const item = findBoard(snapshot, meta.key, region)?.items[rank];
-        if (item) ticker.push({ item, source: meta.key, region });
+        const board = findBoard(snapshot, meta.key, region);
+        const item = board?.items[rank];
+        if (board && item) ticker.push({ item, source: meta.key, region, board });
       }
     }
   }
@@ -52,14 +55,14 @@ export default async function HomePage() {
           <div className="t-hero-copy">
           <div className="t-eyebrow">
             <span className="t-pulse-dot" aria-hidden="true" />
-            Live · {liveSources.size} platforms · hourly
+            Hourly snapshots · <LiveSourceCount boards={activePrimaryBoards} /> live platforms
           </div>
           <h1 className="t-display">
             The internet&apos;s <em>Top&nbsp;10</em>,
             <br />
             every hour.
           </h1>
-          <p className="t-lede">One glance at what is surging on Google, YouTube, Wikipedia, Reddit, Hacker News, GitHub, Amazon and eBay — ranked by how fast it is moving, not just how big it already is.</p>
+          <p className="t-lede">Explore public charts and feeds from Google, YouTube, Wikipedia, Reddit, Hacker News, GitHub, Amazon and eBay. Each board has its own order; Heat Score adds a separate signal.</p>
           </div>
           {leaders.length ? (
             <aside className="t-leaders" aria-labelledby="leaders-title">
@@ -78,7 +81,10 @@ export default async function HomePage() {
                         <PlatformIcon source={meta.key} size={15} />
                       </span>
                       <div className="t-leaders-body">
-                        <span className="t-leaders-src">{meta.name}</span>
+                        <div className="t-leaders-meta">
+                          <span className="t-leaders-src">{meta.name}</span>
+                          <StatusChip board={board!} showTime compact />
+                        </div>
                         <a href={top.url} target="_blank" rel={externalRel(meta)}>
                           {top.title}
                         </a>
@@ -99,9 +105,9 @@ export default async function HomePage() {
               <dd>{tracked}</dd>
             </div>
             <div>
-              <dt>Live boards</dt>
+              <dt>Live platforms</dt>
               <dd>
-                {liveSources.size}
+                <LiveSourceCount boards={activePrimaryBoards} />
                 <span>/{TREND_SOURCES.length}</span>
               </dd>
             </div>
@@ -110,7 +116,7 @@ export default async function HomePage() {
               <dd className="is-text">Global + Vietnam</dd>
             </div>
             <div>
-              <dt>Last refresh</dt>
+              <dt>Snapshot assembled</dt>
               <dd className="is-text">
                 <UpdatedPulse at={generatedAt} label="" fallback={generatedAt ? formatUtcTime(generatedAt) : "pending"} />
               </dd>
@@ -127,10 +133,10 @@ export default async function HomePage() {
             <div>
               <span className="t-kicker">Surge spotlight</span>
               <h2 id="spotlight-title" className="t-h2">
-                Moving fastest <em>right now</em>
+                Spotlight by <em>Heat Score</em>
               </h2>
             </div>
-            <p className="t-section-note">The single hottest item on each platform, ranked against each other by Heat Score.</p>
+            <p className="t-section-note">The highest-scoring item from selected global boards. Scores use different source signals and are not direct comparisons of growth across platforms.</p>
           </div>
           <div className="t-spotlight">
             {hottest.map(({ item, board }, index) => (
@@ -156,9 +162,10 @@ export default async function HomePage() {
           </div>
           <div className="t-boards">
             {TREND_SOURCES.map((meta) => {
-              const bs = meta.regions.map((r) => findBoard(snapshot, meta.key, r)).filter((b): b is TrendBoard => Boolean(b));
-              const fallback: TrendBoard[] = bs.length ? bs : [{ id: meta.key, source: meta.key, region: primaryRegion(meta), status: meta.comingSoon ? "soon" : "unavailable", fetchedAt: null, items: [] }];
-              return <BoardCard key={meta.key} meta={meta} boards={fallback} />;
+              const bs: TrendBoard[] = meta.regions.map((region) => findBoard(snapshot, meta.key, region) ?? {
+                id: boardId(meta.key, region), source: meta.key, region, status: meta.comingSoon ? "soon" : "unavailable", fetchedAt: null, items: [],
+              });
+              return <BoardCard key={meta.key} meta={meta} boards={bs} />;
             })}
           </div>
         </div>
@@ -171,7 +178,7 @@ export default async function HomePage() {
             <h2 id="how-title" className="t-h2">
               Heat, <em>not hype.</em>
             </h2>
-            <p>Every hour we read each platform&apos;s own public chart, compare it with the hour before and score how fast each item is climbing on its home turf.</p>
+            <p>We check public charts and feeds hourly and compare available snapshots. Each board explains how its positions are determined.</p>
             <Link href="/methodology" className="t-button">
               Read the methodology <ArrowUpRight size={15} aria-hidden="true" />
             </Link>
@@ -184,8 +191,8 @@ export default async function HomePage() {
             </li>
             <li>
               <Gauge size={20} aria-hidden="true" />
-              <strong>Velocity-weighted</strong>
-              <span>Heat Score blends growth per hour, chart position and momentum, normalized per platform.</span>
+              <strong>Signals, with context</strong>
+              <span>Heat Score combines position, movement and available growth signals or proxies. Some sources lack growth data.</span>
             </li>
             <li>
               <History size={20} aria-hidden="true" />
@@ -214,6 +221,7 @@ function SpotlightCard({ board, index, itemId }: { board: TrendBoard; index: num
           <PlatformIcon source={meta.key} size={13} /> {meta.name}
         </span>
         <span className="t-spot-rank">#{item.rank} on the board</span>
+        <StatusChip board={board} showTime />
       </div>
       <span className="t-spot-numeral" aria-hidden="true">
         {item.heat}
