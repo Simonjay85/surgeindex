@@ -1,0 +1,283 @@
+{
+  "status": "draft",
+  "week": "2026-W43",
+  "periodLabel": "20–26/10/2026 so với 13–19/10/2026",
+  "updatedAt": "2026-10-27T16:40:00+07:00",
+  "method": "Google Trends (geo=VN), mỗi từ khóa tra riêng theo ngày cho 13–26/10/2026; % tăng = trung bình 7 ngày gần nhất so với 7 ngày trước đó. Chỉ số là tương đối theo đỉnh của chính từ khóa, không phải số lượt tìm kiếm tuyệt đối.",
+  "items": [
+    {
+      "rank": 1,
+      "name": "Mặt nạ Halloween",
+      "category": "Đồ hóa trang & lễ hội",
+      "keyword": "mặt nạ halloween",
+      "signals": [
+        {
+          "source": "google-trends-vn",
+          "evidence": "Mức quan tâm tìm kiếm “mặt nạ halloween” tại VN tăng 170% (TB 20–26/10: 66 so với 13–19/10: 25, chỉ số Google Trends 0–100)",
+          "changePct": 170,
+          "window": {
+            "current": "2026-10-20/2026-10-26",
+            "previous": "2026-10-13/2026-10-19"
+          },
+          "evidenceUrl": "https://trends.google.com/trends/explore?date=2026-10-13%202026-10-26&geo=VN&q=m%E1%BA%B7t%20n%E1%BA%A1%20halloween&hl=vi",
+          "observedAt": "2026-10-27T16:40:00+07:00"
+        }
+      ],
+      "buyLinks": [
+        {
+          "retailer": "TikTok Shop",
+          "url": "https://go.isclix.com/deep_link/4726442799889564125/6648523843406889655?url=https%3A%2F%2Fshop.tiktok.com%2Fview%2Fproduct%2F1733757684142999519%3Fregion%3DVN%26local%3Den&sub4=oneatweb&sub5=pub-api&utm_source=surgeindex",
+          "disclosure": true
+        }
+      ],
+      "priceNote": null,
+      "note": "Từ khóa “mặt nạ halloween” tăng mạnh nhất trong nhóm theo dõi khi Halloween (31/10) đến gần."
+    },
+    {
+      "rank": 2,
+      "name": "Trang phục Halloween",
+      "category": "Đồ hóa trang & lễ hội",
+      "keyword": "trang phục halloween",
+      "signals": [
+        {
+          "source": "google-trends-vn",
+          "evidence": "Mức quan tâm tìm kiếm “trang phục halloween” tại VN tăng 128% (TB 20–26/10: 58 so với 13–19/10: 25, chỉ số Google Trends 0–100)",
+          "changePct": 128,
+          "window": {
+            "current": "2026-10-20/2026-10-26",
+            "previous": "2026-10-13/2026-10-19"
+          },
+          "evidenceUrl": "https://trends.google.com/trends/explore?date=2026-10-13%202026-10-26&geo=VN&q=trang%20ph%E1%BB%A5c%20halloween&hl=vi",
+          "observedAt": "2026-10-27T16:40:00+07:00"
+        }
+      ],
+      "buyLinks": [
+        {
+          "retailer": "TikTok Shop",
+          "url": "https://go.isclix.com/deep_link/4726442799889564125/6648523843406889655?url=https%3A%2F%2Fshop.tiktok.com%2Fview%2Fproduct%2F1737858622841455743%3Fregion%3DVN%26local%3Den&sub4=oneatweb&sub5=pub-api&utm_source=surgeindex",
+          "disclosure": true
+        }
+      ],
+      "priceNote": null,
+      "note": "Tìm kiếm “trang phục halloween” tại Việt Nam tăng đều suốt tuần trước Halloween."
+    },
+    {
+      "rank": 3,
+      "name": "Bí ngô Halloween (đồ trang trí)",
+      "category": "Trang trí & lễ hội",
+      "keyword": "bí ngô halloween",
+      "signals": [
+        {
+          "source": "google-trends-vn",
+          "evidence": "Mức quan tâm tìm kiếm “bí ngô halloween” tại VN tăng 96% (TB 20–26/10: 55 so với 13–19/10: 28, chỉ số Google Trends 0–100)",
+          "changePct": 96,
+          "window": {
+            "current": "2026-10-20/2026-10-26",
+            "previous": "2026-10-13/2026-10-19"
+          },
+          "evidenceUrl": "https://trends.google.com/trends/explore?date=2026-10-13%202026-10-26&geo=VN&q=b%C3%AD%20ng%C3%B4%20halloween&hl=vi",
+          "observedAt": "2026-10-27T16:40:00+07:00"
+        }
+      ],
+      "buyLinks": [
+        {
+          "retailer": "TikTok Shop",
+          "url": "https://go.isclix.com/deep_link/4726442799889564125/6648523843406889655?url=https%3A%2F%2Fshop.tiktok.com%2Fview%2Fproduct%2F1730935131171686801%3Fregion%3DVN%26local%3Den&sub4=oneatweb&sub5=pub-api&utm_source=surgeindex",
+          "disclosure": true
+        }
+      ],
+      "priceNote": null,
+      "note": "Tìm kiếm “bí ngô halloween” tăng dần trong tuần, cao nhất vào 26/10."
+    },
+    {
+      "rank": 4,
+      "name": "Hoa tặng 20/11",
+      "category": "Quà tặng",
+      "keyword": "hoa 20/11",
+      "signals": [
+        {
+          "source": "google-trends-vn",
+          "evidence": "Mức quan tâm tìm kiếm “hoa 20/11” tại VN tăng 75% (TB 20–26/10: 72 so với 13–19/10: 41, chỉ số Google Trends 0–100)",
+          "changePct": 75,
+          "window": {
+            "current": "2026-10-20/2026-10-26",
+            "previous": "2026-10-13/2026-10-19"
+          },
+          "evidenceUrl": "https://trends.google.com/trends/explore?date=2026-10-13%202026-10-26&geo=VN&q=hoa%2020%2F11&hl=vi",
+          "observedAt": "2026-10-27T16:40:00+07:00"
+        }
+      ],
+      "buyLinks": [
+        {
+          "retailer": "TikTok Shop",
+          "url": "https://go.isclix.com/deep_link/4726442799889564125/6648523843406889655?url=https%3A%2F%2Fshop.tiktok.com%2Fview%2Fproduct%2F1738164958625760939%3Fregion%3DVN%26local%3Den&sub4=oneatweb&sub5=pub-api&utm_source=surgeindex",
+          "disclosure": true
+        }
+      ],
+      "priceNote": null,
+      "note": "Tìm kiếm “hoa 20/11” tăng trong tuần, với hai đỉnh vào 20/10 và 26/10, trước Ngày Nhà giáo Việt Nam (20/11)."
+    },
+    {
+      "rank": 5,
+      "name": "Thiệp 20/11",
+      "category": "Quà tặng & văn phòng phẩm",
+      "keyword": "thiệp 20/11",
+      "signals": [
+        {
+          "source": "google-trends-vn",
+          "evidence": "Mức quan tâm tìm kiếm “thiệp 20/11” tại VN tăng 69% (TB 20–26/10: 59 so với 13–19/10: 35, chỉ số Google Trends 0–100)",
+          "changePct": 69,
+          "window": {
+            "current": "2026-10-20/2026-10-26",
+            "previous": "2026-10-13/2026-10-19"
+          },
+          "evidenceUrl": "https://trends.google.com/trends/explore?date=2026-10-13%202026-10-26&geo=VN&q=thi%E1%BB%87p%2020%2F11&hl=vi",
+          "observedAt": "2026-10-27T16:40:00+07:00"
+        }
+      ],
+      "buyLinks": [
+        {
+          "retailer": "TikTok Shop",
+          "url": "https://go.isclix.com/deep_link/4726442799889564125/6648523843406889655?url=https%3A%2F%2Fshop.tiktok.com%2Fview%2Fproduct%2F1730197863130368774%3Fregion%3DVN%26local%3Den&sub4=oneatweb&sub5=pub-api&utm_source=surgeindex",
+          "disclosure": true
+        }
+      ],
+      "priceNote": null,
+      "note": "Tìm kiếm “thiệp 20/11” tăng trong tuần, đạt đỉnh của kỳ vào 26/10."
+    },
+    {
+      "rank": 6,
+      "name": "Cây thông Noel",
+      "category": "Trang trí & lễ hội",
+      "keyword": "cây thông noel",
+      "signals": [
+        {
+          "source": "google-trends-vn",
+          "evidence": "Mức quan tâm tìm kiếm “cây thông noel” tại VN tăng 25% (TB 20–26/10: 87 so với 13–19/10: 70, chỉ số Google Trends 0–100)",
+          "changePct": 25,
+          "window": {
+            "current": "2026-10-20/2026-10-26",
+            "previous": "2026-10-13/2026-10-19"
+          },
+          "evidenceUrl": "https://trends.google.com/trends/explore?date=2026-10-13%202026-10-26&geo=VN&q=c%C3%A2y%20th%C3%B4ng%20noel&hl=vi",
+          "observedAt": "2026-10-27T16:40:00+07:00"
+        }
+      ],
+      "buyLinks": [
+        {
+          "retailer": "TikTok Shop",
+          "url": "https://go.isclix.com/deep_link/4726442799889564125/6648523843406889655?url=https%3A%2F%2Fshop.tiktok.com%2Fview%2Fproduct%2F1729770242778892613%3Fregion%3DVN%26local%3Den&sub4=oneatweb&sub5=pub-api&utm_source=surgeindex",
+          "disclosure": true
+        }
+      ],
+      "priceNote": null,
+      "note": "Tìm kiếm “cây thông noel” bắt đầu tăng, sớm khoảng 2 tháng trước Giáng sinh."
+    },
+    {
+      "rank": 7,
+      "name": "OPPO Find X9",
+      "category": "Điện thoại",
+      "keyword": "oppo find x9",
+      "signals": [
+        {
+          "source": "google-trends-vn",
+          "evidence": "Mức quan tâm tìm kiếm “oppo find x9” tại VN tăng 20% (TB 20–26/10: 83 so với 13–19/10: 69, chỉ số Google Trends 0–100)",
+          "changePct": 20,
+          "window": {
+            "current": "2026-10-20/2026-10-26",
+            "previous": "2026-10-13/2026-10-19"
+          },
+          "evidenceUrl": "https://trends.google.com/trends/explore?date=2026-10-13%202026-10-26&geo=VN&q=oppo%20find%20x9&hl=vi",
+          "observedAt": "2026-10-27T16:40:00+07:00"
+        }
+      ],
+      "buyLinks": [],
+      "priceNote": null,
+      "note": "Tìm kiếm “oppo find x9” tăng trong tuần, đỉnh của kỳ vào 25/10."
+    },
+    {
+      "rank": 8,
+      "name": "Xe máy điện",
+      "category": "Xe & phương tiện",
+      "keyword": "xe máy điện",
+      "signals": [
+        {
+          "source": "google-trends-vn",
+          "evidence": "Mức quan tâm tìm kiếm “xe máy điện” tại VN tăng 14% (TB 20–26/10: 59 so với 13–19/10: 52, chỉ số Google Trends 0–100)",
+          "changePct": 14,
+          "window": {
+            "current": "2026-10-20/2026-10-26",
+            "previous": "2026-10-13/2026-10-19"
+          },
+          "evidenceUrl": "https://trends.google.com/trends/explore?date=2026-10-13%202026-10-26&geo=VN&q=xe%20m%C3%A1y%20%C4%91i%E1%BB%87n&hl=vi",
+          "observedAt": "2026-10-27T16:40:00+07:00"
+        }
+      ],
+      "buyLinks": [
+        {
+          "retailer": "TikTok Shop",
+          "url": "https://go.isclix.com/deep_link/4726442799889564125/6648523843406889655?url=https%3A%2F%2Fshop.tiktok.com%2Fview%2Fproduct%2F1734472323523773709%3Fregion%3DVN%26local%3Den&sub4=oneatweb&sub5=pub-api&utm_source=surgeindex",
+          "disclosure": true
+        }
+      ],
+      "priceNote": null,
+      "note": "Tìm kiếm “xe máy điện” tăng nhẹ theo tuần; phần lớn mức tăng đến từ một ngày đột biến (25/10)."
+    },
+    {
+      "rank": 9,
+      "name": "Lịch 2027",
+      "category": "Văn phòng phẩm & quà tặng",
+      "keyword": "lịch 2027",
+      "signals": [
+        {
+          "source": "google-trends-vn",
+          "evidence": "Mức quan tâm tìm kiếm “lịch 2027” tại VN tăng 12% (TB 20–26/10: 79 so với 13–19/10: 70, chỉ số Google Trends 0–100)",
+          "changePct": 12,
+          "window": {
+            "current": "2026-10-20/2026-10-26",
+            "previous": "2026-10-13/2026-10-19"
+          },
+          "evidenceUrl": "https://trends.google.com/trends/explore?date=2026-10-13%202026-10-26&geo=VN&q=l%E1%BB%8Bch%202027&hl=vi",
+          "observedAt": "2026-10-27T16:40:00+07:00"
+        }
+      ],
+      "buyLinks": [
+        {
+          "retailer": "TikTok Shop",
+          "url": "https://go.isclix.com/deep_link/4726442799889564125/6648523843406889655?url=https%3A%2F%2Fshop.tiktok.com%2Fview%2Fproduct%2F1736405697491797777%3Fregion%3DVN%26local%3Den&sub4=oneatweb&sub5=pub-api&utm_source=surgeindex",
+          "disclosure": true
+        }
+      ],
+      "priceNote": null,
+      "note": "Tìm kiếm “lịch 2027” tăng nhẹ khi gần cuối năm."
+    },
+    {
+      "rank": 10,
+      "name": "Chăn điện",
+      "category": "Gia dụng",
+      "keyword": "chăn điện",
+      "signals": [
+        {
+          "source": "google-trends-vn",
+          "evidence": "Mức quan tâm tìm kiếm “chăn điện” tại VN tăng 11% (TB 20–26/10: 82 so với 13–19/10: 74, chỉ số Google Trends 0–100)",
+          "changePct": 11,
+          "window": {
+            "current": "2026-10-20/2026-10-26",
+            "previous": "2026-10-13/2026-10-19"
+          },
+          "evidenceUrl": "https://trends.google.com/trends/explore?date=2026-10-13%202026-10-26&geo=VN&q=ch%C4%83n%20%C4%91i%E1%BB%87n&hl=vi",
+          "observedAt": "2026-10-27T16:40:00+07:00"
+        }
+      ],
+      "buyLinks": [
+        {
+          "retailer": "TikTok Shop",
+          "url": "https://go.isclix.com/deep_link/4726442799889564125/6648523843406889655?url=https%3A%2F%2Fshop.tiktok.com%2Fview%2Fproduct%2F1730928925929212346%3Fregion%3DVN%26local%3Den&sub4=oneatweb&sub5=pub-api&utm_source=surgeindex",
+          "disclosure": true
+        }
+      ],
+      "priceNote": null,
+      "note": "Tìm kiếm “chăn điện” tăng nhẹ theo tuần, đỉnh của kỳ vào 26/10."
+    }
+  ]
+}

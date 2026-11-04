@@ -1,0 +1,19 @@
+[Unit]
+Description=Create and replicate an encrypted SurgeIndex PostgreSQL backup
+Requires=docker.service
+After=docker.service surgeindex-postgres-backup.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=/etc/surgeindex/backup.env
+ExecStart=/usr/local/sbin/surgeindex-postgres-backup-offsite
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/surgeindex/offsite
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+StandardOutput=journal
+StandardError=journal

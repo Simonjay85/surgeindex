@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh Boost pacing every minute
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1min
+AccuracySec=5s
+Persistent=true
+Unit=surgeindex-boost-pace.service
+
+[Install]
+WantedBy=timers.target

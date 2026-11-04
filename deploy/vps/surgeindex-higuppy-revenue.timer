@@ -1,0 +1,13 @@
+[Unit]
+Description=Sync HiGuppy WooCommerce revenue every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=15s
+RandomizedDelaySec=15s
+Persistent=true
+Unit=surgeindex-higuppy-revenue.service
+
+[Install]
+WantedBy=timers.target

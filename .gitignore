@@ -4,7 +4,10 @@ node_modules/
 
 # next.js
 .next/
+.next-*/
+.next-e2e/
 .open-next/
+apps/web/private/
 .playwright-cli/
 out/
 next-env.d.ts
@@ -18,11 +21,13 @@ build/
 .env
 .env.*
 !.env.example
+!apps/web/.env.production.example
 
 # testing
 coverage/
 playwright-report/
 test-results/
+output/playwright/
 
 # wrangler
 .wrangler/
@@ -35,3 +40,11 @@ apps/web/.demo/
 .DS_Store
 *.log
 .turbo/
+
+# trend ingest runtime files (snapshots themselves are committed as seed data)
+apps/web/data/trends/.ingest.lock
+apps/web/data/trends/**/*.tmp
+
+# runtime data written by the app / ingest (VPS uses /opt/surgeindex/shared)
+apps/web/data/live/
+apps/web/data/tips/

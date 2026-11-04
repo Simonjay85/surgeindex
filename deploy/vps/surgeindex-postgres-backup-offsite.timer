@@ -1,0 +1,11 @@
+[Unit]
+Description=Replicate the daily SurgeIndex PostgreSQL backup off-host
+
+[Timer]
+OnCalendar=*-*-* 03:45:00 Asia/Ho_Chi_Minh
+RandomizedDelaySec=30m
+Persistent=true
+Unit=surgeindex-postgres-backup-offsite.service
+
+[Install]
+WantedBy=timers.target

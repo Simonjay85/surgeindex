@@ -1,0 +1,12 @@
+[Unit]
+Description=Aggregate Boost delivery every five minutes
+
+[Timer]
+OnBootSec=6min
+OnUnitActiveSec=5min
+AccuracySec=15s
+Persistent=true
+Unit=surgeindex-boost-aggregate.service
+
+[Install]
+WantedBy=timers.target

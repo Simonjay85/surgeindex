@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh SurgeIndex scores and rankings every five minutes
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=5min
+AccuracySec=15s
+RandomizedDelaySec=10s
+Persistent=true
+Unit=surgeindex-scoring.service
+
+[Install]
+WantedBy=timers.target

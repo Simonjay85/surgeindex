@@ -9,6 +9,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
+  "dependencies": {
+    "@surge/anti-fraud": "workspace:*",
+    "@surge/shared": "workspace:*",
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250810.0",
     "typescript": "catalog:",

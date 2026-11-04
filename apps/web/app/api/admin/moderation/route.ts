@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   if (getServerEnv().DATA_PROVIDER !== "postgres") return jsonOk(request, { pending: [], audit: [], source: "demo" });
   const auth = await requireApiAdmin(request);
   if ("response" in auth) return auth.response;
-  const rate = checkRateLimit("admin-moderation", auth.user.id, 120, 60 * 60 * 1000);
+  const rate = await checkRateLimit("admin-moderation", auth.user.id, 120, 60 * 60 * 1000);
   if (!rate.allowed) return jsonError(request, 429, "rate_limited", `Too many moderation actions. Try again in ${rate.retryAfterSeconds} seconds.`);
   const query = new URL(request.url).searchParams.get("q")?.trim().slice(0, 80);
   const db = getPostgresDb();

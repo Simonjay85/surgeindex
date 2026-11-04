@@ -1,0 +1,13 @@
+[Unit]
+Description=Process bounded GA4 backfill work every fifteen minutes
+
+[Timer]
+OnBootSec=8min
+OnUnitActiveSec=15min
+AccuracySec=30s
+RandomizedDelaySec=30s
+Persistent=true
+Unit=surgeindex-ga4-backfill.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Detect Boost underdelivery every fifteen minutes
+
+[Timer]
+OnBootSec=12min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Persistent=true
+Unit=surgeindex-boost-underdelivery.service
+
+[Install]
+WantedBy=timers.target

@@ -8,6 +8,9 @@ export type RankingView = TimeWindow | "breakout" | "new";
 export type VerificationStatus = "tracker" | "ga4" | "unverified";
 export type OwnershipStatus = "unclaimed" | "claimed";
 export type SiteStatus = "pending" | "active" | "suspended" | "rejected";
+export type RankingState = "unverified" | "building_baseline" | "provisional" | "eligible" | "stale" | "suspended" | "fraud_review" | "ineligible";
+export type FreshnessState = "live" | "fresh" | "delayed" | "stale" | "offline";
+export type RankingLeague = "new" | "emerging" | "established";
 
 /** Provenance label for any displayed number. Mirrors spec section 29. */
 export type DataSource =
@@ -52,9 +55,29 @@ export type ActivityType =
   | "surging"
   | "boost_started"
   | "boost_completed"
-  | "badge_earned";
+  | "badge_earned"
+  | "tracker_key_generated"
+  | "tracker_first_detected"
+  | "tracker_connected"
+  | "tracker_stale"
+  | "tracker_reconnected"
+  | "tracker_key_rotated"
+  | "tracker_key_revoked"
+  | "surgeindex_attributed_visit"
+  | "breakout_entered"
+  | "breakout_cooling"
+  | "breakout_resolved"
+  | "league_changed"
+  | "score_recomputed";
+
 
 export type FraudDecision = "valid" | "suspected" | "invalid" | "review_required";
+
+export type TrafficOrigin =
+  | "organic_surgedindex_referral"
+  | "paid_surgedindex_referral"
+  | "external"
+  | "direct";
 
 export type SortKey =
   | "heat"
@@ -90,6 +113,11 @@ export interface LeaderboardEntry {
   sparkline: number[];
   lastUpdatedAt: string;
   isDemo: boolean;
+  scoreState?: RankingState;
+  freshness?: FreshnessState;
+  dataConfidence?: number | null;
+  scoreVersion?: string | null;
+  breakoutState?: "none" | "watch" | "breaking_out" | "surging" | "cooling" | "resolved" | "invalidated";
 }
 
 export interface PlatformStats {
@@ -128,6 +156,13 @@ export interface BreakoutItem {
   explanation: string;
   sparkline: number[];
   isDemo: boolean;
+  state?: "none" | "watch" | "breaking_out" | "surging" | "cooling" | "resolved" | "invalidated";
+  strength?: "moderate" | "strong" | "exceptional" | null;
+  absoluteLift?: number;
+  relativeLift?: number;
+  durationSeconds?: number;
+  scoreState?: RankingState;
+  dataConfidence?: number | null;
 }
 
 export interface SponsoredCard {

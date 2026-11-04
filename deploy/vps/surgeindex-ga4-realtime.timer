@@ -1,0 +1,12 @@
+[Unit]
+Description=Sync GA4 realtime aggregates every five minutes
+
+[Timer]
+OnBootSec=4min
+OnUnitActiveSec=5min
+AccuracySec=15s
+Persistent=true
+Unit=surgeindex-ga4-realtime.service
+
+[Install]
+WantedBy=timers.target

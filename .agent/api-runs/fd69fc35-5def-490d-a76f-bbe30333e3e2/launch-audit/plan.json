@@ -1,0 +1,115 @@
+{
+  "summary": "Audit SurgeIndex repository end-to-end for launch readiness: map structure, evaluate subsystem evidence (migrations, auth, tracker, GA4, Stripe, backups, VPS), classify blockers, and produce a report with concrete evidence — without performing any production deploy or unapproved writes.",
+  "tasks": [
+    {
+      "id": "map-repo-structure",
+      "role": "research",
+      "objective": "Produce a structural map of the SurgeIndex repository: top-level layout, monorepo vs split, languages/frameworks (frontend, backend, worker/collector), config files, CI configs, Docker/Compose manifests, env example files, and an inventory of the documented launch-checklist items if any README/LAUNCH/DEPLOY docs exist.",
+      "depends_on": [],
+      "acceptance": [
+        "File tree summary with key paths (frontend, backend, migrations, tracker/collector, scoring, payments, deploy, docs)",
+        "List of detected frameworks (e.g., Next.js/React, Node/Express/Fastify/Nest, Python, etc.) with evidence file paths",
+        "Identification of env example files and required env vars (without printing secrets)"
+      ]
+    },
+    {
+      "id": "audit-db-migrations",
+      "role": "coding",
+      "objective": "Audit the PostgreSQL schema and migration setup: locate migration tool (Prisma/Knex/sequelize/SQL files/Drizzle), list all migration filenames in order, verify checksum/integrity if a manifest exists, and assess upgrade path (e.g., dev DB up to head, down/reset support). Where the environment allows, run migration status (e.g., `prisma migrate status`, `knex migrate:status`) in dry/read-only mode and capture output.",
+      "depends_on": [
+        "map-repo-structure"
+      ],
+      "acceptance": [
+        "Ordered list of migrations with filenames and brief purpose inferred from code",
+        "Evidence of migration tool detected and any status command output captured",
+        "Classification: migration system healthy vs. blockers (e.g., missing baseline, unapplied migrations, no idempotent reset path)"
+      ]
+    },
+    {
+      "id": "audit-auth-turnstile-email",
+      "role": "qa",
+      "objective": "Audit authentication and related anti-abuse / messaging flows: sign-up, login, password reset, session/JWT handling, Cloudflare Turnstile integration, transactional email (verification, password reset) provider wiring. Inspect route handlers, middleware, env var usage, and any tests covering these paths. Do not call external services; treat secrets as absent.",
+      "depends_on": [
+        "map-repo-structure"
+      ],
+      "acceptance": [
+        "Map of auth routes/middlewares and where Turnstile verification occurs (server-side vs client-only) with file references",
+        "Email provider config locations and required env vars (names only)",
+        "List of existing auth-related tests and which flows are covered vs missing",
+        "Classification of code-fixable auth gaps vs external credential gaps (Turnstile keys, SMTP)"
+      ]
+    },
+    {
+      "id": "audit-tracker-scoring",
+      "role": "coding",
+      "objective": "Audit the data pipeline: site submission/ingest, tracker/collector (bot detection, fingerprinting, rate limiting), aggregation jobs, scoring engine, ranking output, and 'breakout' freshness signals. Identify scheduling mechanism (cron, queue, worker), idempotency, retry behavior, and any data-quality checks.",
+      "depends_on": [
+        "map-repo-structure"
+      ],
+      "acceptance": [
+        "Pipeline diagram in text form (ingest -> collect -> aggregate -> score -> rank) with entry-point file paths",
+        "Identification of scheduler/queue tech and how jobs are triggered",
+        "Notes on idempotency/dedup and freshness/SLA for 'breakout' detection with code references",
+        "Classification of pipeline gaps as code-fixable vs requiring infra/credentials"
+      ]
+    },
+    {
+      "id": "audit-ga4-stripe",
+      "role": "integration",
+      "objective": "Audit GA4 analytics integration and Stripe test-mode integration (note: write operators disabled, so this is read-only config/code review only). For GA4: confirm measurement ID env, where gtag/GA4 events are emitted, and which key user events are tracked. For Stripe: confirm test keys via env, checkout/portal webhook routes, webhook signature verification, and subscription/plan mapping.",
+      "depends_on": [
+        "map-repo-structure"
+      ],
+      "acceptance": [
+        "GA4: env var names, init location, list of emitted events with file references",
+        "Stripe: env var names (publishable/secret/webhook secret), routes for checkout/portal/webhook, evidence of signature verification, plan/price mapping locations",
+        "Classification: code gaps vs missing test-mode credentials; no live network calls performed"
+      ]
+    },
+    {
+      "id": "audit-backups-and-vps",
+      "role": "qa",
+      "objective": "Audit operational readiness outside application code: backup/restore tooling (pg_dump scripts, cron entries, offsite target), monitoring/health endpoints, logging, and VPS/deploy artifacts (Dockerfile, compose, systemd unit, reverse proxy config, TLS). Read-only inspection; do not execute remote commands.",
+      "depends_on": [
+        "map-repo-structure"
+      ],
+      "acceptance": [
+        "Inventory of backup scripts/configs with retention approach and restore test evidence (or note if untested)",
+        "List of health/readiness endpoints and logging libraries used",
+        "Deploy artifacts summary: containerization, process manager, reverse proxy, TLS handling with file references",
+        "Classification: code-fixable ops gaps vs infrastructure/credential gaps"
+      ]
+    },
+    {
+      "id": "run-available-checks",
+      "role": "qa",
+      "objective": "Run the project's available non-destructive checks to gather evidence: dependency install (if lockfile present and permitted), lint, typecheck, unit tests, and a read-only migration status check. Do not run anything that requires network writes or production credentials. Capture command output snippets.",
+      "depends_on": [
+        "map-repo-structure",
+        "audit-db-migrations",
+        "audit-auth-turnstile-email",
+        "audit-tracker-scoring",
+        "audit-ga4-stripe",
+        "audit-backups-and-vps"
+      ],
+      "acceptance": [
+        "Recorded exit codes and short output excerpts for each attempted check (install, lint, typecheck, test, migration status)",
+        "List of checks skipped and reason (e.g., missing tool, network restriction, secrets unavailable)",
+        "No writes performed against external systems"
+      ]
+    },
+    {
+      "id": "compile-launch-readiness-report",
+      "role": "general",
+      "objective": "Synthesize all prior task findings into a single launch-readiness report for the user. For each critical subsystem, attach concrete evidence (file paths, command outputs) and classify blockers as code-fixable vs external (credentials/infra/VPS). Explicitly call out that production deploy/push remains approval-gated. Do not propose or perform any deploy.",
+      "depends_on": [
+        "run-available-checks"
+      ],
+      "acceptance": [
+        "Per-subsystem sections (migrations, auth/Turnstile/email, tracker/scoring/rank/breakout, GA4, Stripe, backups, VPS/deploy, SEO/docs) each with evidence pointers and blocker classification",
+        "Top-level 'Can we launch?' verdict with required preconditions and a short next-step list",
+        "Explicit note that production deploy/push is approval-gated and was not performed"
+      ]
+    }
+  ]
+}

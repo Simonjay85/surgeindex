@@ -9,6 +9,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
+  "dependencies": {
+    "@surge/shared": "workspace:*"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250810.0",
     "typescript": "catalog:",

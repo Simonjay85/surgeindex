@@ -1,4 +1,4 @@
-import type { DataSource } from "./types.js";
+import type { DataSource } from "./types";
 
 export interface DataSourceLabel {
   label: string;

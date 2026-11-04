@@ -5,6 +5,7 @@ packages:
   - workers/collector
   - workers/queue-consumer
   - workers/realtime
+  - workers/aggregation
 
 allowBuilds:
   esbuild: true

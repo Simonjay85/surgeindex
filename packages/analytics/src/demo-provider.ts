@@ -15,7 +15,7 @@ import type {
   SiteMetrics,
   TimeSeriesPoint,
   TimeSeriesQuery,
-} from "./types.js";
+} from "./types";
 
 const WINDOW_SECONDS: Record<MetricWindow, number> = {
   live: 15 * 60,
@@ -29,7 +29,7 @@ const WINDOW_SECONDS: Record<MetricWindow, number> = {
 export const ACTIVE_SESSION_TTL_SECONDS = 90;
 
 export class DemoAnalyticsProvider implements AnalyticsProvider {
-  readonly source = "demo" as const;
+  readonly source: "demo" | "postgres" = "demo";
 
   async ingest(events: AnalyticsEvent[]): Promise<void> {
     if (events.length === 0) return;
@@ -49,6 +49,8 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
           referrerHost: e.referrerHost ?? null,
           country: e.country ?? null,
           device: e.device ?? null,
+          trafficOrigin: e.trafficOrigin ?? "direct",
+          attributionCampaignId: e.attributionCampaignId ?? null,
           decision: e.decision ?? "valid",
           reasons: e.reasons ?? [],
           occurredAt: new Date(e.occurredAt),
@@ -58,7 +60,7 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
       .onConflictDoNothing({ target: trackerEvent.eventId });
 
     for (const e of accepted) {
-      if (e.eventType === "session_start" || e.eventType === "heartbeat" || e.eventType === "pageview") {
+      if (e.trafficOrigin !== "paid_surgedindex_referral" && (e.eventType === "session_start" || e.eventType === "heartbeat" || e.eventType === "pageview")) {
         await db
           .insert(activeSession)
           .values({
@@ -93,6 +95,7 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
         and(
           gte(trackerEvent.occurredAt, since),
           eq(trackerEvent.decision, "valid"),
+          sql`${trackerEvent.trafficOrigin} <> 'paid_surgedindex_referral'`,
           sql`${trackerEvent.eventType} in ('pageview','session_start')`,
         ),
       )
@@ -130,6 +133,7 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
           eq(trackerEvent.siteId, siteId),
           gte(trackerEvent.occurredAt, since),
           eq(trackerEvent.decision, "valid"),
+          sql`${trackerEvent.trafficOrigin} <> 'paid_surgedindex_referral'`,
         ),
       );
     const [engaged] = await db
@@ -143,6 +147,7 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
           eq(trackerEvent.siteId, siteId),
           gte(trackerEvent.occurredAt, since),
           eq(trackerEvent.decision, "valid"),
+          sql`${trackerEvent.trafficOrigin} <> 'paid_surgedindex_referral'`,
         ),
       );
     const activeNow = await this.activeNowBySite(siteId);
@@ -152,6 +157,9 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
       pageviews: row?.pageviews ?? 0,
       activeNow: activeNow.get(siteId) ?? 0,
       activeLast30m: row?.visitors ?? 0,
+      sessions: engaged?.sessions ?? 0,
+      engagedSessions: engaged?.engagedSessions ?? 0,
+      activeSessions: activeNow.get(siteId) ?? 0,
       engagementRate:
         engaged && engaged.sessions > 0 ? engaged.engagedSessions / engaged.sessions : null,
       avgEngagementSeconds: null,
@@ -172,6 +180,7 @@ export class DemoAnalyticsProvider implements AnalyticsProvider {
       where site_id = ${siteId}
         and occurred_at > now() - (${seconds} || ' seconds')::interval
         and decision = 'valid'
+        and traffic_origin <> 'paid_surgedindex_referral'
         and ${metricFilter(input.metric)}
       group by bucket
       order by bucket asc

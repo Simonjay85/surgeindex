@@ -1,0 +1,120 @@
+{
+  "summary": "Audit the SurgeIndex repository end-to-end to classify launch blockers (code-fixable vs external/infrastructure) with concrete evidence for each subsystem, without performing any writes or deploys.",
+  "tasks": [
+    {
+      "id": "repo-inventory",
+      "role": "research",
+      "objective": "Inventory the SurgeIndex repository: identify top-level layout (frontend, backend, infra, docs), package manifests, framework versions, key scripts (build/lint/test/typecheck/migrate), and any existing launch-readiness docs. Produce a structured map of subsystems mentioned in the stage objective (frontend, backend, DB migrations, auth, tracker, GA4, Stripe, backups, VPS/deploy, SEO, ops docs).",
+      "depends_on": [],
+      "acceptance": [
+        "Tree of top-level directories with one-line purpose each",
+        "List of detected stacks/frameworks with version evidence from manifests",
+        "List of available scripts (build, test, lint, typecheck, migrate, deploy) with their commands",
+        "Pointers to any existing audit/launch docs and the git HEAD commit hash"
+      ]
+    },
+    {
+      "id": "frontend-build-evidence",
+      "role": "coding",
+      "objective": "Run the frontend's install, lint, typecheck, and build commands (read-only, no writes beyond the workspace). Capture full output. Identify missing env vars referenced at build time and any build-time errors that would block production publish.",
+      "depends_on": [
+        "repo-inventory"
+      ],
+      "acceptance": [
+        "Exit codes and tail of stdout/stderr for install, lint, typecheck, build",
+        "List of required env vars and whether a .env.example or schema exists",
+        "List of build blockers classified as code-fixable vs external (missing secrets/keys)"
+      ]
+    },
+    {
+      "id": "backend-checks",
+      "role": "coding",
+      "objective": "Run the backend's install, lint/typecheck, and test commands (read-only). Inspect DB connection configuration, migration tool (e.g., Prisma/Knex/Sequelize/Alembic), migration directory contents, and whether migrations run cleanly against a local/ephemeral DB if available. Do not require production secrets.",
+      "depends_on": [
+        "repo-inventory"
+      ],
+      "acceptance": [
+        "Exit codes and tails for backend install/lint/typecheck/test",
+        "Migration tool name, versions present, count of migration files, and presence of an upgrade/downgrade path",
+        "Result of attempting migrations if a DB is reachable; otherwise explicit statement that no DB was reachable and why",
+        "List of blockers classified code-fixable vs external"
+      ]
+    },
+    {
+      "id": "auth-flows-audit",
+      "role": "research",
+      "objective": "Audit auth subsystems referenced in code: sign-up/sign-in, password reset, email verification, session/JWT handling, Turnstile integration, and email provider (SES/Resend/Postmark/SMTP). For each, locate the implementation file(s), env vars used, and verify that the code path is complete (no TODOs/placeholders). Do not call any external services.",
+      "depends_on": [
+        "repo-inventory"
+      ],
+      "acceptance": [
+        "File:line references for each auth flow component",
+        "List of env vars per flow and whether they are documented",
+        "Any TODO/FIXME/placeholder hits per flow",
+        "Verdict per flow: ready / needs code / blocked on external credential"
+      ]
+    },
+    {
+      "id": "tracker-pipeline-audit",
+      "role": "qa",
+      "objective": "Audit the discovery/tracker pipeline: collector, aggregation, scoring, ranking, and breakout detection. For each stage, identify entry points, scheduling mechanism, idempotency, and freshness signals. Run any unit/integration tests that exist for these modules. Do not trigger network calls to production.",
+      "depends_on": [
+        "repo-inventory"
+      ],
+      "acceptance": [
+        "Map of pipeline stages with file:line entry points",
+        "Test run results (command, exit code, summary)",
+        "Any missing pieces (e.g., no scheduler, no idempotency keys) called out",
+        "Verdict per stage: ready / needs code / blocked on external"
+      ]
+    },
+    {
+      "id": "integrations-seams",
+      "role": "research",
+      "objective": "Inspect external integration seams for GA4 and Stripe (test mode). For each, locate the SDK usage, env vars, webhook endpoints, and any test fixtures. Do not call external APIs. Verify Stripe is configured in test mode (not live).",
+      "depends_on": [
+        "repo-inventory"
+      ],
+      "acceptance": [
+        "GA4: measurement ID source, event names, gtag/server-side usage with file:line",
+        "Stripe: API version, mode (test/live) evidence, key env var names, webhook route + signature verification with file:line",
+        "List of missing env vars per integration",
+        "Verdict per integration: ready / needs code / blocked on external"
+      ]
+    },
+    {
+      "id": "ops-readiness",
+      "role": "research",
+      "objective": "Audit operational readiness: backup/restore tooling (scripts + schedule), deployment artifacts (Dockerfile, docker-compose, systemd unit, CI/CD config, Nginx/Caddy config), VPS provisioning notes, and SEO assets (robots.txt, sitemap.xml, meta tags, OG tags). Check for runbooks and on-call/incident docs.",
+      "depends_on": [
+        "repo-inventory"
+      ],
+      "acceptance": [
+        "Inventory of deploy artifacts with file paths",
+        "Backup script(s) identified with retention/restore procedure documented or flagged as missing",
+        "SEO asset checklist with pass/fail per item and file:line evidence",
+        "List of operational gaps (no runbook, no restore drill, no healthcheck, etc.)"
+      ]
+    },
+    {
+      "id": "launch-readiness-report",
+      "role": "integration",
+      "objective": "Synthesize all prior task outputs into a single launch-readiness report. Classify every blocker as either 'code-fixable' or 'external credential/infrastructure blocker'. Provide an overall publish verdict (Ready / Not Ready) and the minimum next steps required to reach Ready. No code changes, no deploys, no writes beyond the report file.",
+      "depends_on": [
+        "repo-inventory",
+        "frontend-build-evidence",
+        "backend-checks",
+        "auth-flows-audit",
+        "tracker-pipeline-audit",
+        "integrations-seams",
+        "ops-readiness"
+      ],
+      "acceptance": [
+        "Report file path and a structured table: subsystem | status | evidence pointer | blocker class | next action",
+        "Aggregate counts: code-fixable blockers vs external blockers",
+        "Final verdict and minimal action list to achieve publish-readiness",
+        "Explicit statement that no production deploy/push was performed"
+      ]
+    }
+  ]
+}

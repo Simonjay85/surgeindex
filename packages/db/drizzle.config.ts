@@ -11,6 +11,6 @@ export default defineConfig({
     url:
       process.env.DATABASE_URL_UNPOOLED ??
       process.env.DATABASE_URL ??
-      "postgresql://surge:surge@localhost:5432/surgeindex",
+      "postgresql://localhost:5432/surgeindex",
   },
 });

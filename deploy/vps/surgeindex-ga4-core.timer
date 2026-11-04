@@ -1,0 +1,12 @@
+[Unit]
+Description=Sync GA4 core aggregates hourly
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1h
+AccuracySec=30s
+Persistent=true
+Unit=surgeindex-ga4-core.service
+
+[Install]
+WantedBy=timers.target

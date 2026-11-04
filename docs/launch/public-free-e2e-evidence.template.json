@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "result": "BLOCKED",
+  "releaseSha": "<exact git sha>",
+  "environment": "staging",
+  "generatedAt": "<UTC timestamp>",
+  "operator": "<operator>",
+  "approvalTicket": "<ticket>",
+  "secretsPrinted": false,
+  "checks": {
+    "repository": "PENDING",
+    "ciExactSha": "PENDING",
+    "freshPostgres17Migration": "PENDING",
+    "batch6Postgres17Upgrade": "PENDING",
+    "authAndEmail": "PENDING",
+    "turnstileActionsAndHostname": "PENDING",
+    "submitAndModeration": "PENDING",
+    "metaClaim": "PENDING",
+    "dnsClaimIntegration": "PENDING",
+    "trackerProvenance": "PENDING",
+    "dashboardReadback": "PENDING",
+    "mobileAccessibility": "PENDING",
+    "commercialFeatureFlags": "PENDING",
+    "stagingIsolation": "PENDING",
+    "sixHourProductionCanary": "PENDING"
+  },
+  "evidenceRefs": [],
+  "knownGaps": [
+    "Replace placeholders only with sanitized current evidence.",
+    "Do not treat this template as provider, host, mailbox, DNS, or production proof."
+  ]
+}

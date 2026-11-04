@@ -42,6 +42,14 @@ export interface FraudCheckInput {
   viewport: string | null;
   /** Pluggable hook: datacenter/ASN heuristics from the collector. */
   datacenterSignal: boolean | null;
+  /** Collector-level key and shape failures are explicit reason codes. */
+  invalidTrackerKey?: boolean;
+  revokedTrackerKey?: boolean;
+  malformedIdentifier?: boolean;
+  replayedBatch?: boolean;
+  attributionTokenReplay?: boolean;
+  invalidEngagement?: boolean;
+  suspiciousReferrer?: boolean;
 }
 
 export interface FraudVerdict {
@@ -63,6 +71,14 @@ interface Signal {
 
 export function checkTrackerEvent(input: FraudCheckInput): FraudVerdict {
   const signals: Signal[] = [];
+
+  if (input.invalidTrackerKey) signals.push({ code: "invalid_tracker_key", points: 100 });
+  if (input.revokedTrackerKey) signals.push({ code: "revoked_tracker_key", points: 100 });
+  if (input.malformedIdentifier) signals.push({ code: "malformed_identifier", points: 100 });
+  if (input.replayedBatch) signals.push({ code: "replayed_batch", points: 75 });
+  if (input.attributionTokenReplay) signals.push({ code: "attribution_token_replay", points: 75 });
+  if (input.invalidEngagement) signals.push({ code: "invalid_engagement_duration", points: 75 });
+  if (input.suspiciousReferrer) signals.push({ code: "suspicious_referrer", points: 40 });
 
   if (input.userAgent && BOT_UA_RE.test(input.userAgent)) {
     signals.push({ code: "bot_user_agent", points: 60 });
@@ -98,6 +114,10 @@ export function checkTrackerEvent(input: FraudCheckInput): FraudVerdict {
     input.msSinceLastHeartbeat < 15_000
   ) {
     signals.push({ code: "impossible_heartbeat_timing", points: 45 });
+  }
+
+  if (input.eventType === "heartbeat" && input.msSinceLastHeartbeat !== null && input.msSinceLastHeartbeat < 0) {
+    signals.push({ code: "heartbeat_out_of_order", points: 65 });
   }
 
   if (input.visitorEventsLastMinute !== null && input.visitorEventsLastMinute > 30) {
