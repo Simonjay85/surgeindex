@@ -1,0 +1,16 @@
+name: vps-run
+on:
+  push:
+    branches: [ops-23f992ba]
+jobs:
+  r:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p ~/.ssh; printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/k; chmod 600 ~/.ssh/k
+          ssh-keyscan -T 15 -H 51.79.53.190 >> ~/.ssh/known_hosts 2>/dev/null
+          true
+          echo "=====REMOTE-BEGIN"
+          ssh -i ~/.ssh/k -o ServerAliveInterval=30 ubuntu@51.79.53.190 'bash -s' < remote.sh
+          echo "=====REMOTE-END"
