@@ -1,12 +1,22 @@
 import { expect, test } from "@playwright/test";
 import { getViolations, injectAxe } from "axe-playwright";
 
-test("homepage exposes live ranking controls", async ({ page }) => {
+test("Trends homepage exposes platform navigation and mobile region controls", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Watch websites go viral in real time." })).toBeVisible();
-  await expect(page.getByText("THE LIVE BOARD", { exact: true })).toBeVisible();
-  await page.getByRole("tab", { name: "24H" }).click();
-  await expect(page).toHaveURL(/window=24h/);
+  await expect(page.getByRole("heading", { level: 1, name: /The internet's Top 10,\s*every hour\./ })).toBeVisible();
+
+  const region = page.getByRole("group", { name: "Region" });
+  const global = region.getByRole("button", { name: "Global" });
+  const vietnam = region.getByRole("button", { name: "Vietnam" });
+  await expect(global).toHaveAttribute("aria-pressed", "true");
+  await vietnam.click();
+  await expect(vietnam).toHaveAttribute("aria-pressed", "true");
+  await expect(global).toHaveAttribute("aria-pressed", "false");
+
+  const platforms = page.getByRole("navigation", { name: "Jump to a platform" });
+  await platforms.getByRole("link", { name: "YouTube", exact: true }).click();
+  await expect(page).toHaveURL(/#board-youtube$/);
 });
 
 test("submit flow validates and accepts a domain in demo mode", async ({ page }) => {

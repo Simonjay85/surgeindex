@@ -79,7 +79,7 @@ export function RegionToggle({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`t-toggle ${compact ? "is-compact" : ""}`} role="group" aria-label="Region">
       {(["global", "vn"] as const).map((r) => (
-        <button key={r} type="button" aria-pressed={region === r} className={region === r ? "is-active" : ""} onClick={() => setRegion(r)}>
+        <button key={r} type="button" aria-label={r === "global" ? "Global" : "Vietnam"} aria-pressed={region === r} className={region === r ? "is-active" : ""} onClick={() => setRegion(r)}>
           {r === "global" ? <Globe2 size={14} aria-hidden="true" /> : <span className="t-flag" aria-hidden="true">VN</span>}
           <span className="t-toggle-long">{r === "global" ? "Global" : "Vietnam"}</span>
           <span className="t-toggle-short" aria-hidden="true">{r === "global" ? "Global" : "Vietnam"}</span>
