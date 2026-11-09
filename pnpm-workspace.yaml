@@ -12,11 +12,15 @@ allowBuilds:
   unrs-resolver: true
   workerd: true
 
+overrides:
+  source-map-js@<1.2.2: 1.2.2
+  vite@8.2.2: 8.2.4
+
 catalog:
   react: ^19.2.8
   react-dom: ^19.2.8
   typescript: ~5.9.3
-  zod: ^4.4.3
+  zod: ^4.6.6
   drizzle-orm: ^0.45.2
   pg: ^8.23.0
   "@types/pg": ^8.11.0
