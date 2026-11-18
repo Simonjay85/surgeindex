@@ -31,6 +31,11 @@ manager, and set mode `0600`. Store the age identity at the path named by
 the age recipient and identity correspond before enabling the timer.
 
 ```bash
+sudo install -d -o root -g root -m 0700 \
+  /var/backups/surgeindex \
+  /var/backups/surgeindex/postgres \
+  /var/backups/surgeindex/offsite \
+  /var/backups/surgeindex/verify
 sudo install -o root -g root -m 0750 deploy/vps/surgeindex-postgres-backup /usr/local/sbin/
 sudo install -o root -g root -m 0750 deploy/vps/surgeindex-postgres-backup-offsite /usr/local/sbin/
 sudo install -o root -g root -m 0750 deploy/vps/surgeindex-postgres-backup-verify /usr/local/sbin/
@@ -39,6 +44,8 @@ sudo systemctl enable --now surgeindex-postgres-backup.timer
 sudo systemctl enable --now surgeindex-postgres-backup-offsite.timer
 sudo systemctl enable --now surgeindex-postgres-backup-verify.timer
 ```
+
+Run the directory setup again after restoring the VPS if any of the backup directories is absent. Systemd must be able to mount each writable directory before starting the backup script. A namespace setup failure with status 226 occurs before the script runs.
 
 The backup services require Docker, `age`, and the AWS CLI (or compatible S3
 CLI). The helpers prefer PostgreSQL 17's `pg_dump`/`pg_restore` from the
