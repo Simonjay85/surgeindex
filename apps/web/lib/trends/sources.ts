@@ -400,7 +400,8 @@ const WIKI_MAIN_PAGES = new Set(["main_page", "trang_chính", "-", "undefined", 
 const WIKI_NAMESPACE_RE =
   /^(special|wikipedia|portal|file|image|talk|user|user_talk|template|category|help|module|draft|mediawiki|wp|đặc_biệt|thảo_luận|thành_viên|tập_tin|hình|bản_mẫu|thể_loại|chủ_đề|cổng_thông_tin|trợ_giúp|mô_đun|dự_án|wikipedia_talk)(_talk)?:/i;
 /** Adult titles that bot traffic routinely pushes up the raw chart. */
-const WIKI_BLOCK_RE = /(xxx|porn|xvideos|xnxx|xhamster|hentai|\bsex\b|_sex\b|^sex_|sexual|khiêu_dâm|tình_dục|nude|nudity)/i;
+const WIKI_BLOCK_RE =
+  /(xxx|porn|xvideos|xnxx|xhamster|hentai|\bsex\b|_sex\b|^sex_|sexual|sextoy|sex[_ ]tape|nude|nudity|onlyfans|erotic|orgasm|masturbat|fellatio|blowjob|cunnilingus|vagina|penis|genital|ejaculat|dildo|vibrator|khiêu[_ ]dâm|tình[_ ]dục|cực[_ ]khoái|thủ[_ ]dâm|âm[_ ]hộ|âm[_ ]đạo|dương[_ ]vật|sinh[_ ]dục|bộ[_ ]phận[_ ]sinh[_ ]dục|giao[_ ]phối|làm[_ ]tình|khỏa[_ ]thân|trần[_ ]truồng|clip[_ ]nóng|ảnh[_ ]nóng|địt|lồn|buồi|cặc|vú)/i;
 
 interface WikiTopArticle {
   article: string;
