@@ -25,6 +25,15 @@ describe("wikipedia most-read", () => {
     expect(isWikiArticle("BigBang_(nhóm_nhạc)")).toBe(true);
   });
 
+  it("drops Vietnamese adult titles", () => {
+    for (const t of ["Liếm_âm_hộ", "Âm_đạo", "Dương_vật", "Quan_hệ_tình_dục", "Thủ_dâm", "Giao_phối", "Làm_tình", "Khỏa_thân", "Clip_nóng", "OnlyFans"]) {
+      expect(isWikiArticle(t)).toBe(false);
+    }
+    expect(isWikiArticle("Đục_thủy_tinh_thể")).toBe(true);
+    expect(isWikiArticle("Mông_Cổ")).toBe(true);
+    expect(isWikiArticle("Động_vật_có_vú")).toBe(false);
+  });
+
   it("parses the English top list into ten linked articles", () => {
     const top = parseWikiTop(JSON.parse(fixture("wikipedia-top-en.json")));
     const items = mapWikiArticles("en", top, null);
